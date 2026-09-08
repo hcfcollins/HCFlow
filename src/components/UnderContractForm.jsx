@@ -12,6 +12,16 @@ const CLIENT_SOURCES = [
 
 const OWNER_NAMES = ["Fran Collins", "Holly Hall"];
 
+// Percentage fields are always entered as plain numbers (e.g. 3, not .03 or 3%).
+// A value under 1 almost certainly means someone typed the decimal form by mistake.
+function correctPercentInput(value) {
+  const parsed = parseFloat(value);
+  if (!isNaN(parsed) && parsed > 0 && parsed < 1) {
+    return String(Math.round(parsed * 100 * 100) / 100);
+  }
+  return null;
+}
+
 async function resolveAttorneyId(name, tbd, attorneys) {
   if (tbd || !name.trim()) return null;
   const match = attorneys.find((a) => a.name.toLowerCase() === name.trim().toLowerCase());
@@ -56,6 +66,7 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
   const [clientSource, setClientSource] = useState(CLIENT_SOURCES[0]);
   const [referralOwedTo, setReferralOwedTo] = useState("");
   const [referralPct, setReferralPct] = useState("");
+  const [referralPctAutoAdjusted, setReferralPctAutoAdjusted] = useState(false);
 
   useEffect(() => {
     fetchAttorneys().then(setAttorneys).catch((e) => setError(e.message));
@@ -74,14 +85,22 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
   }, [isOwnerAgent, side]);
 
   function handleCommissionBlur() {
-    const parsed = parseFloat(commissionPct);
-    // Commission is always entered as a plain percentage number (e.g. 3, not .03 or 3%).
-    // A value under 1 almost certainly means someone typed the decimal form by mistake.
-    if (!isNaN(parsed) && parsed > 0 && parsed < 1) {
-      setCommissionPct(String(Math.round(parsed * 100 * 100) / 100));
+    const corrected = correctPercentInput(commissionPct);
+    if (corrected) {
+      setCommissionPct(corrected);
       setCommissionAutoAdjusted(true);
     } else {
       setCommissionAutoAdjusted(false);
+    }
+  }
+
+  function handleReferralPctBlur() {
+    const corrected = correctPercentInput(referralPct);
+    if (corrected) {
+      setReferralPct(corrected);
+      setReferralPctAutoAdjusted(true);
+    } else {
+      setReferralPctAutoAdjusted(false);
     }
   }
 
@@ -333,8 +352,24 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
             <input value={referralOwedTo} onChange={(e) => setReferralOwedTo(e.target.value)} />
           </label>
           <label>
-            Referral % owed
-            <input type="number" step="0.01" value={referralPct} onChange={(e) => setReferralPct(e.target.value)} />
+            Referral % owed (plain number, e.g. 25 — typically 15-30%, not 0.25 or "25%")
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              value={referralPct}
+              onChange={(e) => {
+                setReferralPct(e.target.value);
+                setReferralPctAutoAdjusted(false);
+              }}
+              onBlur={handleReferralPctBlur}
+            />
+            {referralPctAutoAdjusted && (
+              <span className="field-note">
+                Adjusted to {referralPct}% — enter referral % as a plain number like 25, not 0.25.
+              </span>
+            )}
           </label>
         </>
       )}
