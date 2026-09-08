@@ -38,6 +38,7 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
   const [sellerAttorney, setSellerAttorney] = useState("");
   const [sellerAttorneyTbd, setSellerAttorneyTbd] = useState(false);
   const [commissionPct, setCommissionPct] = useState("");
+  const [commissionAutoAdjusted, setCommissionAutoAdjusted] = useState(false);
   const [closingDate, setClosingDate] = useState("");
   const [inspectionDate, setInspectionDate] = useState("");
   const [financingDate, setFinancingDate] = useState("");
@@ -61,6 +62,18 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
   useEffect(() => {
     if (!isOwnerAgent && side === "Split") setSide("Sell");
   }, [isOwnerAgent, side]);
+
+  function handleCommissionBlur() {
+    const parsed = parseFloat(commissionPct);
+    // Commission is always entered as a plain percentage number (e.g. 3, not .03 or 3%).
+    // A value under 1 almost certainly means someone typed the decimal form by mistake.
+    if (!isNaN(parsed) && parsed > 0 && parsed < 1) {
+      setCommissionPct(String(Math.round(parsed * 100 * 100) / 100));
+      setCommissionAutoAdjusted(true);
+    } else {
+      setCommissionAutoAdjusted(false);
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -199,8 +212,24 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
       />
 
       <label>
-        Commission % (e.g. 2.5)
-        <input type="number" step="0.01" value={commissionPct} onChange={(e) => setCommissionPct(e.target.value)} />
+        Commission % (plain number, e.g. 2.5 — not .025 or "2.5%")
+        <input
+          type="number"
+          min="0"
+          max="100"
+          step="0.01"
+          value={commissionPct}
+          onChange={(e) => {
+            setCommissionPct(e.target.value);
+            setCommissionAutoAdjusted(false);
+          }}
+          onBlur={handleCommissionBlur}
+        />
+        {commissionAutoAdjusted && (
+          <span className="field-note">
+            Adjusted to {commissionPct}% — enter commission as a plain number like 3, not 0.03.
+          </span>
+        )}
       </label>
 
       <label>
