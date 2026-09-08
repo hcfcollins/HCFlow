@@ -65,7 +65,8 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
   const [secondDepositDueDate, setSecondDepositDueDate] = useState("");
   const [clientSource, setClientSource] = useState(CLIENT_SOURCES[0]);
   const [referralOwedTo, setReferralOwedTo] = useState("");
-  const [referralPct, setReferralPct] = useState("");
+  const [referralPctChoice, setReferralPctChoice] = useState("25");
+  const [referralPct, setReferralPct] = useState("25");
   const [referralPctAutoAdjusted, setReferralPctAutoAdjusted] = useState(false);
 
   useEffect(() => {
@@ -102,6 +103,12 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
     } else {
       setReferralPctAutoAdjusted(false);
     }
+  }
+
+  function handleReferralPctChoice(value) {
+    setReferralPctChoice(value);
+    setReferralPctAutoAdjusted(false);
+    setReferralPct(value === "Other" ? "" : value);
   }
 
   async function handleSubmit(e) {
@@ -351,26 +358,39 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
             Who is the referral owed to?
             <input value={referralOwedTo} onChange={(e) => setReferralOwedTo(e.target.value)} />
           </label>
-          <label>
-            Referral % owed (plain number, e.g. 25 — typically 15-30%, not 0.25 or "25%")
-            <input
-              type="number"
-              min="0"
-              max="100"
-              step="0.01"
-              value={referralPct}
-              onChange={(e) => {
-                setReferralPct(e.target.value);
-                setReferralPctAutoAdjusted(false);
-              }}
-              onBlur={handleReferralPctBlur}
+          <fieldset>
+            <legend>Referral % owed</legend>
+            <RadioGroup
+              name="referralPctChoice"
+              value={referralPctChoice}
+              onChange={handleReferralPctChoice}
+              options={[
+                { value: "25", label: "25%" },
+                { value: "30", label: "30%" },
+                { value: "Other", label: "Other" },
+              ]}
             />
+            {referralPctChoice === "Other" && (
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                placeholder="Referral %, e.g. 20"
+                value={referralPct}
+                onChange={(e) => {
+                  setReferralPct(e.target.value);
+                  setReferralPctAutoAdjusted(false);
+                }}
+                onBlur={handleReferralPctBlur}
+              />
+            )}
             {referralPctAutoAdjusted && (
               <span className="field-note">
                 Adjusted to {referralPct}% — enter referral % as a plain number like 25, not 0.25.
               </span>
             )}
-          </label>
+          </fieldset>
         </>
       )}
 
