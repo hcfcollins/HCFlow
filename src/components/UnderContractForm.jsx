@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchAgents, fetchAttorneys, addAttorney, submitUnderContract } from "../lib/transactions";
+import { fetchAttorneys, addAttorney, submitUnderContract } from "../lib/transactions";
 
 const CLIENT_SOURCES = [
   "Prior Client/Sphere",
@@ -21,13 +21,11 @@ async function resolveAttorneyId(name, tbd, attorneys) {
 }
 
 export default function UnderContractForm({ currentAgent, onCancel, onSubmitted }) {
-  const [agents, setAgents] = useState([]);
   const [attorneys, setAttorneys] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
   const [region, setRegion] = useState("VT");
-  const [agentId, setAgentId] = useState(currentAgent.id);
   const [side, setSide] = useState("Sell");
   const [leadType, setLeadType] = useState("Organic");
   const [sellerName, setSellerName] = useState("");
@@ -47,17 +45,18 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
   const [appraiserOther, setAppraiserOther] = useState("");
   const [holdDeposit, setHoldDeposit] = useState("No");
   const [depositAmount, setDepositAmount] = useState("");
+  const [secondDeposit, setSecondDeposit] = useState("No");
+  const [secondDepositAmount, setSecondDepositAmount] = useState("");
+  const [secondDepositDueDate, setSecondDepositDueDate] = useState("");
   const [clientSource, setClientSource] = useState(CLIENT_SOURCES[0]);
   const [referralOwedTo, setReferralOwedTo] = useState("");
   const [referralPct, setReferralPct] = useState("");
 
   useEffect(() => {
-    fetchAgents().then(setAgents).catch((e) => setError(e.message));
     fetchAttorneys().then(setAttorneys).catch((e) => setError(e.message));
   }, []);
 
-  const selectedAgentName = agents.find((a) => a.id === agentId)?.name;
-  const isOwnerAgent = OWNER_NAMES.includes(selectedAgentName);
+  const isOwnerAgent = OWNER_NAMES.includes(currentAgent.name);
 
   useEffect(() => {
     if (!isOwnerAgent && side === "Split") setSide("Sell");
@@ -75,7 +74,7 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
 
       await submitUnderContract({
         region,
-        agentId,
+        agentId: currentAgent.id,
         side,
         leadType,
         sellerName,
@@ -91,7 +90,10 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
         financingDate: financingDate || null,
         appraiser: appraiser === "Other" ? appraiserOther : "TBD",
         holdDeposit,
-        depositAmount: holdDeposit === "Other" && depositAmount ? Number(depositAmount) : null,
+        depositAmount: holdDeposit === "Yes" && depositAmount ? Number(depositAmount) : null,
+        secondDeposit,
+        secondDepositAmount: secondDeposit === "Yes" && secondDepositAmount ? Number(secondDepositAmount) : null,
+        secondDepositDueDate: secondDeposit === "Yes" && secondDepositDueDate ? secondDepositDueDate : null,
         clientSource,
         referralOwedTo: clientSource === "Referral" ? referralOwedTo : null,
         referralPct: clientSource === "Referral" && referralPct ? Number(referralPct) : null,
@@ -124,15 +126,9 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
         <RadioGroup name="region" value={region} onChange={setRegion} options={["VT", "NH"]} />
       </fieldset>
 
-      <fieldset>
-        <legend>Agent</legend>
-        <RadioGroup
-          name="agent"
-          value={agentId}
-          onChange={setAgentId}
-          options={agents.map((a) => ({ value: a.id, label: a.name }))}
-        />
-      </fieldset>
+      <div className="uc-agent-display">
+        Agent <strong>{currentAgent.name}</strong>
+      </div>
 
       <fieldset>
         <legend>Which Side?</legend>
@@ -234,14 +230,37 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
 
       <fieldset>
         <legend>Will we hold the deposit?</legend>
-        <RadioGroup name="holdDeposit" value={holdDeposit} onChange={setHoldDeposit} options={["No", "Other"]} />
-        {holdDeposit === "Other" && (
+        <RadioGroup name="holdDeposit" value={holdDeposit} onChange={setHoldDeposit} options={["Yes", "No"]} />
+        {holdDeposit === "Yes" && (
           <input
             type="number"
             placeholder="Deposit amount"
             value={depositAmount}
             onChange={(e) => setDepositAmount(e.target.value)}
           />
+        )}
+      </fieldset>
+
+      <fieldset>
+        <legend>Will there be a second deposit?</legend>
+        <RadioGroup name="secondDeposit" value={secondDeposit} onChange={setSecondDeposit} options={["Yes", "No"]} />
+        {secondDeposit === "Yes" && (
+          <>
+            <input
+              type="number"
+              placeholder="Second deposit amount"
+              value={secondDepositAmount}
+              onChange={(e) => setSecondDepositAmount(e.target.value)}
+            />
+            <label className="uc-inline-label">
+              Second Deposit Due Date
+              <input
+                type="date"
+                value={secondDepositDueDate}
+                onChange={(e) => setSecondDepositDueDate(e.target.value)}
+              />
+            </label>
+          </>
         )}
       </fieldset>
 

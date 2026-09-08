@@ -48,3 +48,6 @@ button { cursor: pointer; }
 .radio-group { display: flex; flex-wrap: wrap; gap: 14px; }
 .radio-option { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 400; flex-direction: row; }
 .tbd-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 400; color: #8A8577; margin-top: 4px; flex-direction: row; }
+.uc-agent-display { font-size: 13px; color: #8A8577; }
+.uc-agent-display strong { color: #173348; }
+.uc-inline-label { margin-top: 8px; }

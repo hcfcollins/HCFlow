@@ -91,6 +91,7 @@ export async function submitUnderContract(fields) {
     region, agentId, side, sellerName, buyerName, address, propertyStyle, price,
     buyerAttorneyId, sellerAttorneyId, closingDate, leadType, commissionPct,
     inspectionDate, financingDate, appraiser, holdDeposit, depositAmount,
+    secondDeposit, secondDepositAmount, secondDepositDueDate,
     clientSource, referralOwedTo, referralPct,
   } = fields;
 
@@ -130,6 +131,9 @@ export async function submitUnderContract(fields) {
     referral_pct: referralPct,
     hold_deposit: holdDeposit,
     deposit_amount: depositAmount,
+    second_deposit: secondDeposit,
+    second_deposit_amount: secondDepositAmount,
+    second_deposit_due_date: secondDepositDueDate,
     inspection_date: inspectionDate || null,
     financing_date: financingDate || null,
     appraiser,

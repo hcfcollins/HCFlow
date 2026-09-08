@@ -104,8 +104,11 @@ create table commission_data (
   )),
   referral_owed_to text,
   referral_pct numeric,
-  hold_deposit text,
+  hold_deposit text check (hold_deposit in ('No', 'Yes')),
   deposit_amount numeric,
+  second_deposit text check (second_deposit in ('No', 'Yes')),
+  second_deposit_amount numeric,
+  second_deposit_due_date date, -- when set, drives the second-deposit email reminder (not yet built)
   inspection_date date,
   financing_date date,
   appraiser text,
