@@ -78,6 +78,78 @@ export async function addActivityLog(transactionId, label, detail) {
   if (error) throw error;
 }
 
+/**
+ * Handles the Under Contract form's submit (Build Spec §5): matches an existing
+ * transaction by address or creates a new one, then records the commission-related
+ * inputs. Uses insert (not upsert) for commission_data/closeouts because RLS only
+ * allows brokers to update those tables — a duplicate-row conflict here means this
+ * address's commission info was already submitted, so it's swallowed rather than
+ * thrown; a broker can correct it directly if needed.
+ */
+export async function submitUnderContract(fields) {
+  const {
+    region, agentId, side, sellerName, buyerName, address, propertyStyle, price,
+    buyerAttorneyId, sellerAttorneyId, closingDate, leadType, commissionPct,
+    inspectionDate, financingDate, appraiser, holdDeposit, depositAmount,
+    clientSource, referralOwedTo, referralPct,
+  } = fields;
+
+  const txPatch = {
+    region,
+    side,
+    agent_id: agentId,
+    seller_name: sellerName,
+    buyer_name: buyerName,
+    property_style: propertyStyle,
+    price,
+    buyer_attorney_id: buyerAttorneyId,
+    seller_attorney_id: sellerAttorneyId,
+    next_date: closingDate || null,
+    stage: "contract",
+  };
+
+  let tx = await findTransactionByAddress(address);
+  if (tx) {
+    const { data, error } = await supabase
+      .from("transactions")
+      .update({ ...txPatch, updated_at: new Date() })
+      .eq("id", tx.id)
+      .select()
+      .single();
+    if (error) throw error;
+    tx = data;
+  } else {
+    tx = await createTransaction({ address, ...txPatch });
+  }
+
+  const { error: commissionError } = await supabase.from("commission_data").insert({
+    transaction_id: tx.id,
+    lead_type: leadType,
+    client_source: clientSource,
+    referral_owed_to: referralOwedTo,
+    referral_pct: referralPct,
+    hold_deposit: holdDeposit,
+    deposit_amount: depositAmount,
+    inspection_date: inspectionDate || null,
+    financing_date: financingDate || null,
+    appraiser,
+  });
+  if (commissionError && commissionError.code !== "23505") throw commissionError;
+
+  const { error: closeoutError } = await supabase.from("closeouts").insert({
+    transaction_id: tx.id,
+    price,
+    commission_pct: commissionPct,
+    lead_type: leadType,
+    referral_pct: referralPct,
+  });
+  if (closeoutError && closeoutError.code !== "23505") throw closeoutError;
+
+  await addActivityLog(tx.id, "Under Contract form submitted", address);
+
+  return tx;
+}
+
 // ---- Broker-only: commission data + close-outs ----
 // RLS already blocks non-brokers from reading/writing these tables entirely,
 // so a non-broker calling these functions will simply get an empty/error result.

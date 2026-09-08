@@ -24,3 +24,27 @@ button { cursor: pointer; }
 .stage-select { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #E4E0D3; margin-bottom: 8px; font-family: 'Montserrat', sans-serif; }
 .tx-notes { width: 100%; border: 1px solid #E4E0D3; border-radius: 8px; padding: 8px 10px; font-family: 'Montserrat', sans-serif; font-size: 13px; resize: none; }
 .empty-state { text-align: center; color: #8A8577; padding: 40px 0; }
+
+.uc-launch { width: 100%; margin-bottom: 16px; }
+.uc-submit { width: 100%; margin-top: 24px; }
+.uc-form { display: flex; flex-direction: column; gap: 16px; }
+.uc-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: #173348; }
+.uc-form input[type="text"],
+.uc-form input[type="number"],
+.uc-form input[type="date"],
+.uc-form input:not([type]),
+.uc-form select {
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid #E4E0D3;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  background: #fff;
+}
+.uc-form fieldset { border: 1px solid #F0EDE4; border-radius: 12px; padding: 12px 14px; margin: 0; }
+.uc-form legend { font-size: 12px; font-weight: 700; color: #C7155B; text-transform: uppercase; letter-spacing: 0.04em; padding: 0 4px; }
+.field-help { font-size: 12px; color: #8A8577; font-weight: 400; margin: 0 0 8px; }
+.radio-group { display: flex; flex-wrap: wrap; gap: 14px; }
+.radio-option { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 400; flex-direction: row; }
+.tbd-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 400; color: #8A8577; margin-top: 4px; flex-direction: row; }

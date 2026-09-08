@@ -7,6 +7,7 @@ import {
 } from "./lib/transactions";
 import TransactionList from "./components/TransactionList";
 import LoginScreen from "./components/LoginScreen";
+import UnderContractForm from "./components/UnderContractForm";
 
 const STAGES = [
   { key: "comps", label: "Comped" },
@@ -21,6 +22,7 @@ export default function App() {
   const [txs, setTxs] = useState([]);
   const [loadingTxs, setLoadingTxs] = useState(true);
   const [error, setError] = useState(null);
+  const [showUnderContractForm, setShowUnderContractForm] = useState(false);
 
   useEffect(() => {
     if (session && agent) loadTransactions();
@@ -69,6 +71,21 @@ export default function App() {
     );
   }
 
+  if (showUnderContractForm) {
+    return (
+      <div className="app">
+        <UnderContractForm
+          currentAgent={agent}
+          onCancel={() => setShowUnderContractForm(false)}
+          onSubmitted={() => {
+            setShowUnderContractForm(false);
+            loadTransactions();
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <header className="app-header">
@@ -80,6 +97,10 @@ export default function App() {
       </header>
 
       {error && <div className="error-banner">{error}</div>}
+
+      <button className="google-btn uc-launch" onClick={() => setShowUnderContractForm(true)}>
+        + Under Contract
+      </button>
 
       {loadingTxs ? (
         <div className="center-screen">Loading transactions…</div>

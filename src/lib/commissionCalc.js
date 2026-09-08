@@ -11,10 +11,10 @@ export function calculateCloseout({ commissionAfterReferral, agentName, side, le
   if (isHolly || isFran) {
     let hollyPct = 0;
     let franPct = 0;
-    if (side === "Seller") {
+    if (side === "Sell") {
       hollyPct = isHolly ? 0.6 : 0.4;
       franPct = isHolly ? 0.4 : 0.6;
-    } else if (side === "Buyer") {
+    } else if (side === "Buy") {
       hollyPct = isHolly ? 0.8 : 0.2;
       franPct = isHolly ? 0.2 : 0.8;
     } else if (side === "Split") {

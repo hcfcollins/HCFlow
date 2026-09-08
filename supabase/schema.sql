@@ -38,7 +38,7 @@ create table transactions (
   address text not null,
   town text,
   region text check (region in ('VT', 'NH')),
-  side text not null check (side in ('Buy', 'Sell')),
+  side text not null check (side in ('Buy', 'Sell', 'Split')), -- 'Split' only when the producing agent is Fran or Holly personally repping both sides
   stage text not null default 'comps' check (stage in ('comps', 'won', 'market', 'contract', 'closed')),
   agent_id uuid references agents(id),
   next_date text,
@@ -208,13 +208,16 @@ create policy "activity_insert" on activity_log for insert
   with check (exists (select 1 from transactions t where t.id = transaction_id
     and (is_broker() or t.agent_id = current_agent_id())));
 
--- Commission data & close-outs: BROKER ONLY, full stop — this is the sensitive layer
+-- Commission data & close-outs: reading is BROKER ONLY — this is the sensitive layer.
+-- Insert is open to any signed-in user because the Under Contract form (filled out by
+-- regular agents) writes some of these fields; agents just can't read them back. See
+-- Build Spec §6 and §5 for why writes and reads have different access rules here.
 create policy "commission_select" on commission_data for select using (is_broker());
-create policy "commission_insert" on commission_data for insert with check (is_broker());
+create policy "commission_insert" on commission_data for insert with check (auth.uid() is not null);
 create policy "commission_update" on commission_data for update using (is_broker());
 
 create policy "closeouts_select" on closeouts for select using (is_broker());
-create policy "closeouts_insert" on closeouts for insert with check (is_broker());
+create policy "closeouts_insert" on closeouts for insert with check (auth.uid() is not null);
 create policy "closeouts_update" on closeouts for update using (is_broker());
 
 -- ============================================================
