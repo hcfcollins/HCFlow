@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchAttorneys, addAttorney, submitUnderContract } from "../lib/transactions";
+import { fetchAgents, fetchAttorneys, addAttorney, submitUnderContract } from "../lib/transactions";
 
 const CLIENT_SOURCES = [
   "Prior Client/Sphere",
@@ -20,12 +20,16 @@ async function resolveAttorneyId(name, tbd, attorneys) {
   return created.id;
 }
 
+const isBroker = (agent) => agent.role === "broker";
+
 export default function UnderContractForm({ currentAgent, onCancel, onSubmitted }) {
+  const [agents, setAgents] = useState([]);
   const [attorneys, setAttorneys] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
   const [region, setRegion] = useState("VT");
+  const [selectedAgentId, setSelectedAgentId] = useState(currentAgent.id);
   const [side, setSide] = useState("Sell");
   const [leadType, setLeadType] = useState("Organic");
   const [sellerName, setSellerName] = useState("");
@@ -55,9 +59,15 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
 
   useEffect(() => {
     fetchAttorneys().then(setAttorneys).catch((e) => setError(e.message));
+    if (isBroker(currentAgent)) {
+      fetchAgents().then(setAgents).catch((e) => setError(e.message));
+    }
   }, []);
 
-  const isOwnerAgent = OWNER_NAMES.includes(currentAgent.name);
+  const selectedAgentName = isBroker(currentAgent)
+    ? agents.find((a) => a.id === selectedAgentId)?.name
+    : currentAgent.name;
+  const isOwnerAgent = OWNER_NAMES.includes(selectedAgentName);
 
   useEffect(() => {
     if (!isOwnerAgent && side === "Split") setSide("Sell");
@@ -87,7 +97,7 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
 
       await submitUnderContract({
         region,
-        agentId: currentAgent.id,
+        agentId: selectedAgentId,
         side,
         leadType,
         sellerName,
@@ -139,9 +149,21 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
         <RadioGroup name="region" value={region} onChange={setRegion} options={["VT", "NH"]} />
       </fieldset>
 
-      <div className="uc-agent-display">
-        Agent <strong>{currentAgent.name}</strong>
-      </div>
+      {isBroker(currentAgent) ? (
+        <fieldset>
+          <legend>Agent</legend>
+          <RadioGroup
+            name="agent"
+            value={selectedAgentId}
+            onChange={setSelectedAgentId}
+            options={agents.map((a) => ({ value: a.id, label: a.name }))}
+          />
+        </fieldset>
+      ) : (
+        <div className="uc-agent-display">
+          Agent <strong>{currentAgent.name}</strong>
+        </div>
+      )}
 
       <fieldset>
         <legend>Which Side?</legend>
