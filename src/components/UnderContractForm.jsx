@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { fetchAgents, fetchAttorneys, addAttorney, submitUnderContract } from "../lib/transactions";
+import { fetchAttorneys, addAttorney, submitUnderContract } from "../lib/transactions";
+import RadioGroup from "./RadioGroup";
+import AgentField from "./AgentField";
 
 const CLIENT_SOURCES = [
   "Prior Client/Sphere",
@@ -30,16 +32,14 @@ async function resolveAttorneyId(name, tbd, attorneys) {
   return created.id;
 }
 
-const isBroker = (agent) => agent.role === "broker";
-
 export default function UnderContractForm({ currentAgent, onCancel, onSubmitted }) {
-  const [agents, setAgents] = useState([]);
   const [attorneys, setAttorneys] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
   const [region, setRegion] = useState("VT");
   const [selectedAgentId, setSelectedAgentId] = useState(currentAgent.id);
+  const [selectedAgentName, setSelectedAgentName] = useState(currentAgent.name);
   const [side, setSide] = useState("Sell");
   const [leadType, setLeadType] = useState("Organic");
   const [sellerName, setSellerName] = useState("");
@@ -71,14 +71,8 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
 
   useEffect(() => {
     fetchAttorneys().then(setAttorneys).catch((e) => setError(e.message));
-    if (isBroker(currentAgent)) {
-      fetchAgents().then(setAgents).catch((e) => setError(e.message));
-    }
   }, []);
 
-  const selectedAgentName = isBroker(currentAgent)
-    ? agents.find((a) => a.id === selectedAgentId)?.name
-    : currentAgent.name;
   const isOwnerAgent = OWNER_NAMES.includes(selectedAgentName);
 
   useEffect(() => {
@@ -175,21 +169,14 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
         <RadioGroup name="region" value={region} onChange={setRegion} options={["VT", "NH"]} />
       </fieldset>
 
-      {isBroker(currentAgent) ? (
-        <fieldset>
-          <legend>Agent</legend>
-          <RadioGroup
-            name="agent"
-            value={selectedAgentId}
-            onChange={setSelectedAgentId}
-            options={agents.map((a) => ({ value: a.id, label: a.name }))}
-          />
-        </fieldset>
-      ) : (
-        <div className="uc-agent-display">
-          Agent <strong>{currentAgent.name}</strong>
-        </div>
-      )}
+      <AgentField
+        currentAgent={currentAgent}
+        value={selectedAgentId}
+        onChange={(id, name) => {
+          setSelectedAgentId(id);
+          setSelectedAgentName(name);
+        }}
+      />
 
       <fieldset>
         <legend>Which Side?</legend>
@@ -398,25 +385,6 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
         {saving ? "Saving…" : "Submit"}
       </button>
     </form>
-  );
-}
-
-function RadioGroup({ name, value, onChange, options }) {
-  const normalized = options.map((o) => (typeof o === "string" ? { value: o, label: o } : o));
-  return (
-    <div className="radio-group">
-      {normalized.map((o) => (
-        <label key={o.value} className="radio-option">
-          <input
-            type="radio"
-            name={name}
-            checked={value === o.value}
-            onChange={() => onChange(o.value)}
-          />
-          {o.label}
-        </label>
-      ))}
-    </div>
   );
 }
 

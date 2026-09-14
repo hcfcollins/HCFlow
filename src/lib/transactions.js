@@ -34,6 +34,29 @@ export async function updateTransactionNotes(id, notes) {
   if (error) throw error;
 }
 
+export async function updateTransactionCompsStatus(id, compsStatus) {
+  const { error } = await supabase
+    .from("transactions")
+    .update({ comps_status: compsStatus, updated_at: new Date() })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/** Quick-capture flow (Build Spec §10): logs a listing appointment straight into the Comps stage. */
+export async function createComp({ agentId, address, town, side, notes }) {
+  const tx = await createTransaction({
+    agent_id: agentId,
+    address,
+    town,
+    side,
+    notes,
+    stage: "comps",
+    comps_status: "Waiting to List",
+  });
+  await addActivityLog(tx.id, "Added from Comps quick-capture", address);
+  return tx;
+}
+
 export async function updateTransactionAttorneys(id, { buyerAttorneyId, sellerAttorneyId }) {
   const patch = {};
   if (buyerAttorneyId !== undefined) patch.buyer_attorney_id = buyerAttorneyId;

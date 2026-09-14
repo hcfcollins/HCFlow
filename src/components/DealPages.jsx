@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import TransactionList from "./TransactionList";
 
-const PAGES = [
+export const PAGES = [
   { key: "comps", label: "Comps", match: (tx) => tx.stage === "comps" },
   { key: "active", label: "Active", match: (tx) => tx.stage === "won" || tx.stage === "market" },
   { key: "contract", label: "Under Contract", match: (tx) => tx.stage === "contract" },
@@ -11,8 +11,16 @@ const PAGES = [
 const SWIPE_THRESHOLD = 60;
 const INTENT_THRESHOLD = 8;
 
-export default function DealPages({ transactions, stages, currentAgent, onStageChange, onNotesChange }) {
-  const [pageIndex, setPageIndex] = useState(0);
+export default function DealPages({
+  transactions,
+  stages,
+  currentAgent,
+  onStageChange,
+  onNotesChange,
+  onCompsStatusChange,
+  pageIndex,
+  onPageIndexChange,
+}) {
   const [dragOffset, setDragOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
   const touchStart = useRef(null);
@@ -47,8 +55,8 @@ export default function DealPages({ transactions, stages, currentAgent, onStageC
 
   function handleTouchEnd() {
     if (intent.current === "horizontal" && Math.abs(dragOffset) > SWIPE_THRESHOLD) {
-      if (dragOffset < 0 && pageIndex < PAGES.length - 1) setPageIndex((i) => i + 1);
-      else if (dragOffset > 0 && pageIndex > 0) setPageIndex((i) => i - 1);
+      if (dragOffset < 0 && pageIndex < PAGES.length - 1) onPageIndexChange(pageIndex + 1);
+      else if (dragOffset > 0 && pageIndex > 0) onPageIndexChange(pageIndex - 1);
     }
     setDragOffset(0);
     setDragging(false);
@@ -70,7 +78,7 @@ export default function DealPages({ transactions, stages, currentAgent, onStageC
               key={p.key}
               type="button"
               className={`deal-pages-tab ${i === pageIndex ? "active" : ""}`}
-              onClick={() => setPageIndex(i)}
+              onClick={() => onPageIndexChange(i)}
             >
               {p.label}
               <span className="deal-pages-tab-count">{count}</span>
@@ -96,17 +104,61 @@ export default function DealPages({ transactions, stages, currentAgent, onStageC
           {PAGES.map((p) => (
             <div key={p.key} className="deal-page">
               <div className={`deal-page-inner deal-page--${p.key}`}>
-                <TransactionList
-                  transactions={transactions.filter(p.match)}
-                  stages={stages}
-                  currentAgent={currentAgent}
-                  onStageChange={onStageChange}
-                  onNotesChange={onNotesChange}
-                />
+                {p.key === "comps" ? (
+                  <CompsPage
+                    transactions={transactions.filter(p.match)}
+                    stages={stages}
+                    currentAgent={currentAgent}
+                    onStageChange={onStageChange}
+                    onNotesChange={onNotesChange}
+                    onCompsStatusChange={onCompsStatusChange}
+                  />
+                ) : (
+                  <TransactionList
+                    transactions={transactions.filter(p.match)}
+                    stages={stages}
+                    currentAgent={currentAgent}
+                    onStageChange={onStageChange}
+                    onNotesChange={onNotesChange}
+                    onCompsStatusChange={onCompsStatusChange}
+                  />
+                )}
               </div>
             </div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function CompsPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange }) {
+  const followUp = transactions.filter((tx) => tx.comps_status === "Follow-up");
+  const waitingToList = transactions.filter((tx) => tx.comps_status !== "Follow-up");
+
+  return (
+    <div className="comps-page">
+      <div className="comps-section">
+        <h2 className="comps-section-title">Waiting to List</h2>
+        <TransactionList
+          transactions={waitingToList}
+          stages={stages}
+          currentAgent={currentAgent}
+          onStageChange={onStageChange}
+          onNotesChange={onNotesChange}
+          onCompsStatusChange={onCompsStatusChange}
+        />
+      </div>
+      <div className="comps-section">
+        <h2 className="comps-section-title">Follow-up</h2>
+        <TransactionList
+          transactions={followUp}
+          stages={stages}
+          currentAgent={currentAgent}
+          onStageChange={onStageChange}
+          onNotesChange={onNotesChange}
+          onCompsStatusChange={onCompsStatusChange}
+        />
       </div>
     </div>
   );

@@ -1,4 +1,11 @@
-export default function TransactionList({ transactions, stages, currentAgent, onStageChange, onNotesChange }) {
+export default function TransactionList({
+  transactions,
+  stages,
+  currentAgent,
+  onStageChange,
+  onNotesChange,
+  onCompsStatusChange,
+}) {
   const isBroker = currentAgent.role === "broker";
 
   if (transactions.length === 0) {
@@ -33,6 +40,21 @@ export default function TransactionList({ transactions, stages, currentAgent, on
                 </option>
               ))}
             </select>
+
+            {tx.stage === "comps" && onCompsStatusChange && (
+              <div className="comps-status-toggle">
+                {["Waiting to List", "Follow-up"].map((status) => (
+                  <button
+                    key={status}
+                    type="button"
+                    className={`comps-status-btn ${tx.comps_status === status ? "active" : ""}`}
+                    onClick={() => onCompsStatusChange(tx.id, status)}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <textarea
               defaultValue={tx.notes || ""}

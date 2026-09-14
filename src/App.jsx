@@ -4,10 +4,12 @@ import {
   fetchTransactions,
   updateTransactionStage,
   updateTransactionNotes,
+  updateTransactionCompsStatus,
 } from "./lib/transactions";
-import DealPages from "./components/DealPages";
+import DealPages, { PAGES } from "./components/DealPages";
 import LoginScreen from "./components/LoginScreen";
 import UnderContractForm from "./components/UnderContractForm";
+import NewCompForm from "./components/NewCompForm";
 
 const STAGES = [
   { key: "comps", label: "Comped" },
@@ -23,6 +25,8 @@ export default function App() {
   const [loadingTxs, setLoadingTxs] = useState(true);
   const [error, setError] = useState(null);
   const [showUnderContractForm, setShowUnderContractForm] = useState(false);
+  const [showNewCompForm, setShowNewCompForm] = useState(false);
+  const [pageIndex, setPageIndex] = useState(0);
 
   useEffect(() => {
     if (session && agent) loadTransactions();
@@ -48,6 +52,11 @@ export default function App() {
 
   async function handleNotesChange(id, notes) {
     await updateTransactionNotes(id, notes);
+    loadTransactions();
+  }
+
+  async function handleCompsStatusChange(id, status) {
+    await updateTransactionCompsStatus(id, status);
     loadTransactions();
   }
 
@@ -86,6 +95,23 @@ export default function App() {
     );
   }
 
+  if (showNewCompForm) {
+    return (
+      <div className="app">
+        <NewCompForm
+          currentAgent={agent}
+          onCancel={() => setShowNewCompForm(false)}
+          onSubmitted={() => {
+            setShowNewCompForm(false);
+            loadTransactions();
+          }}
+        />
+      </div>
+    );
+  }
+
+  const onCompsPage = PAGES[pageIndex]?.key === "comps";
+
   return (
     <div className="app">
       <header className="app-header">
@@ -98,8 +124,11 @@ export default function App() {
 
       {error && <div className="error-banner">{error}</div>}
 
-      <button className="google-btn uc-launch" onClick={() => setShowUnderContractForm(true)}>
-        + Under Contract
+      <button
+        className="google-btn uc-launch"
+        onClick={() => (onCompsPage ? setShowNewCompForm(true) : setShowUnderContractForm(true))}
+      >
+        {onCompsPage ? "+ New Comp" : "+ Under Contract"}
       </button>
 
       {loadingTxs ? (
@@ -111,6 +140,9 @@ export default function App() {
           currentAgent={agent}
           onStageChange={handleStageChange}
           onNotesChange={handleNotesChange}
+          onCompsStatusChange={handleCompsStatusChange}
+          pageIndex={pageIndex}
+          onPageIndexChange={setPageIndex}
         />
       )}
     </div>

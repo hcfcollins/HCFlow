@@ -33,7 +33,8 @@ button { cursor: pointer; }
 .uc-form input[type="number"],
 .uc-form input[type="date"],
 .uc-form input:not([type]),
-.uc-form select {
+.uc-form select,
+.uc-form textarea {
   padding: 9px 10px;
   border-radius: 8px;
   border: 1px solid #E4E0D3;
@@ -93,3 +94,19 @@ button { cursor: pointer; }
 .deal-page--active .tx-card { border-color: #6E97BD; border-width: 1px 1px 1px 4px; }
 .deal-page--contract .tx-card { border-color: #C7155B; border-width: 1px 1px 1px 4px; }
 .deal-page--all .tx-card { border-color: #B5AA8E; border-width: 1px 1px 1px 4px; }
+
+.comps-section + .comps-section { margin-top: 22px; }
+.comps-section-title { font-family: 'Playfair Display', serif; font-size: 15px; font-weight: 600; margin: 0 0 10px 2px; color: #173348; }
+.comps-status-toggle { display: flex; gap: 6px; margin-bottom: 8px; }
+.comps-status-btn {
+  flex: 1;
+  border: 1px solid #E4E0D3;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 4px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: #8A8577;
+}
+.comps-status-btn.active { background: #A4B792; border-color: #A4B792; color: #fff; }

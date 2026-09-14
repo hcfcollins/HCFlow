@@ -54,6 +54,7 @@ create table transactions (
   buyer_name text,
   property_style text check (property_style in ('Residential', 'Land', 'Commercial')),
   price numeric,
+  comps_status text check (comps_status in ('Waiting to List', 'Follow-up')), -- only meaningful while stage = 'comps'
   linked_id uuid references transactions(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
