@@ -3,7 +3,7 @@ import TransactionList from "./TransactionList";
 
 export const PAGES = [
   { key: "comps", label: "Comps", match: (tx) => tx.stage === "comps" },
-  { key: "active", label: "Active", match: (tx) => tx.stage === "won" || tx.stage === "market" },
+  { key: "active", label: "Active Listings", match: (tx) => tx.stage === "won" || tx.stage === "market" },
   { key: "contract", label: "Under Contract", match: (tx) => tx.stage === "contract" },
   { key: "all", label: "All", match: () => true },
 ];
