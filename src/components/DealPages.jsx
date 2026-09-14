@@ -158,7 +158,7 @@ function CompsPage({
 
   return (
     <div className="comps-page">
-      <div className="comps-section">
+      <div className="comps-section comps-section--need">
         <h2 className="comps-section-title">
           Need to Send Comp <span className="comps-section-count">{needToSend.length}</span>
         </h2>
@@ -173,7 +173,23 @@ function CompsPage({
         />
       </div>
 
-      <div className="comps-section">
+      <div className="comps-section comps-section--won">
+        <h2 className="comps-section-title">
+          Won Listing <span className="comps-section-count">{wonListings.length}</span>
+        </h2>
+        <TransactionList
+          transactions={wonListings}
+          stages={stages}
+          currentAgent={currentAgent}
+          onStageChange={onStageChange}
+          onNotesChange={onNotesChange}
+          onAddTodo={onAddTodo}
+          onToggleTodo={onToggleTodo}
+          onOpenDetail={onOpenDetail}
+        />
+      </div>
+
+      <div className="comps-section comps-section--waiting">
         <div className="comps-section-header">
           <h2 className="comps-section-title">
             Waiting to List <span className="comps-section-count">{waitingToList.length}</span>
@@ -193,22 +209,6 @@ function CompsPage({
             onOpenDetail={onOpenDetail}
           />
         )}
-      </div>
-
-      <div className="comps-section comps-section--won">
-        <h2 className="comps-section-title">
-          Won Listing <span className="comps-section-count">{wonListings.length}</span>
-        </h2>
-        <TransactionList
-          transactions={wonListings}
-          stages={stages}
-          currentAgent={currentAgent}
-          onStageChange={onStageChange}
-          onNotesChange={onNotesChange}
-          onAddTodo={onAddTodo}
-          onToggleTodo={onToggleTodo}
-          onOpenDetail={onOpenDetail}
-        />
       </div>
     </div>
   );
