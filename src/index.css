@@ -52,3 +52,44 @@ button { cursor: pointer; }
 .uc-agent-display strong { color: #173348; }
 .uc-inline-label { margin-top: 8px; }
 .field-note { font-size: 12px; font-weight: 400; color: #C7155B; }
+
+.deal-pages { display: flex; flex-direction: column; }
+.deal-pages-tabs { display: flex; gap: 4px; background: #EFEBE1; border-radius: 12px; padding: 4px; margin-bottom: 16px; }
+.deal-pages-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: none;
+  background: transparent;
+  border-radius: 9px;
+  padding: 8px 4px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: #8A8577;
+}
+.deal-pages-tab.active { background: #fff; color: #173348; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.deal-pages-tab-count { font-size: 11px; font-weight: 600; color: #C7155B; }
+.deal-pages-tab.active .deal-pages-tab-count { color: #C7155B; }
+.deal-pages-viewport { overflow: hidden; touch-action: pan-y; }
+.deal-pages-track { display: flex; }
+.deal-page { flex: 0 0 100%; min-width: 0; }
+.deal-page-inner { padding: 14px 10px; border-radius: 16px; }
+
+/* Per-page color coding: tab underline + page tint + matching card accent border */
+.deal-pages-tab:nth-child(1).active { box-shadow: 0 1px 4px rgba(0,0,0,0.08), inset 0 -3px 0 #A4B792; }
+.deal-pages-tab:nth-child(2).active { box-shadow: 0 1px 4px rgba(0,0,0,0.08), inset 0 -3px 0 #6E97BD; }
+.deal-pages-tab:nth-child(3).active { box-shadow: 0 1px 4px rgba(0,0,0,0.08), inset 0 -3px 0 #C7155B; }
+.deal-pages-tab:nth-child(4).active { box-shadow: 0 1px 4px rgba(0,0,0,0.08), inset 0 -3px 0 #B5AA8E; }
+
+.deal-page--comps { background: rgba(164, 183, 146, 0.16); }
+.deal-page--active { background: rgba(110, 151, 189, 0.14); }
+.deal-page--contract { background: rgba(199, 21, 91, 0.08); }
+.deal-page--all { background: rgba(181, 170, 142, 0.14); }
+
+.deal-page--comps .tx-card { border-color: #A4B792; border-width: 1px 1px 1px 4px; }
+.deal-page--active .tx-card { border-color: #6E97BD; border-width: 1px 1px 1px 4px; }
+.deal-page--contract .tx-card { border-color: #C7155B; border-width: 1px 1px 1px 4px; }
+.deal-page--all .tx-card { border-color: #B5AA8E; border-width: 1px 1px 1px 4px; }

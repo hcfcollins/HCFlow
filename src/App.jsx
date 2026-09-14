@@ -5,7 +5,7 @@ import {
   updateTransactionStage,
   updateTransactionNotes,
 } from "./lib/transactions";
-import TransactionList from "./components/TransactionList";
+import DealPages from "./components/DealPages";
 import LoginScreen from "./components/LoginScreen";
 import UnderContractForm from "./components/UnderContractForm";
 
@@ -105,7 +105,7 @@ export default function App() {
       {loadingTxs ? (
         <div className="center-screen">Loading transactions…</div>
       ) : (
-        <TransactionList
+        <DealPages
           transactions={txs}
           stages={STAGES}
           currentAgent={agent}
