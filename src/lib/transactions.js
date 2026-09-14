@@ -116,6 +116,16 @@ export async function addTodo(transactionId, text) {
   if (error) throw error;
 }
 
+const WON_LISTING_BASELINE_TODOS = ["Schedule Photos", "Grab docs", "Send Listing Agreement", "Disclosures"];
+
+/** Pre-populates the standard checklist when a deal first moves into Listing Won. */
+export async function seedWonListingTodos(transactionId) {
+  const { error } = await supabase
+    .from("todos")
+    .insert(WON_LISTING_BASELINE_TODOS.map((text) => ({ transaction_id: transactionId, text })));
+  if (error) throw error;
+}
+
 export async function toggleTodo(id, done) {
   const { error } = await supabase.from("todos").update({ done }).eq("id", id);
   if (error) throw error;

@@ -8,6 +8,7 @@ import {
   updateTransactionLockbox,
   addTodo,
   toggleTodo,
+  seedWonListingTodos,
 } from "./lib/transactions";
 import DealPages, { PAGES } from "./components/DealPages";
 import LoginScreen from "./components/LoginScreen";
@@ -55,6 +56,12 @@ export default function App() {
   }
 
   async function handleStageChange(id, stage) {
+    if (stage === "won") {
+      const tx = txs.find((t) => t.id === id);
+      if (tx && !tx.todos?.length) {
+        await seedWonListingTodos(id);
+      }
+    }
     await updateTransactionStage(id, stage);
     loadTransactions();
   }
