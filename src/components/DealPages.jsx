@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import TransactionList from "./TransactionList";
 
 export const PAGES = [
-  { key: "comps", label: "Comps", match: (tx) => tx.stage === "comps" },
+  { key: "comps", label: "Comps / Limbo", match: (tx) => tx.stage === "comps" },
   { key: "active", label: "Active Listings", match: (tx) => tx.stage === "won" || tx.stage === "market" },
   { key: "contract", label: "Under Contract", match: (tx) => tx.stage === "contract" },
   { key: "all", label: "All", match: () => true },
@@ -83,7 +83,7 @@ export default function DealPages({
               className={`deal-pages-tab ${i === pageIndex ? "active" : ""}`}
               onClick={() => onPageIndexChange(i)}
             >
-              {p.label}
+              <span className="deal-pages-tab-label">{p.label}</span>
               <span className="deal-pages-tab-count">{count}</span>
             </button>
           );

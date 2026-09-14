@@ -75,6 +75,7 @@ button { cursor: pointer; }
   color: #8A8577;
 }
 .deal-pages-tab.active { background: #fff; color: #173348; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.deal-pages-tab-label { display: flex; align-items: center; justify-content: center; min-height: 28px; line-height: 1.25; text-align: center; }
 .deal-pages-tab-count { font-size: 11px; font-weight: 600; color: #C7155B; }
 .deal-pages-tab.active .deal-pages-tab-count { color: #C7155B; }
 .deal-pages-viewport { overflow: hidden; touch-action: pan-y; }
