@@ -1,10 +1,14 @@
+import TodoList from "./TodoList";
+
 export default function TransactionList({
   transactions,
   stages,
   currentAgent,
-  onStageChange,
   onNotesChange,
   onCompsStatusChange,
+  onAddTodo,
+  onToggleTodo,
+  onOpenDetail,
 }) {
   const isBroker = currentAgent.role === "broker";
 
@@ -26,24 +30,18 @@ export default function TransactionList({
                   {isBroker && tx.agent ? ` · ${tx.agent.name}` : ""}
                 </div>
               </div>
-              <span className="tx-stage-pill">{stageLabel}</span>
+              <button
+                type="button"
+                className="tx-stage-pill tx-stage-pill--btn"
+                onClick={() => onOpenDetail && onOpenDetail(tx)}
+              >
+                {stageLabel}
+              </button>
             </div>
-
-            <select
-              value={tx.stage}
-              onChange={(e) => onStageChange(tx.id, e.target.value)}
-              className="stage-select"
-            >
-              {stages.map((s) => (
-                <option key={s.key} value={s.key}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
 
             {tx.stage === "comps" && onCompsStatusChange && (
               <div className="comps-status-toggle">
-                {["Waiting to List", "Follow-up"].map((status) => (
+                {["Need to Send Comp", "Waiting to List"].map((status) => (
                   <button
                     key={status}
                     type="button"
@@ -63,6 +61,14 @@ export default function TransactionList({
               rows={2}
               className="tx-notes"
             />
+
+            {tx.stage === "won" && onAddTodo && (
+              <TodoList
+                todos={tx.todos}
+                onAdd={(text) => onAddTodo(tx.id, text)}
+                onToggle={(id, done) => onToggleTodo(id, done)}
+              />
+            )}
           </div>
         );
       })}

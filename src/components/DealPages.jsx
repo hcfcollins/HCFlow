@@ -18,6 +18,9 @@ export default function DealPages({
   onStageChange,
   onNotesChange,
   onCompsStatusChange,
+  onAddTodo,
+  onToggleTodo,
+  onOpenDetail,
   pageIndex,
   onPageIndexChange,
 }) {
@@ -106,12 +109,15 @@ export default function DealPages({
               <div className={`deal-page-inner deal-page--${p.key}`}>
                 {p.key === "comps" ? (
                   <CompsPage
-                    transactions={transactions.filter(p.match)}
+                    transactions={transactions}
                     stages={stages}
                     currentAgent={currentAgent}
                     onStageChange={onStageChange}
                     onNotesChange={onNotesChange}
                     onCompsStatusChange={onCompsStatusChange}
+                    onAddTodo={onAddTodo}
+                    onToggleTodo={onToggleTodo}
+                    onOpenDetail={onOpenDetail}
                   />
                 ) : (
                   <TransactionList
@@ -121,6 +127,7 @@ export default function DealPages({
                     onStageChange={onStageChange}
                     onNotesChange={onNotesChange}
                     onCompsStatusChange={onCompsStatusChange}
+                    onOpenDetail={onOpenDetail}
                   />
                 )}
               </div>
@@ -132,32 +139,75 @@ export default function DealPages({
   );
 }
 
-function CompsPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange }) {
-  const followUp = transactions.filter((tx) => tx.comps_status === "Follow-up");
-  const waitingToList = transactions.filter((tx) => tx.comps_status !== "Follow-up");
+function CompsPage({
+  transactions,
+  stages,
+  currentAgent,
+  onStageChange,
+  onNotesChange,
+  onCompsStatusChange,
+  onAddTodo,
+  onToggleTodo,
+  onOpenDetail,
+}) {
+  const [waitingCollapsed, setWaitingCollapsed] = useState(false);
+
+  const needToSend = transactions.filter((tx) => tx.stage === "comps" && tx.comps_status !== "Waiting to List");
+  const waitingToList = transactions.filter((tx) => tx.stage === "comps" && tx.comps_status === "Waiting to List");
+  const wonListings = transactions.filter((tx) => tx.stage === "won");
 
   return (
     <div className="comps-page">
       <div className="comps-section">
-        <h2 className="comps-section-title">Waiting to List</h2>
+        <h2 className="comps-section-title">
+          Need to Send Comp <span className="comps-section-count">{needToSend.length}</span>
+        </h2>
         <TransactionList
-          transactions={waitingToList}
+          transactions={needToSend}
           stages={stages}
           currentAgent={currentAgent}
           onStageChange={onStageChange}
           onNotesChange={onNotesChange}
           onCompsStatusChange={onCompsStatusChange}
+          onOpenDetail={onOpenDetail}
         />
       </div>
+
       <div className="comps-section">
-        <h2 className="comps-section-title">Follow-up</h2>
+        <div className="comps-section-header">
+          <h2 className="comps-section-title">
+            Waiting to List <span className="comps-section-count">{waitingToList.length}</span>
+          </h2>
+          <button type="button" className="comps-minimize-btn" onClick={() => setWaitingCollapsed((c) => !c)}>
+            {waitingCollapsed ? "Show" : "Minimize"}
+          </button>
+        </div>
+        {!waitingCollapsed && (
+          <TransactionList
+            transactions={waitingToList}
+            stages={stages}
+            currentAgent={currentAgent}
+            onStageChange={onStageChange}
+            onNotesChange={onNotesChange}
+            onCompsStatusChange={onCompsStatusChange}
+            onOpenDetail={onOpenDetail}
+          />
+        )}
+      </div>
+
+      <div className="comps-section comps-section--won">
+        <h2 className="comps-section-title">
+          Won Listing <span className="comps-section-count">{wonListings.length}</span>
+        </h2>
         <TransactionList
-          transactions={followUp}
+          transactions={wonListings}
           stages={stages}
           currentAgent={currentAgent}
           onStageChange={onStageChange}
           onNotesChange={onNotesChange}
-          onCompsStatusChange={onCompsStatusChange}
+          onAddTodo={onAddTodo}
+          onToggleTodo={onToggleTodo}
+          onOpenDetail={onOpenDetail}
         />
       </div>
     </div>

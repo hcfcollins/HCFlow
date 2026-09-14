@@ -54,7 +54,7 @@ create table transactions (
   buyer_name text,
   property_style text check (property_style in ('Residential', 'Land', 'Commercial')),
   price numeric,
-  comps_status text check (comps_status in ('Waiting to List', 'Follow-up')), -- only meaningful while stage = 'comps'
+  comps_status text check (comps_status in ('Need to Send Comp', 'Waiting to List')), -- only meaningful while stage = 'comps'
   linked_id uuid references transactions(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -91,6 +91,19 @@ create table activity_log (
 );
 
 create index on activity_log (transaction_id);
+
+-- ============================================================
+-- 5b. TODOS (per-transaction checklist — used for the "Won Listing" to-do list)
+-- ============================================================
+create table todos (
+  id uuid primary key default gen_random_uuid(),
+  transaction_id uuid not null references transactions(id) on delete cascade,
+  text text not null,
+  done boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index on todos (transaction_id);
 
 -- ============================================================
 -- 6. COMMISSION DATA (broker-only visibility — Lead Type, Client Source, referral info)
@@ -146,6 +159,7 @@ alter table attorneys enable row level security;
 alter table transactions enable row level security;
 alter table documents enable row level security;
 alter table activity_log enable row level security;
+alter table todos enable row level security;
 alter table commission_data enable row level security;
 alter table closeouts enable row level security;
 
@@ -210,6 +224,16 @@ create policy "activity_select" on activity_log for select
     and (is_broker() or t.agent_id = current_agent_id())));
 create policy "activity_insert" on activity_log for insert
   with check (exists (select 1 from transactions t where t.id = transaction_id
+    and (is_broker() or t.agent_id = current_agent_id())));
+
+create policy "todos_select" on todos for select
+  using (exists (select 1 from transactions t where t.id = transaction_id
+    and (is_broker() or t.agent_id = current_agent_id())));
+create policy "todos_insert" on todos for insert
+  with check (exists (select 1 from transactions t where t.id = transaction_id
+    and (is_broker() or t.agent_id = current_agent_id())));
+create policy "todos_update" on todos for update
+  using (exists (select 1 from transactions t where t.id = transaction_id
     and (is_broker() or t.agent_id = current_agent_id())));
 
 -- Commission data & close-outs: reading is BROKER ONLY — this is the sensitive layer.

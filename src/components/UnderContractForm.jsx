@@ -32,24 +32,24 @@ async function resolveAttorneyId(name, tbd, attorneys) {
   return created.id;
 }
 
-export default function UnderContractForm({ currentAgent, onCancel, onSubmitted }) {
+export default function UnderContractForm({ currentAgent, initialData, onCancel, onSubmitted }) {
   const [attorneys, setAttorneys] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  const [region, setRegion] = useState("VT");
-  const [selectedAgentId, setSelectedAgentId] = useState(currentAgent.id);
-  const [selectedAgentName, setSelectedAgentName] = useState(currentAgent.name);
-  const [side, setSide] = useState("Sell");
+  const [region, setRegion] = useState(initialData?.region || "VT");
+  const [selectedAgentId, setSelectedAgentId] = useState(initialData?.agent_id || currentAgent.id);
+  const [selectedAgentName, setSelectedAgentName] = useState(initialData?.agent?.name || currentAgent.name);
+  const [side, setSide] = useState(initialData?.side || "Sell");
   const [leadType, setLeadType] = useState("Organic");
-  const [sellerName, setSellerName] = useState("");
-  const [buyerName, setBuyerName] = useState("");
-  const [address, setAddress] = useState("");
-  const [propertyStyle, setPropertyStyle] = useState("Residential");
-  const [price, setPrice] = useState("");
-  const [buyerAttorney, setBuyerAttorney] = useState("");
+  const [sellerName, setSellerName] = useState(initialData?.seller_name || "");
+  const [buyerName, setBuyerName] = useState(initialData?.buyer_name || "");
+  const [address, setAddress] = useState(initialData?.address || "");
+  const [propertyStyle, setPropertyStyle] = useState(initialData?.property_style || "Residential");
+  const [price, setPrice] = useState(initialData?.price != null ? String(initialData.price) : "");
+  const [buyerAttorney, setBuyerAttorney] = useState(initialData?.buyer_attorney?.name || "");
   const [buyerAttorneyTbd, setBuyerAttorneyTbd] = useState(false);
-  const [sellerAttorney, setSellerAttorney] = useState("");
+  const [sellerAttorney, setSellerAttorney] = useState(initialData?.seller_attorney?.name || "");
   const [sellerAttorneyTbd, setSellerAttorneyTbd] = useState(false);
   const [commissionPct, setCommissionPct] = useState("");
   const [commissionAutoAdjusted, setCommissionAutoAdjusted] = useState(false);
@@ -154,7 +154,7 @@ export default function UnderContractForm({ currentAgent, onCancel, onSubmitted 
     <form className="uc-form" onSubmit={handleSubmit}>
       <header className="app-header">
         <div>
-          <div className="brand-eyebrow">New Deal</div>
+          <div className="brand-eyebrow">{initialData ? "Moving to Under Contract" : "New Deal"}</div>
           <h1>Under Contract</h1>
         </div>
         <button type="button" onClick={onCancel}>

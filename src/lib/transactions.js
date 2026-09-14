@@ -15,7 +15,8 @@ export async function fetchTransactions() {
       buyer_attorney:attorneys!transactions_buyer_attorney_id_fkey(id, name),
       seller_attorney:attorneys!transactions_seller_attorney_id_fkey(id, name),
       documents(*),
-      activity_log(*)
+      activity_log(*),
+      todos(*)
     `
     )
     .order("created_at", { ascending: false });
@@ -51,10 +52,18 @@ export async function createComp({ agentId, address, town, side, notes }) {
     side,
     notes,
     stage: "comps",
-    comps_status: "Waiting to List",
+    comps_status: "Need to Send Comp",
   });
   await addActivityLog(tx.id, "Added from Comps quick-capture", address);
   return tx;
+}
+
+export async function updateTransactionLockbox(id, { hasLockbox, lockboxCode, lockboxNote }) {
+  const { error } = await supabase
+    .from("transactions")
+    .update({ has_lockbox: hasLockbox, lockbox_code: lockboxCode, lockbox_note: lockboxNote, updated_at: new Date() })
+    .eq("id", id);
+  if (error) throw error;
 }
 
 export async function updateTransactionAttorneys(id, { buyerAttorneyId, sellerAttorneyId }) {
@@ -98,6 +107,17 @@ export async function findTransactionByAddress(address) {
 
 export async function addActivityLog(transactionId, label, detail) {
   const { error } = await supabase.from("activity_log").insert({ transaction_id: transactionId, label, detail });
+  if (error) throw error;
+}
+
+/** Won Listing to-do list. */
+export async function addTodo(transactionId, text) {
+  const { error } = await supabase.from("todos").insert({ transaction_id: transactionId, text });
+  if (error) throw error;
+}
+
+export async function toggleTodo(id, done) {
+  const { error } = await supabase.from("todos").update({ done }).eq("id", id);
   if (error) throw error;
 }
 

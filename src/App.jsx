@@ -5,11 +5,16 @@ import {
   updateTransactionStage,
   updateTransactionNotes,
   updateTransactionCompsStatus,
+  updateTransactionLockbox,
+  addTodo,
+  toggleTodo,
 } from "./lib/transactions";
 import DealPages, { PAGES } from "./components/DealPages";
 import LoginScreen from "./components/LoginScreen";
 import UnderContractForm from "./components/UnderContractForm";
 import NewCompForm from "./components/NewCompForm";
+import DealDetail from "./components/DealDetail";
+import Celebration from "./components/Celebration";
 
 const STAGES = [
   { key: "comps", label: "Comped" },
@@ -25,7 +30,10 @@ export default function App() {
   const [loadingTxs, setLoadingTxs] = useState(true);
   const [error, setError] = useState(null);
   const [showUnderContractForm, setShowUnderContractForm] = useState(false);
+  const [underContractPrefill, setUnderContractPrefill] = useState(null);
   const [showNewCompForm, setShowNewCompForm] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [showCelebration, setShowCelebration] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
 
   useEffect(() => {
@@ -37,6 +45,7 @@ export default function App() {
     try {
       const data = await fetchTransactions();
       setTxs(data);
+      setSelectedTransaction((current) => (current ? data.find((t) => t.id === current.id) || current : current));
       setError(null);
     } catch (e) {
       setError(e.message);
@@ -58,6 +67,27 @@ export default function App() {
   async function handleCompsStatusChange(id, status) {
     await updateTransactionCompsStatus(id, status);
     loadTransactions();
+  }
+
+  async function handleLockboxChange(id, lockboxFields) {
+    await updateTransactionLockbox(id, lockboxFields);
+    loadTransactions();
+  }
+
+  async function handleAddTodo(id, text) {
+    await addTodo(id, text);
+    loadTransactions();
+  }
+
+  async function handleToggleTodo(id, done) {
+    await toggleTodo(id, done);
+    loadTransactions();
+  }
+
+  function handleRequestUnderContract(tx) {
+    setSelectedTransaction(null);
+    setUnderContractPrefill(tx);
+    setShowUnderContractForm(true);
   }
 
   if (authLoading) {
@@ -85,12 +115,19 @@ export default function App() {
       <div className="app">
         <UnderContractForm
           currentAgent={agent}
-          onCancel={() => setShowUnderContractForm(false)}
+          initialData={underContractPrefill}
+          onCancel={() => {
+            setShowUnderContractForm(false);
+            setUnderContractPrefill(null);
+          }}
           onSubmitted={() => {
             setShowUnderContractForm(false);
+            setUnderContractPrefill(null);
+            setShowCelebration(true);
             loadTransactions();
           }}
         />
+        {showCelebration && <Celebration onDone={() => setShowCelebration(false)} />}
       </div>
     );
   }
@@ -105,6 +142,26 @@ export default function App() {
             setShowNewCompForm(false);
             loadTransactions();
           }}
+        />
+      </div>
+    );
+  }
+
+  if (selectedTransaction) {
+    return (
+      <div className="app">
+        <DealDetail
+          transaction={selectedTransaction}
+          stages={STAGES}
+          currentAgent={agent}
+          onBack={() => setSelectedTransaction(null)}
+          onStageChange={handleStageChange}
+          onRequestUnderContract={handleRequestUnderContract}
+          onNotesChange={handleNotesChange}
+          onCompsStatusChange={handleCompsStatusChange}
+          onAddTodo={handleAddTodo}
+          onToggleTodo={handleToggleTodo}
+          onLockboxChange={handleLockboxChange}
         />
       </div>
     );
@@ -125,8 +182,15 @@ export default function App() {
       {error && <div className="error-banner">{error}</div>}
 
       <button
-        className="google-btn uc-launch"
-        onClick={() => (onCompsPage ? setShowNewCompForm(true) : setShowUnderContractForm(true))}
+        className={`google-btn uc-launch ${onCompsPage ? "uc-launch--comps" : "uc-launch--contract"}`}
+        onClick={() => {
+          if (onCompsPage) {
+            setShowNewCompForm(true);
+          } else {
+            setUnderContractPrefill(null);
+            setShowUnderContractForm(true);
+          }
+        }}
       >
         {onCompsPage ? "+ New Comp" : "+ Under Contract"}
       </button>
@@ -141,6 +205,9 @@ export default function App() {
           onStageChange={handleStageChange}
           onNotesChange={handleNotesChange}
           onCompsStatusChange={handleCompsStatusChange}
+          onAddTodo={handleAddTodo}
+          onToggleTodo={handleToggleTodo}
+          onOpenDetail={setSelectedTransaction}
           pageIndex={pageIndex}
           onPageIndexChange={setPageIndex}
         />
