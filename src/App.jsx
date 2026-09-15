@@ -97,6 +97,15 @@ export default function App() {
     setShowUnderContractForm(true);
   }
 
+  /** Shared by the card's inline stage select and the detail screen's stage select. */
+  function handleStageChangeRequest(tx, newStage) {
+    if (newStage === "contract" && tx.stage !== "contract") {
+      handleRequestUnderContract(tx);
+    } else {
+      handleStageChange(tx.id, newStage);
+    }
+  }
+
   if (authLoading) {
     return <div className="center-screen">Loading…</div>;
   }
@@ -162,13 +171,13 @@ export default function App() {
           stages={STAGES}
           currentAgent={agent}
           onBack={() => setSelectedTransaction(null)}
-          onStageChange={handleStageChange}
-          onRequestUnderContract={handleRequestUnderContract}
+          onStageChange={handleStageChangeRequest}
           onNotesChange={handleNotesChange}
           onCompsStatusChange={handleCompsStatusChange}
           onAddTodo={handleAddTodo}
           onToggleTodo={handleToggleTodo}
           onLockboxChange={handleLockboxChange}
+          onRefresh={loadTransactions}
         />
       </div>
     );
@@ -209,7 +218,7 @@ export default function App() {
           transactions={txs}
           stages={STAGES}
           currentAgent={agent}
-          onStageChange={handleStageChange}
+          onStageChange={handleStageChangeRequest}
           onNotesChange={handleNotesChange}
           onCompsStatusChange={handleCompsStatusChange}
           onAddTodo={handleAddTodo}

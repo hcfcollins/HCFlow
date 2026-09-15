@@ -74,6 +74,21 @@ export async function updateTransactionAttorneys(id, { buyerAttorneyId, sellerAt
   if (error) throw error;
 }
 
+/** Generic single/multi-field patch for the quick inline edits on the detail screen. */
+export async function updateTransactionFields(id, patch) {
+  const { error } = await supabase.from("transactions").update({ ...patch, updated_at: new Date() }).eq("id", id);
+  if (error) throw error;
+}
+
+/** Resolves an attorney name to an id, creating a new attorney record if there's no match yet. */
+export async function resolveAttorneyId(name, attorneys) {
+  if (!name.trim()) return null;
+  const match = attorneys.find((a) => a.name.toLowerCase() === name.trim().toLowerCase());
+  if (match) return match.id;
+  const created = await addAttorney(name.trim());
+  return created.id;
+}
+
 export async function linkTransactions(idA, idB) {
   const { error: e1 } = await supabase.from("transactions").update({ linked_id: idB }).eq("id", idA);
   const { error: e2 } = await supabase.from("transactions").update({ linked_id: idA }).eq("id", idB);

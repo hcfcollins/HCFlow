@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchAttorneys, addAttorney, submitUnderContract } from "../lib/transactions";
+import { fetchAttorneys, submitUnderContract, resolveAttorneyId as resolveAttorneyIdRaw } from "../lib/transactions";
 import RadioGroup from "./RadioGroup";
 import AgentField from "./AgentField";
 
@@ -24,12 +24,9 @@ function correctPercentInput(value) {
   return null;
 }
 
-async function resolveAttorneyId(name, tbd, attorneys) {
-  if (tbd || !name.trim()) return null;
-  const match = attorneys.find((a) => a.name.toLowerCase() === name.trim().toLowerCase());
-  if (match) return match.id;
-  const created = await addAttorney(name.trim());
-  return created.id;
+function resolveAttorneyId(name, tbd, attorneys) {
+  if (tbd) return null;
+  return resolveAttorneyIdRaw(name, attorneys);
 }
 
 export default function UnderContractForm({ currentAgent, initialData, onCancel, onSubmitted }) {
