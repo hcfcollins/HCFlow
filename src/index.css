@@ -135,6 +135,8 @@ button { cursor: pointer; }
 .comps-section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .comps-section-header .comps-section-title { margin-bottom: 0; }
 .comps-section-title { font-family: 'Playfair Display', serif; font-size: 15px; font-weight: 600; margin: 0 0 10px 2px; color: #173348; }
+.timeframe-group + .timeframe-group { margin-top: 16px; }
+.timeframe-group-title { font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 8px 2px; color: #8A8577; }
 .comps-section-count { font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 700; color: #C7155B; }
 .comps-minimize-btn { border: 1px solid #E4E0D3; background: #fff; border-radius: 8px; padding: 4px 10px; font-family: 'Montserrat', sans-serif; font-size: 11px; font-weight: 600; color: #8A8577; }
 
@@ -210,4 +212,3 @@ button { cursor: pointer; }
   font-weight: 600;
   color: #8A8577;
 }
-.comps-status-btn.active { background: #A4B792; border-color: #A4B792; color: #fff; }

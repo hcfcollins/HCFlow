@@ -131,16 +131,26 @@ function TxCard({
 
       {tx.stage === "comps" && onCompsStatusChange && (
         <div className="comps-status-toggle" onClick={(e) => e.stopPropagation()}>
-          {["Need to Send Comp", "Waiting to List"].map((status) => (
+          {tx.comps_status === "Waiting to List" ? (
             <button
-              key={status}
               type="button"
-              className={`comps-status-btn ${tx.comps_status === status ? "active" : ""}`}
-              onClick={() => onCompsStatusChange(tx.id, status)}
+              className="comps-status-btn"
+              onClick={() => onCompsStatusChange(tx.id, "Need to Send Comp")}
             >
-              {status}
+              Move to: Need to Send Comp
             </button>
-          ))}
+          ) : (
+            <button
+              type="button"
+              className="comps-status-btn"
+              onClick={() => onCompsStatusChange(tx.id, "Waiting to List")}
+            >
+              Move to: Waiting to List
+            </button>
+          )}
+          <button type="button" className="comps-status-btn" onClick={() => onStageChange(tx, "won")}>
+            Move to: Won Listing
+          </button>
         </div>
       )}
 

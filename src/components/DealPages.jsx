@@ -245,7 +245,7 @@ function CompsPage({
           </button>
         </div>
         {!waitingCollapsed && (
-          <TransactionList
+          <TimeframeGroups
             transactions={waitingToList}
             stages={stages}
             currentAgent={currentAgent}
@@ -257,5 +257,49 @@ function CompsPage({
         )}
       </div>
     </div>
+  );
+}
+
+const TIMEFRAME_ORDER = ["Now", "6 months", "Next year"];
+
+function TimeframeGroups({ transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange, onOpenDetail }) {
+  const groups = [
+    ...TIMEFRAME_ORDER.map((tf) => ({ label: tf, items: transactions.filter((tx) => tx.timeframe === tf) })),
+    { label: "No Timeframe Set", items: transactions.filter((tx) => !TIMEFRAME_ORDER.includes(tx.timeframe)) },
+  ].filter((g) => g.items.length > 0);
+
+  if (groups.length <= 1) {
+    return (
+      <TransactionList
+        transactions={transactions}
+        stages={stages}
+        currentAgent={currentAgent}
+        onStageChange={onStageChange}
+        onNotesChange={onNotesChange}
+        onCompsStatusChange={onCompsStatusChange}
+        onOpenDetail={onOpenDetail}
+      />
+    );
+  }
+
+  return (
+    <>
+      {groups.map((g) => (
+        <div key={g.label} className="timeframe-group">
+          <h3 className="timeframe-group-title">
+            {g.label} <span className="comps-section-count">{g.items.length}</span>
+          </h3>
+          <TransactionList
+            transactions={g.items}
+            stages={stages}
+            currentAgent={currentAgent}
+            onStageChange={onStageChange}
+            onNotesChange={onNotesChange}
+            onCompsStatusChange={onCompsStatusChange}
+            onOpenDetail={onOpenDetail}
+          />
+        </div>
+      ))}
+    </>
   );
 }

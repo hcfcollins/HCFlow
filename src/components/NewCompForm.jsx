@@ -16,6 +16,7 @@ const HEATING_OPTIONS = [
   "Direct Vent/Rinnai",
   "Mini Splits",
   "Wood Stove",
+  "Pellet Stove",
   "Radiant",
 ];
 const BASEMENT_OPTIONS = ["Dirt Floor", "Concrete Block", "Poured Concrete", "Fieldstone", "Crawlspace"];
