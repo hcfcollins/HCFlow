@@ -39,6 +39,7 @@ export default function DealDetail({
   const [lockboxCode, setLockboxCode] = useState(transaction.lockbox_code || "");
   const [lockboxNote, setLockboxNote] = useState(transaction.lockbox_note || "");
   const [attorneys, setAttorneys] = useState([]);
+  const [compDetailsCollapsed, setCompDetailsCollapsed] = useState(true);
 
   useEffect(() => {
     fetchAttorneys().then(setAttorneys).catch(() => {});
@@ -123,52 +124,7 @@ export default function DealDetail({
       {transaction.stage === "comps" && (
         <div className="detail-section">
           <h2 className="comps-section-title">Comp Details</h2>
-          <div className="detail-grid">
-            <div>
-              <div className="detail-label">Seller Name(s)</div>
-              <div>{transaction.seller_name || "—"}</div>
-            </div>
-            <EditableText
-              label="Seller Email"
-              value={transaction.seller_email}
-              type="email"
-              placeholder="—"
-              mailto
-              onSave={(v) => handleFieldSave({ seller_email: v || null })}
-            />
-            <div>
-              <div className="detail-label">Rough Timeframe</div>
-              <div>{transaction.timeframe || "—"}</div>
-            </div>
-            <div>
-              <div className="detail-label">Property Style</div>
-              <div>{transaction.property_style || "—"}</div>
-            </div>
-            <div>
-              <div className="detail-label">Electrical</div>
-              <div>{transaction.electrical || "—"}</div>
-            </div>
-            <div>
-              <div className="detail-label">Heating System</div>
-              <div>{transaction.heating_system?.length ? transaction.heating_system.join(", ") : "—"}</div>
-            </div>
-            <div>
-              <div className="detail-label">Basement</div>
-              <div>{transaction.basement?.length ? transaction.basement.join(", ") : "—"}</div>
-            </div>
-            <div>
-              <div className="detail-label">Water Source</div>
-              <div>{transaction.water_source || "—"}</div>
-            </div>
-            <div>
-              <div className="detail-label">Septic</div>
-              <div>{transaction.septic || "—"}</div>
-            </div>
-            <div>
-              <div className="detail-label">Recommendations</div>
-              <div>{transaction.recommendations?.length ? transaction.recommendations.join(", ") : "—"}</div>
-            </div>
-          </div>
+          <CompDetailsGrid transaction={transaction} handleFieldSave={handleFieldSave} />
 
           <button type="button" className="cma-export-btn" onClick={() => downloadCmaSessionFile(transaction)}>
             <Download size={14} /> Download CMA Starter File
@@ -177,6 +133,18 @@ export default function DealDetail({
             Upload this in the CMA app's sidebar ("Upload .json session file") to pre-fill the address, property
             type, fuel/septic/well, and recommendations instead of retyping them.
           </p>
+        </div>
+      )}
+
+      {transaction.stage !== "comps" && (
+        <div className="detail-section">
+          <div className="comps-section-header">
+            <h2 className="comps-section-title">From the Comp</h2>
+            <button type="button" className="comps-minimize-btn" onClick={() => setCompDetailsCollapsed((c) => !c)}>
+              {compDetailsCollapsed ? "Show" : "Minimize"}
+            </button>
+          </div>
+          {!compDetailsCollapsed && <CompDetailsGrid transaction={transaction} handleFieldSave={handleFieldSave} />}
         </div>
       )}
 
@@ -209,7 +177,7 @@ export default function DealDetail({
             />
 
             {!isBuySide && (
-              <div>
+              <div className="detail-grid-full">
                 <div className="detail-label">Sign</div>
                 <RadioGroup
                   name="signStatus"
@@ -422,6 +390,60 @@ export default function DealDetail({
         ) : (
           <p className="empty-state">No activity yet.</p>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** The property/seller details collected on the New Comp form — shown live while
+ * in Comps, and preserved (collapsed by default) once the deal moves on so that
+ * data isn't lost from view. */
+function CompDetailsGrid({ transaction, handleFieldSave }) {
+  return (
+    <div className="detail-grid">
+      <div>
+        <div className="detail-label">Seller Name(s)</div>
+        <div>{transaction.seller_name || "—"}</div>
+      </div>
+      <EditableText
+        label="Seller Email"
+        value={transaction.seller_email}
+        type="email"
+        placeholder="—"
+        mailto
+        onSave={(v) => handleFieldSave({ seller_email: v || null })}
+      />
+      <div>
+        <div className="detail-label">Rough Timeframe</div>
+        <div>{transaction.timeframe || "—"}</div>
+      </div>
+      <div>
+        <div className="detail-label">Property Style</div>
+        <div>{transaction.property_style || "—"}</div>
+      </div>
+      <div>
+        <div className="detail-label">Electrical</div>
+        <div>{transaction.electrical || "—"}</div>
+      </div>
+      <div>
+        <div className="detail-label">Heating System</div>
+        <div>{transaction.heating_system?.length ? transaction.heating_system.join(", ") : "—"}</div>
+      </div>
+      <div>
+        <div className="detail-label">Basement</div>
+        <div>{transaction.basement?.length ? transaction.basement.join(", ") : "—"}</div>
+      </div>
+      <div>
+        <div className="detail-label">Water Source</div>
+        <div>{transaction.water_source || "—"}</div>
+      </div>
+      <div>
+        <div className="detail-label">Septic</div>
+        <div>{transaction.septic || "—"}</div>
+      </div>
+      <div>
+        <div className="detail-label">Recommendations</div>
+        <div>{transaction.recommendations?.length ? transaction.recommendations.join(", ") : "—"}</div>
       </div>
     </div>
   );

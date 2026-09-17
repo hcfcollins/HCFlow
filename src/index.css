@@ -179,6 +179,18 @@ button { cursor: pointer; }
 .detail-section { background: #fff; border: 1px solid #F0EDE4; border-radius: 14px; padding: 14px 16px; }
 .detail-section input:not([type="checkbox"]) { width: 100%; margin-top: 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid #E4E0D3; font-family: 'Montserrat', sans-serif; font-size: 13px; }
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 10px; font-size: 13px; }
+.detail-grid > div { min-width: 0; }
+.detail-grid-full { grid-column: 1 / -1; min-width: 0; }
+.detail-grid .radio-group { display: flex; flex-direction: column; flex-wrap: nowrap; gap: 8px; width: 100%; }
+.detail-grid .radio-option {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  align-items: start;
+  gap: 6px;
+  white-space: normal;
+  width: 100%;
+}
+.detail-grid .radio-option input { margin: 2px 0 0; }
 .detail-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #8A8577; margin-bottom: 2px; }
 .detail-grid input:not([type="checkbox"]),
 .detail-grid select { width: 100%; padding: 6px 8px; border-radius: 6px; border: 1px solid #E4E0D3; font-family: 'Montserrat', sans-serif; font-size: 13px; }

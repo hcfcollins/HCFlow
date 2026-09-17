@@ -60,20 +60,31 @@ export default function App() {
   }
 
   async function handleStageChange(id, stage) {
+    let sideEffectError = null;
     if (stage === "won") {
       const tx = txs.find((t) => t.id === id);
       if (tx && !tx.todos?.length) {
-        await seedWonListingTodos(id);
+        // Neither of these should block the stage change itself if they fail —
+        // surface the problem instead of silently swallowing it.
+        try {
+          await seedWonListingTodos(id);
+        } catch (e) {
+          console.error("Failed to seed Won Listing to-dos:", e);
+          sideEffectError = `Couldn't set up the to-do checklist: ${e.message}`;
+        }
         try {
           await createDropboxFolderForListing(id);
         } catch (e) {
-          // Don't let a Dropbox hiccup block the stage change itself.
           console.error("Dropbox folder creation failed:", e);
+          sideEffectError = sideEffectError || `Couldn't create the Dropbox folder: ${e.message}`;
         }
       }
     }
     await updateTransactionStage(id, stage);
-    loadTransactions({ silent: true });
+    // loadTransactions clears any stale error on success, so set ours after it,
+    // not before — otherwise the refresh would immediately wipe it out.
+    await loadTransactions({ silent: true });
+    if (sideEffectError) setError(sideEffectError);
   }
 
   async function handleNotesChange(id, notes) {
@@ -176,6 +187,7 @@ export default function App() {
   if (selectedTransaction) {
     return (
       <div className="app">
+        {error && <div className="error-banner">{error}</div>}
         <DealDetail
           transaction={selectedTransaction}
           stages={STAGES}
