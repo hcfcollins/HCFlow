@@ -47,6 +47,7 @@ create table transactions (
   has_lockbox boolean default false,
   lockbox_code text,
   lockbox_note text,
+  dropbox_folder_url text, -- set by the create-dropbox-folder Edge Function when a deal first moves to Won
   ba_comp text,
   buyer_attorney_id uuid references attorneys(id),
   seller_attorney_id uuid references attorneys(id),

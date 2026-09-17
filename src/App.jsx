@@ -9,6 +9,7 @@ import {
   addTodo,
   toggleTodo,
   seedWonListingTodos,
+  createDropboxFolderForListing,
 } from "./lib/transactions";
 import DealPages, { PAGES } from "./components/DealPages";
 import LoginScreen from "./components/LoginScreen";
@@ -63,6 +64,12 @@ export default function App() {
       const tx = txs.find((t) => t.id === id);
       if (tx && !tx.todos?.length) {
         await seedWonListingTodos(id);
+        try {
+          await createDropboxFolderForListing(id);
+        } catch (e) {
+          // Don't let a Dropbox hiccup block the stage change itself.
+          console.error("Dropbox folder creation failed:", e);
+        }
       }
     }
     await updateTransactionStage(id, stage);

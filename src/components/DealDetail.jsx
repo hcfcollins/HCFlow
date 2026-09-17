@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pencil, Mail, Download } from "lucide-react";
+import { Pencil, Mail, Download, FolderOpen } from "lucide-react";
 import TodoList from "./TodoList";
 import RadioGroup from "./RadioGroup";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys } from "../lib/transactions";
@@ -385,6 +385,13 @@ export default function DealDetail({
         <div className="detail-section">
           <h2 className="comps-section-title">Documents</h2>
           <p className="field-help">Files live in Dropbox — this list tracks status only.</p>
+          {transaction.dropbox_folder_url ? (
+            <a href={transaction.dropbox_folder_url} target="_blank" rel="noreferrer" className="cma-export-btn">
+              <FolderOpen size={14} /> Open Dropbox Folder
+            </a>
+          ) : (
+            transaction.stage === "won" && <p className="field-help">Dropbox folder not created yet.</p>
+          )}
           {transaction.documents?.length ? (
             <ul className="detail-list">
               {transaction.documents.map((d) => (

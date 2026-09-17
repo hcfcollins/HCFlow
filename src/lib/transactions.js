@@ -169,6 +169,15 @@ export async function seedWonListingTodos(transactionId) {
   if (error) throw error;
 }
 
+/** Creates the agent's Dropbox listing folder via the create-dropbox-folder Edge Function. */
+export async function createDropboxFolderForListing(transactionId) {
+  const { data, error } = await supabase.functions.invoke("create-dropbox-folder", {
+    body: { transactionId },
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function toggleTodo(id, done) {
   const { error } = await supabase.from("todos").update({ done }).eq("id", id);
   if (error) throw error;
