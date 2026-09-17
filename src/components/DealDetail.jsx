@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Pencil, Mail } from "lucide-react";
+import { Pencil, Mail, Download } from "lucide-react";
 import TodoList from "./TodoList";
 import RadioGroup from "./RadioGroup";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys } from "../lib/transactions";
+import { downloadCmaSessionFile } from "../lib/cmaExport";
 
 const PROPERTY_STYLES = ["Residential", "Land", "Commercial"];
 
@@ -113,6 +114,9 @@ export default function DealDetail({
               Waiting to List
             </button>
           )}
+          <button type="button" className="comps-status-btn" onClick={() => onStageChange(transaction, "won")}>
+            Won Listing
+          </button>
         </div>
       )}
 
@@ -165,6 +169,14 @@ export default function DealDetail({
               <div>{transaction.recommendations?.length ? transaction.recommendations.join(", ") : "—"}</div>
             </div>
           </div>
+
+          <button type="button" className="cma-export-btn" onClick={() => downloadCmaSessionFile(transaction)}>
+            <Download size={14} /> Download CMA Starter File
+          </button>
+          <p className="field-help">
+            Upload this in the CMA app's sidebar ("Upload .json session file") to pre-fill the address, property
+            type, fuel/septic/well, and recommendations instead of retyping them.
+          </p>
         </div>
       )}
 
@@ -369,21 +381,23 @@ export default function DealDetail({
         </div>
       )}
 
-      <div className="detail-section">
-        <h2 className="comps-section-title">Documents</h2>
-        <p className="field-help">Files live in Dropbox — this list tracks status only.</p>
-        {transaction.documents?.length ? (
-          <ul className="detail-list">
-            {transaction.documents.map((d) => (
-              <li key={d.id}>
-                {d.name} — {d.status}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="empty-state">No documents tracked yet.</p>
-        )}
-      </div>
+      {transaction.stage !== "comps" && (
+        <div className="detail-section">
+          <h2 className="comps-section-title">Documents</h2>
+          <p className="field-help">Files live in Dropbox — this list tracks status only.</p>
+          {transaction.documents?.length ? (
+            <ul className="detail-list">
+              {transaction.documents.map((d) => (
+                <li key={d.id}>
+                  {d.name} — {d.status}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="empty-state">No documents tracked yet.</p>
+          )}
+        </div>
+      )}
 
       <div className="detail-section">
         <h2 className="comps-section-title">Activity</h2>
