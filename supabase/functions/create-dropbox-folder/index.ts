@@ -23,6 +23,13 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const DROPBOX_APP_KEY = Deno.env.get("DROPBOX_APP_KEY")!;
 const DROPBOX_APP_SECRET = Deno.env.get("DROPBOX_APP_SECRET")!;
 const DROPBOX_REFRESH_TOKEN = Deno.env.get("DROPBOX_REFRESH_TOKEN")!;
+// Hall Collins is a Dropbox Business/Team account. The shared team folder
+// structure (Hall Collins REG Team Folder, HC - <agent>, etc.) lives in a
+// separate TEAM namespace, not the authorizing user's own individual Dropbox
+// space — every call must pass this header or paths silently resolve against
+// the wrong namespace and fail as "not found".
+const DROPBOX_TEAM_ROOT_NAMESPACE_ID = Deno.env.get("DROPBOX_TEAM_ROOT_NAMESPACE_ID")!;
+const dropboxPathRootHeader = JSON.stringify({ ".tag": "root", root: DROPBOX_TEAM_ROOT_NAMESPACE_ID });
 
 function sanitizeFolderName(name: string): string {
   return name.replace(/[/\\<>:"|?*]/g, "-").trim().replace(/[. ]+$/, "");
@@ -58,6 +65,7 @@ async function createDropboxFolder(accessToken: string, path: string) {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
+      "Dropbox-API-Path-Root": dropboxPathRootHeader,
     },
     body: JSON.stringify({ path, autorename: true }),
   });
@@ -72,6 +80,7 @@ async function getOrCreateSharedLink(accessToken: string, path: string): Promise
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
+      "Dropbox-API-Path-Root": dropboxPathRootHeader,
     },
     body: JSON.stringify({ path }),
   });
@@ -85,6 +94,7 @@ async function getOrCreateSharedLink(accessToken: string, path: string): Promise
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
+        "Dropbox-API-Path-Root": dropboxPathRootHeader,
       },
       body: JSON.stringify({ path, direct_only: true }),
     });
