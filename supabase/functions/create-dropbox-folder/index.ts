@@ -28,6 +28,14 @@ function sanitizeFolderName(name: string): string {
   return name.replace(/[/\\<>:"|?*]/g, "-").trim().replace(/[. ]+$/, "");
 }
 
+// Seller Name is freeform (e.g. "John & Jane Doe"), so this is a best-effort
+// guess — the last whitespace-separated word — not a real name parser.
+function getSellerLastName(sellerName: string | null | undefined): string | null {
+  if (!sellerName) return null;
+  const words = sellerName.trim().split(/\s+/);
+  return words.length ? words[words.length - 1] : null;
+}
+
 async function getDropboxAccessToken(): Promise<string> {
   const res = await fetch("https://api.dropboxapi.com/oauth2/token", {
     method: "POST",
@@ -98,7 +106,7 @@ Deno.serve(async (req) => {
     }
 
     const txRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}&select=id,address,agent:agents!transactions_agent_id_fkey(name)`,
+      `${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}&select=id,address,seller_name,agent:agents!transactions_agent_id_fkey(name)`,
       {
         headers: {
           apikey: SERVICE_ROLE_KEY,
@@ -120,7 +128,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    const folderPath = `${parentPath}/${sanitizeFolderName(tx.address)}`;
+    const folderLabel = getSellerLastName(tx.seller_name)
+      ? `${getSellerLastName(tx.seller_name)} - ${tx.address}`
+      : tx.address;
+    const folderPath = `${parentPath}/${sanitizeFolderName(folderLabel)}`;
 
     const accessToken = await getDropboxAccessToken();
     // autorename:true means a name conflict never throws (Dropbox just appends "(1)"
