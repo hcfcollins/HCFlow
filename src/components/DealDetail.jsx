@@ -94,7 +94,7 @@ export default function DealDetail({
 
       {transaction.stage !== "comps" && (
         <div className="detail-section">
-          <h2 className="comps-section-title">Deal Info</h2>
+          <h2 className="comps-section-title">Listing Details</h2>
           <div className="detail-grid">
             <div>
               <div className="detail-label">Side</div>
@@ -148,7 +148,7 @@ export default function DealDetail({
 
             <div>
               <div className="detail-label">Sign</div>
-              <label className="tbd-toggle">
+              <label className="sign-toggle">
                 <input
                   type="checkbox"
                   checked={!!transaction.has_sign}
@@ -189,6 +189,17 @@ export default function DealDetail({
         )}
       </div>
 
+      {transaction.stage === "won" && (
+        <div className="detail-section">
+          <h2 className="comps-section-title">To-Do</h2>
+          <TodoList
+            todos={transaction.todos}
+            onAdd={(text) => onAddTodo(transaction.id, text)}
+            onToggle={onToggleTodo}
+          />
+        </div>
+      )}
+
       <div className="detail-section">
         <h2 className="comps-section-title">Notes</h2>
         <textarea
@@ -200,14 +211,60 @@ export default function DealDetail({
         />
       </div>
 
-      {transaction.stage === "won" && (
+      {isBroker && (transaction.stage === "contract" || transaction.stage === "closed") && (
         <div className="detail-section">
-          <h2 className="comps-section-title">To-Do</h2>
-          <TodoList
-            todos={transaction.todos}
-            onAdd={(text) => onAddTodo(transaction.id, text)}
-            onToggle={onToggleTodo}
-          />
+          <h2 className="comps-section-title">Under Contract Details</h2>
+          <p className="field-help">Broker-only — collected from the Under Contract form.</p>
+          <div className="detail-grid">
+            <div>
+              <div className="detail-label">Commission %</div>
+              <div>{transaction.closeouts?.commission_pct ?? "—"}</div>
+            </div>
+            <div>
+              <div className="detail-label">Lead Type</div>
+              <div>{transaction.commission_data?.lead_type || "—"}</div>
+            </div>
+            <div>
+              <div className="detail-label">Client Source</div>
+              <div>{transaction.commission_data?.client_source || "—"}</div>
+            </div>
+            <div>
+              <div className="detail-label">Referral</div>
+              <div>
+                {transaction.commission_data?.referral_owed_to
+                  ? `${transaction.commission_data.referral_owed_to} (${transaction.commission_data.referral_pct}%)`
+                  : "—"}
+              </div>
+            </div>
+            <div>
+              <div className="detail-label">Deposit</div>
+              <div>
+                {transaction.commission_data?.hold_deposit === "Yes"
+                  ? `$${Number(transaction.commission_data.deposit_amount).toLocaleString()}`
+                  : "No"}
+              </div>
+            </div>
+            <div>
+              <div className="detail-label">Second Deposit</div>
+              <div>
+                {transaction.commission_data?.second_deposit === "Yes"
+                  ? `$${Number(transaction.commission_data.second_deposit_amount).toLocaleString()} due ${transaction.commission_data.second_deposit_due_date || "—"}`
+                  : "No"}
+              </div>
+            </div>
+            <div>
+              <div className="detail-label">Inspection Deadline</div>
+              <div>{transaction.commission_data?.inspection_date || "—"}</div>
+            </div>
+            <div>
+              <div className="detail-label">Financing Date</div>
+              <div>{transaction.commission_data?.financing_date || "—"}</div>
+            </div>
+            <div>
+              <div className="detail-label">Appraiser</div>
+              <div>{transaction.commission_data?.appraiser || "—"}</div>
+            </div>
+          </div>
         </div>
       )}
 

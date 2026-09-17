@@ -82,6 +82,8 @@ button { cursor: pointer; }
 .radio-group { display: flex; flex-wrap: wrap; gap: 14px; }
 .radio-option { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 400; flex-direction: row; }
 .tbd-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 400; color: #8A8577; margin-top: 4px; flex-direction: row; }
+.sign-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 400; color: #173348; white-space: nowrap; max-width: 100%; }
+.sign-toggle input { flex-shrink: 0; width: 16px; height: 16px; margin: 0; }
 .uc-agent-display { font-size: 13px; color: #8A8577; }
 .uc-agent-display strong { color: #173348; }
 .uc-inline-label { margin-top: 8px; }
@@ -155,7 +157,7 @@ button { cursor: pointer; }
 .detail-section input:not([type="checkbox"]) { width: 100%; margin-top: 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid #E4E0D3; font-family: 'Montserrat', sans-serif; font-size: 13px; }
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 10px; font-size: 13px; }
 .detail-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #8A8577; margin-bottom: 2px; }
-.detail-grid input,
+.detail-grid input:not([type="checkbox"]),
 .detail-grid select { width: 100%; padding: 6px 8px; border-radius: 6px; border: 1px solid #E4E0D3; font-family: 'Montserrat', sans-serif; font-size: 13px; }
 .editable-missing { display: flex; align-items: center; gap: 6px; color: #B5AA8E; }
 .edit-icon-btn { display: inline-flex; align-items: center; justify-content: center; border: none; background: #F0EDE4; color: #173348; border-radius: 50%; width: 20px; height: 20px; padding: 0; }

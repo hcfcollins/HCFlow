@@ -16,7 +16,9 @@ export async function fetchTransactions() {
       seller_attorney:attorneys!transactions_seller_attorney_id_fkey(id, name),
       documents(*),
       activity_log(*),
-      todos(*)
+      todos(*),
+      commission_data(*),
+      closeouts(*)
     `
     )
     .order("created_at", { ascending: false });

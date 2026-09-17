@@ -41,8 +41,11 @@ export default function App() {
     if (session && agent) loadTransactions();
   }, [session, agent]);
 
-  async function loadTransactions() {
-    setLoadingTxs(true);
+  // `silent` skips the full-screen loading state for refreshes triggered by an
+  // edit (toggling a todo, changing notes, etc.) so the screen doesn't flash
+  // back to "Loading…" and reset scroll position every time something is saved.
+  async function loadTransactions({ silent = false } = {}) {
+    if (!silent) setLoadingTxs(true);
     try {
       const data = await fetchTransactions();
       setTxs(data);
@@ -51,7 +54,7 @@ export default function App() {
     } catch (e) {
       setError(e.message);
     } finally {
-      setLoadingTxs(false);
+      if (!silent) setLoadingTxs(false);
     }
   }
 
@@ -63,32 +66,32 @@ export default function App() {
       }
     }
     await updateTransactionStage(id, stage);
-    loadTransactions();
+    loadTransactions({ silent: true });
   }
 
   async function handleNotesChange(id, notes) {
     await updateTransactionNotes(id, notes);
-    loadTransactions();
+    loadTransactions({ silent: true });
   }
 
   async function handleCompsStatusChange(id, status) {
     await updateTransactionCompsStatus(id, status);
-    loadTransactions();
+    loadTransactions({ silent: true });
   }
 
   async function handleLockboxChange(id, lockboxFields) {
     await updateTransactionLockbox(id, lockboxFields);
-    loadTransactions();
+    loadTransactions({ silent: true });
   }
 
   async function handleAddTodo(id, text) {
     await addTodo(id, text);
-    loadTransactions();
+    loadTransactions({ silent: true });
   }
 
   async function handleToggleTodo(id, done) {
     await toggleTodo(id, done);
-    loadTransactions();
+    loadTransactions({ silent: true });
   }
 
   function handleRequestUnderContract(tx) {
@@ -177,7 +180,7 @@ export default function App() {
           onAddTodo={handleAddTodo}
           onToggleTodo={handleToggleTodo}
           onLockboxChange={handleLockboxChange}
-          onRefresh={loadTransactions}
+          onRefresh={() => loadTransactions({ silent: true })}
         />
       </div>
     );
