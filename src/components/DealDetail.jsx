@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Mail } from "lucide-react";
 import TodoList from "./TodoList";
+import RadioGroup from "./RadioGroup";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys } from "../lib/transactions";
 
 const PROPERTY_STYLES = ["Residential", "Land", "Commercial"];
@@ -19,6 +20,7 @@ export default function DealDetail({
   onRefresh,
 }) {
   const isBroker = currentAgent.role === "broker";
+  const isActiveListing = transaction.stage === "won" || transaction.stage === "market";
   const [lockboxCode, setLockboxCode] = useState(transaction.lockbox_code || "");
   const [lockboxNote, setLockboxNote] = useState(transaction.lockbox_note || "");
   const [attorneys, setAttorneys] = useState([]);
@@ -96,18 +98,6 @@ export default function DealDetail({
         <div className="detail-section">
           <h2 className="comps-section-title">Listing Details</h2>
           <div className="detail-grid">
-            <div>
-              <div className="detail-label">Side</div>
-              <div>{transaction.side}</div>
-            </div>
-
-            <EditableSelect
-              label="Property Style"
-              value={transaction.property_style}
-              options={PROPERTY_STYLES}
-              onSave={(v) => handleFieldSave({ property_style: v })}
-            />
-
             <EditableText
               label="Price"
               value={transaction.price ? `$${Number(transaction.price).toLocaleString()}` : ""}
@@ -123,40 +113,67 @@ export default function DealDetail({
               onSave={(v) => handleFieldSave({ ba_comp: v || null })}
             />
 
-            {isBroker && (
-              <div>
-                <div className="detail-label">Agent</div>
-                <div>{transaction.agent?.name || "—"}</div>
-              </div>
-            )}
-
-            <EditableText
-              label="Buyer Attorney"
-              value={transaction.buyer_attorney?.name}
-              placeholder="TBD"
-              attorneyList={attorneys}
-              onSave={(v) => handleAttorneySave("buyer", v)}
-            />
-
-            <EditableText
-              label="Seller Attorney"
-              value={transaction.seller_attorney?.name}
-              placeholder="TBD"
-              attorneyList={attorneys}
-              onSave={(v) => handleAttorneySave("seller", v)}
+            <EditableSelect
+              label="Property Style"
+              value={transaction.property_style}
+              options={PROPERTY_STYLES}
+              onSave={(v) => handleFieldSave({ property_style: v })}
             />
 
             <div>
               <div className="detail-label">Sign</div>
-              <label className="sign-toggle">
-                <input
-                  type="checkbox"
-                  checked={!!transaction.has_sign}
-                  onChange={(e) => handleFieldSave({ has_sign: e.target.checked })}
-                />
-                Sign is up
-              </label>
+              <RadioGroup
+                name="signStatus"
+                value={transaction.sign_status || "No"}
+                onChange={(v) => handleFieldSave({ sign_status: v })}
+                options={[
+                  { value: "Yes", label: "Yes" },
+                  { value: "No", label: "Not yet" },
+                  { value: "Seller Declined", label: "Seller doesn't want one" },
+                ]}
+              />
             </div>
+
+            <EditableText
+              label="Seller Email"
+              value={transaction.seller_email}
+              type="email"
+              placeholder="—"
+              mailto
+              onSave={(v) => handleFieldSave({ seller_email: v || null })}
+            />
+
+            {!isActiveListing && (
+              <>
+                <div>
+                  <div className="detail-label">Side</div>
+                  <div>{transaction.side}</div>
+                </div>
+
+                {isBroker && (
+                  <div>
+                    <div className="detail-label">Agent</div>
+                    <div>{transaction.agent?.name || "—"}</div>
+                  </div>
+                )}
+
+                <EditableText
+                  label="Buyer Attorney"
+                  value={transaction.buyer_attorney?.name}
+                  placeholder="TBD"
+                  attorneyList={attorneys}
+                  onSave={(v) => handleAttorneySave("buyer", v)}
+                />
+
+                <EditableText
+                  label="Seller Attorney"
+                  value={transaction.seller_attorney?.name}
+                  placeholder="TBD"
+                  attorneyList={attorneys}
+                  onSave={(v) => handleAttorneySave("seller", v)}
+                />
+              </>
+            )}
           </div>
         </div>
       )}
@@ -306,7 +323,7 @@ export default function DealDetail({
 }
 
 /** Shows a value, or an edit icon + inline text input when it's missing/TBD. */
-function EditableText({ label, value, placeholder, type = "text", attorneyList, onSave }) {
+function EditableText({ label, value, placeholder, type = "text", attorneyList, mailto, onSave }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || "");
 
@@ -357,7 +374,16 @@ function EditableText({ label, value, placeholder, type = "text", attorneyList, 
   return (
     <div>
       <div className="detail-label">{label}</div>
-      <div>{value}</div>
+      {mailto ? (
+        <div className="editable-filled">
+          <span>{value}</span>
+          <a href={`mailto:${value}`} className="edit-icon-btn" title="Email seller">
+            <Mail size={12} />
+          </a>
+        </div>
+      ) : (
+        <div>{value}</div>
+      )}
     </div>
   );
 }

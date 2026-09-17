@@ -46,7 +46,23 @@ export async function updateTransactionCompsStatus(id, compsStatus) {
 }
 
 /** Quick-capture flow (Build Spec §10): logs a listing appointment straight into the Comps stage. */
-export async function createComp({ agentId, address, town, side, notes }) {
+export async function createComp({
+  agentId,
+  address,
+  town,
+  side,
+  notes,
+  sellerName,
+  sellerEmail,
+  timeframe,
+  propertyStyle,
+  electrical,
+  heatingSystem,
+  basement,
+  waterSource,
+  septic,
+  recommendations,
+}) {
   const tx = await createTransaction({
     agent_id: agentId,
     address,
@@ -55,6 +71,16 @@ export async function createComp({ agentId, address, town, side, notes }) {
     notes,
     stage: "comps",
     comps_status: "Need to Send Comp",
+    seller_name: sellerName,
+    seller_email: sellerEmail,
+    timeframe,
+    property_style: propertyStyle,
+    electrical,
+    heating_system: heatingSystem,
+    basement,
+    water_source: waterSource,
+    septic,
+    recommendations,
   });
   await addActivityLog(tx.id, "Added from Comps quick-capture", address);
   return tx;

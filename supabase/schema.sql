@@ -43,7 +43,7 @@ create table transactions (
   agent_id uuid references agents(id),
   next_date text,
   notes text default '',
-  has_sign boolean default false,
+  sign_status text default 'No' check (sign_status in ('Yes', 'No', 'Seller Declined')),
   has_lockbox boolean default false,
   lockbox_code text,
   lockbox_note text,
@@ -55,6 +55,14 @@ create table transactions (
   property_style text check (property_style in ('Residential', 'Land', 'Commercial')),
   price numeric,
   comps_status text check (comps_status in ('Need to Send Comp', 'Waiting to List')), -- only meaningful while stage = 'comps'
+  seller_email text,
+  timeframe text check (timeframe in ('Now', '6 months', 'Next year')),
+  electrical text check (electrical in ('200 amp', '150 amp', '100 amp', 'Fuses', 'Knob and Tube')),
+  heating_system text[], -- multi-select: Baseboard, Hot Water, Oil, Propane, Electric, Direct Vent/Rinnai, Mini Splits, Wood Stove, Radiant, or freeform "Other" entries
+  basement text[], -- multi-select: Dirt Floor, Concrete Block, Poured Concrete, Fieldstone, Crawlspace
+  water_source text,
+  septic text,
+  recommendations text[], -- multi-select: standard seller recommendations checklist (Wait for Spring, Septic Inspection, etc.)
   linked_id uuid references transactions(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

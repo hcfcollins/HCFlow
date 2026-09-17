@@ -51,7 +51,9 @@ function TxCard({
   onOpenDetail,
 }) {
   const [lockboxOpen, setLockboxOpen] = useState(false);
+  const [signNoteOpen, setSignNoteOpen] = useState(false);
   const isActiveListing = tx.stage === "won" || tx.stage === "market";
+  const signDeclined = tx.sign_status === "Seller Declined";
 
   return (
     <div className="tx-card" onClick={() => onOpenDetail && onOpenDetail(tx)}>
@@ -59,7 +61,8 @@ function TxCard({
         <div>
           <div className="tx-address">{tx.address}</div>
           <div className="tx-sub">
-            {tx.town} · {tx.side} side
+            {tx.town}
+            {isActiveListing ? "" : ` · ${tx.side} side`}
             {isBroker && tx.agent ? ` · ${tx.agent.name}` : ""}
           </div>
         </div>
@@ -77,23 +80,38 @@ function TxCard({
         </select>
       </div>
 
-      {isActiveListing && (tx.has_sign || tx.ba_comp || tx.has_lockbox) && (
+      {(tx.ba_comp || (isActiveListing && (tx.sign_status === "Yes" || signDeclined || tx.has_lockbox))) && (
         <div className="tx-icons-row" onClick={(e) => e.stopPropagation()}>
-          {tx.has_sign && (
+          {isActiveListing && tx.sign_status === "Yes" && (
             <span className="tx-icon-badge" title="Sign is up">
               <Signpost size={14} /> Sign
             </span>
+          )}
+          {isActiveListing && signDeclined && (
+            <button
+              type="button"
+              className="tx-icon-badge tx-icon-badge--btn tx-icon-badge--declined"
+              onClick={() => setSignNoteOpen((o) => !o)}
+            >
+              <Signpost size={14} /> Sign
+            </button>
           )}
           {tx.ba_comp && (
             <span className="tx-icon-badge" title="Buyer agency commission">
               <Percent size={14} /> {tx.ba_comp}
             </span>
           )}
-          {tx.has_lockbox && (
+          {isActiveListing && tx.has_lockbox && (
             <button type="button" className="tx-icon-badge tx-icon-badge--btn" onClick={() => setLockboxOpen((o) => !o)}>
               <Lock size={14} /> Lockbox
             </button>
           )}
+        </div>
+      )}
+
+      {isActiveListing && signNoteOpen && (
+        <div className="lockbox-popover" onClick={(e) => e.stopPropagation()}>
+          Seller does not want a sign.
         </div>
       )}
 

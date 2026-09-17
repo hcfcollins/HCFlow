@@ -18,7 +18,7 @@ import DealDetail from "./components/DealDetail";
 import Celebration from "./components/Celebration";
 
 const STAGES = [
-  { key: "comps", label: "Comped" },
+  { key: "comps", label: "Comp" },
   { key: "won", label: "Listing Won" },
   { key: "market", label: "On Market" },
   { key: "contract", label: "Under Contract" },

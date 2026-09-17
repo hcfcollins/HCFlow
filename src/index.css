@@ -52,6 +52,7 @@ button { cursor: pointer; }
   font-family: 'Montserrat', sans-serif;
 }
 .tx-icon-badge--btn { cursor: pointer; }
+.tx-icon-badge--declined { background: #F8E7E2; color: #A13D2E; text-decoration: line-through; position: relative; }
 .lockbox-popover { background: #FBF9F4; border: 1px solid #E4E0D3; border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
 .tx-notes { width: 100%; border: 1px solid #E4E0D3; border-radius: 8px; padding: 8px 10px; font-family: 'Montserrat', sans-serif; font-size: 13px; resize: none; }
 .empty-state { text-align: center; color: #8A8577; padding: 40px 0; }
@@ -80,14 +81,15 @@ button { cursor: pointer; }
 .uc-form legend { font-size: 12px; font-weight: 700; color: #C7155B; text-transform: uppercase; letter-spacing: 0.04em; padding: 0 4px; }
 .field-help { font-size: 12px; color: #8A8577; font-weight: 400; margin: 0 0 8px; }
 .radio-group { display: flex; flex-wrap: wrap; gap: 14px; }
-.radio-option { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 400; flex-direction: row; }
+.radio-group .radio-option { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 400; flex-direction: row; }
 .tbd-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 400; color: #8A8577; margin-top: 4px; flex-direction: row; }
-.sign-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 400; color: #173348; white-space: nowrap; max-width: 100%; }
-.sign-toggle input { flex-shrink: 0; width: 16px; height: 16px; margin: 0; }
 .uc-agent-display { font-size: 13px; color: #8A8577; }
 .uc-agent-display strong { color: #173348; }
 .uc-inline-label { margin-top: 8px; }
 .field-note { font-size: 12px; font-weight: 400; color: #C7155B; }
+.input-with-icon { display: flex; align-items: center; gap: 8px; }
+.input-with-icon input { flex: 1; }
+.input-icon-btn { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 34px; height: 34px; border-radius: 8px; background: #F0EDE4; color: #173348; }
 
 .deal-pages { display: flex; flex-direction: column; }
 .deal-pages-tabs { display: flex; gap: 4px; background: #EFEBE1; border-radius: 12px; padding: 4px; margin-bottom: 16px; }
@@ -160,6 +162,7 @@ button { cursor: pointer; }
 .detail-grid input:not([type="checkbox"]),
 .detail-grid select { width: 100%; padding: 6px 8px; border-radius: 6px; border: 1px solid #E4E0D3; font-family: 'Montserrat', sans-serif; font-size: 13px; }
 .editable-missing { display: flex; align-items: center; gap: 6px; color: #B5AA8E; }
+.editable-filled { display: flex; align-items: center; gap: 6px; }
 .edit-icon-btn { display: inline-flex; align-items: center; justify-content: center; border: none; background: #F0EDE4; color: #173348; border-radius: 50%; width: 20px; height: 20px; padding: 0; }
 .detail-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
 
