@@ -63,15 +63,18 @@ export default function App() {
     let sideEffectError = null;
     if (stage === "won") {
       const tx = txs.find((t) => t.id === id);
+      // These are gated independently — a transaction can already have todos
+      // (seeded on a prior attempt) while still lacking a Dropbox folder if
+      // that step failed, so retrying must still re-attempt just that piece.
       if (tx && !tx.todos?.length) {
-        // Neither of these should block the stage change itself if they fail —
-        // surface the problem instead of silently swallowing it.
         try {
           await seedWonListingTodos(id);
         } catch (e) {
           console.error("Failed to seed Won Listing to-dos:", e);
           sideEffectError = `Couldn't set up the to-do checklist: ${e.message}`;
         }
+      }
+      if (tx && !tx.dropbox_folder_url) {
         try {
           await createDropboxFolderForListing(id);
         } catch (e) {
@@ -99,6 +102,18 @@ export default function App() {
 
   async function handleLockboxChange(id, lockboxFields) {
     await updateTransactionLockbox(id, lockboxFields);
+    loadTransactions({ silent: true });
+  }
+
+  async function handleRetryDropboxFolder(id) {
+    try {
+      await createDropboxFolderForListing(id);
+    } catch (e) {
+      console.error("Dropbox folder creation failed:", e);
+      await loadTransactions({ silent: true });
+      setError(`Couldn't create the Dropbox folder: ${e.message}`);
+      return;
+    }
     loadTransactions({ silent: true });
   }
 
@@ -200,6 +215,7 @@ export default function App() {
           onToggleTodo={handleToggleTodo}
           onLockboxChange={handleLockboxChange}
           onRefresh={() => loadTransactions({ silent: true })}
+          onRetryDropboxFolder={handleRetryDropboxFolder}
         />
       </div>
     );

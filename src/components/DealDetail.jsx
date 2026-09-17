@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pencil, Mail, Download, FolderOpen } from "lucide-react";
+import { Pencil, Mail, Download, FolderOpen, ChevronDown } from "lucide-react";
 import TodoList from "./TodoList";
 import RadioGroup from "./RadioGroup";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys } from "../lib/transactions";
@@ -32,6 +32,7 @@ export default function DealDetail({
   onToggleTodo,
   onLockboxChange,
   onRefresh,
+  onRetryDropboxFolder,
 }) {
   const isBroker = currentAgent.role === "broker";
   const isActiveListing = transaction.stage === "won" || transaction.stage === "market";
@@ -40,6 +41,7 @@ export default function DealDetail({
   const [lockboxNote, setLockboxNote] = useState(transaction.lockbox_note || "");
   const [attorneys, setAttorneys] = useState([]);
   const [compDetailsCollapsed, setCompDetailsCollapsed] = useState(true);
+  const [retryingDropbox, setRetryingDropbox] = useState(false);
 
   useEffect(() => {
     fetchAttorneys().then(setAttorneys).catch(() => {});
@@ -138,12 +140,14 @@ export default function DealDetail({
 
       {transaction.stage !== "comps" && (
         <div className="detail-section">
-          <div className="comps-section-header">
-            <h2 className="comps-section-title">From the Comp</h2>
-            <button type="button" className="comps-minimize-btn" onClick={() => setCompDetailsCollapsed((c) => !c)}>
-              {compDetailsCollapsed ? "Show" : "Minimize"}
-            </button>
-          </div>
+          <button
+            type="button"
+            className="comps-section-header comps-collapse-toggle"
+            onClick={() => setCompDetailsCollapsed((c) => !c)}
+          >
+            <h2 className="comps-section-title">Comp Data</h2>
+            <ChevronDown size={18} className={`collapse-chevron ${compDetailsCollapsed ? "" : "collapse-chevron--open"}`} />
+          </button>
           {!compDetailsCollapsed && <CompDetailsGrid transaction={transaction} handleFieldSave={handleFieldSave} />}
         </div>
       )}
@@ -184,7 +188,7 @@ export default function DealDetail({
                   value={transaction.sign_status || "No"}
                   onChange={(v) => handleFieldSave({ sign_status: v })}
                   options={[
-                    { value: "Yes", label: "Yes" },
+                    { value: "Yes", label: "Sign Installed" },
                     { value: "No", label: "Not yet" },
                     { value: "Seller Declined", label: "Seller doesn't want one" },
                   ]}
@@ -358,7 +362,23 @@ export default function DealDetail({
               <FolderOpen size={14} /> Open Dropbox Folder
             </a>
           ) : (
-            transaction.stage === "won" && <p className="field-help">Dropbox folder not created yet.</p>
+            transaction.stage === "won" && (
+              <>
+                <p className="field-help">Dropbox folder not created yet.</p>
+                <button
+                  type="button"
+                  className="cma-export-btn"
+                  disabled={retryingDropbox}
+                  onClick={async () => {
+                    setRetryingDropbox(true);
+                    await onRetryDropboxFolder(transaction.id);
+                    setRetryingDropbox(false);
+                  }}
+                >
+                  <FolderOpen size={14} /> {retryingDropbox ? "Creating…" : "Retry Dropbox Folder"}
+                </button>
+              </>
+            )
           )}
           {transaction.documents?.length ? (
             <ul className="detail-list">

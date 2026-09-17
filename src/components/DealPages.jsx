@@ -128,6 +128,17 @@ export default function DealPages({
                     onNotesChange={onNotesChange}
                     onOpenDetail={onOpenDetail}
                   />
+                ) : p.key === "active" ? (
+                  <ActiveListingsPage
+                    transactions={transactions.filter(p.match)}
+                    stages={stages}
+                    currentAgent={currentAgent}
+                    onStageChange={onStageChange}
+                    onNotesChange={onNotesChange}
+                    onAddTodo={onAddTodo}
+                    onToggleTodo={onToggleTodo}
+                    onOpenDetail={onOpenDetail}
+                  />
                 ) : (
                   <TransactionList
                     transactions={transactions.filter(p.match)}
@@ -143,6 +154,55 @@ export default function DealPages({
             </div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ActiveListingsPage({
+  transactions,
+  stages,
+  currentAgent,
+  onStageChange,
+  onNotesChange,
+  onAddTodo,
+  onToggleTodo,
+  onOpenDetail,
+}) {
+  const privateListings = transactions.filter((tx) => tx.stage === "won");
+  const onMarket = transactions.filter((tx) => tx.stage === "market");
+
+  return (
+    <div className="comps-page">
+      <div className="comps-section comps-section--won">
+        <h2 className="comps-section-title">
+          Private Listing <span className="comps-section-count">{privateListings.length}</span>
+        </h2>
+        <p className="field-help">Not live yet — still gathering documents.</p>
+        <TransactionList
+          transactions={privateListings}
+          stages={stages}
+          currentAgent={currentAgent}
+          onStageChange={onStageChange}
+          onNotesChange={onNotesChange}
+          onAddTodo={onAddTodo}
+          onToggleTodo={onToggleTodo}
+          onOpenDetail={onOpenDetail}
+        />
+      </div>
+
+      <div className="comps-section comps-section--onmarket">
+        <h2 className="comps-section-title">
+          On Market <span className="comps-section-count">{onMarket.length}</span>
+        </h2>
+        <TransactionList
+          transactions={onMarket}
+          stages={stages}
+          currentAgent={currentAgent}
+          onStageChange={onStageChange}
+          onNotesChange={onNotesChange}
+          onOpenDetail={onOpenDetail}
+        />
       </div>
     </div>
   );
