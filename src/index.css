@@ -123,13 +123,11 @@ button { cursor: pointer; }
 .deal-pages-tab:nth-child(3).active { box-shadow: 0 1px 4px rgba(0,0,0,0.08), inset 0 -3px 0 #C7155B; }
 .deal-pages-tab:nth-child(4).active { box-shadow: 0 1px 4px rgba(0,0,0,0.08), inset 0 -3px 0 #B5AA8E; }
 
-/* Comps page has its own per-section bubbles instead of one page-wide tint (see below) */
+/* Comps and Under Contract pages have their own per-section bubbles instead of one page-wide tint (see below) */
 .deal-page--active { background: rgba(110, 151, 189, 0.14); }
-.deal-page--contract { background: rgba(199, 21, 91, 0.08); }
 .deal-page--all { background: rgba(181, 170, 142, 0.14); }
 
 .deal-page--active .tx-card { border-color: #6E97BD; border-width: 1px 1px 1px 4px; }
-.deal-page--contract .tx-card { border-color: #C7155B; border-width: 1px 1px 1px 4px; }
 .deal-page--all .tx-card { border-color: #B5AA8E; border-width: 1px 1px 1px 4px; }
 
 .comps-section { padding: 14px 12px; border-radius: 16px; }
@@ -146,6 +144,10 @@ button { cursor: pointer; }
 .comps-section--won .tx-card { border-color: #6E97BD; border-width: 1px 1px 1px 4px; }
 .comps-section--waiting { background: rgba(181, 170, 142, 0.14); }
 .comps-section--waiting .tx-card { border-color: #B5AA8E; border-width: 1px 1px 1px 4px; }
+.comps-section--sellers { background: rgba(199, 21, 91, 0.12); }
+.comps-section--sellers .tx-card { border-color: #C7155B; border-width: 1px 1px 1px 4px; }
+.comps-section--buyers { background: rgba(242, 178, 193, 0.35); }
+.comps-section--buyers .tx-card { border-color: #E8879F; border-width: 1px 1px 1px 4px; }
 .todo-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .todo-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .todo-item.done { color: #8A8577; text-decoration: line-through; }

@@ -53,6 +53,7 @@ function TxCard({
   const [lockboxOpen, setLockboxOpen] = useState(false);
   const [signNoteOpen, setSignNoteOpen] = useState(false);
   const isActiveListing = tx.stage === "won" || tx.stage === "market";
+  const isBuySide = tx.side === "Buy";
   const signDeclined = tx.sign_status === "Seller Declined";
 
   return (
@@ -80,7 +81,7 @@ function TxCard({
         </select>
       </div>
 
-      {(tx.ba_comp || (isActiveListing && (tx.sign_status === "Yes" || signDeclined || tx.has_lockbox))) && (
+      {((tx.ba_comp && !isBuySide) || (isActiveListing && (tx.sign_status === "Yes" || signDeclined || tx.has_lockbox))) && (
         <div className="tx-icons-row" onClick={(e) => e.stopPropagation()}>
           {isActiveListing && tx.sign_status === "Yes" && (
             <span className="tx-icon-badge" title="Sign is up">
@@ -96,7 +97,7 @@ function TxCard({
               <Signpost size={14} /> Sign
             </button>
           )}
-          {tx.ba_comp && (
+          {tx.ba_comp && !isBuySide && (
             <span className="tx-icon-badge" title="Buyer agency commission">
               <Percent size={14} /> {tx.ba_comp}
             </span>

@@ -6,6 +6,19 @@ import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTrans
 
 const PROPERTY_STYLES = ["Residential", "Land", "Commercial"];
 
+/** Formats a "YYYY-MM-DD" date string as "Month Day, Year"; returns other formats unchanged. */
+function formatDate(dateStr) {
+  if (!dateStr) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr);
+  if (!match) return dateStr;
+  const [, y, m, d] = match;
+  return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export default function DealDetail({
   transaction,
   stages,
@@ -21,6 +34,7 @@ export default function DealDetail({
 }) {
   const isBroker = currentAgent.role === "broker";
   const isActiveListing = transaction.stage === "won" || transaction.stage === "market";
+  const isBuySide = transaction.side === "Buy";
   const [lockboxCode, setLockboxCode] = useState(transaction.lockbox_code || "");
   const [lockboxNote, setLockboxNote] = useState(transaction.lockbox_note || "");
   const [attorneys, setAttorneys] = useState([]);
@@ -106,12 +120,14 @@ export default function DealDetail({
               onSave={(v) => handleFieldSave({ price: v ? Number(v) : null })}
             />
 
-            <EditableText
-              label="Buyer Agency Commission"
-              value={transaction.ba_comp}
-              placeholder="e.g. 2.5%"
-              onSave={(v) => handleFieldSave({ ba_comp: v || null })}
-            />
+            {!isBuySide && (
+              <EditableText
+                label="Buyer Agency Commission"
+                value={transaction.ba_comp}
+                placeholder="e.g. 2.5%"
+                onSave={(v) => handleFieldSave({ ba_comp: v || null })}
+              />
+            )}
 
             <EditableSelect
               label="Property Style"
@@ -120,19 +136,21 @@ export default function DealDetail({
               onSave={(v) => handleFieldSave({ property_style: v })}
             />
 
-            <div>
-              <div className="detail-label">Sign</div>
-              <RadioGroup
-                name="signStatus"
-                value={transaction.sign_status || "No"}
-                onChange={(v) => handleFieldSave({ sign_status: v })}
-                options={[
-                  { value: "Yes", label: "Yes" },
-                  { value: "No", label: "Not yet" },
-                  { value: "Seller Declined", label: "Seller doesn't want one" },
-                ]}
-              />
-            </div>
+            {!isBuySide && (
+              <div>
+                <div className="detail-label">Sign</div>
+                <RadioGroup
+                  name="signStatus"
+                  value={transaction.sign_status || "No"}
+                  onChange={(v) => handleFieldSave({ sign_status: v })}
+                  options={[
+                    { value: "Yes", label: "Yes" },
+                    { value: "No", label: "Not yet" },
+                    { value: "Seller Declined", label: "Seller doesn't want one" },
+                  ]}
+                />
+              </div>
+            )}
 
             <EditableText
               label="Seller Email"
@@ -265,17 +283,21 @@ export default function DealDetail({
               <div className="detail-label">Second Deposit</div>
               <div>
                 {transaction.commission_data?.second_deposit === "Yes"
-                  ? `$${Number(transaction.commission_data.second_deposit_amount).toLocaleString()} due ${transaction.commission_data.second_deposit_due_date || "—"}`
+                  ? `$${Number(transaction.commission_data.second_deposit_amount).toLocaleString()} due ${formatDate(transaction.commission_data.second_deposit_due_date) || "—"}`
                   : "No"}
               </div>
             </div>
             <div>
+              <div className="detail-label">Closing Date</div>
+              <div>{formatDate(transaction.next_date) || "—"}</div>
+            </div>
+            <div>
               <div className="detail-label">Inspection Deadline</div>
-              <div>{transaction.commission_data?.inspection_date || "—"}</div>
+              <div>{formatDate(transaction.commission_data?.inspection_date) || "—"}</div>
             </div>
             <div>
               <div className="detail-label">Financing Date</div>
-              <div>{transaction.commission_data?.financing_date || "—"}</div>
+              <div>{formatDate(transaction.commission_data?.financing_date) || "—"}</div>
             </div>
             <div>
               <div className="detail-label">Appraiser</div>

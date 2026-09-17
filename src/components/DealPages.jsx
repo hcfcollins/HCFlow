@@ -119,6 +119,15 @@ export default function DealPages({
                     onToggleTodo={onToggleTodo}
                     onOpenDetail={onOpenDetail}
                   />
+                ) : p.key === "contract" ? (
+                  <UnderContractPage
+                    transactions={transactions.filter(p.match)}
+                    stages={stages}
+                    currentAgent={currentAgent}
+                    onStageChange={onStageChange}
+                    onNotesChange={onNotesChange}
+                    onOpenDetail={onOpenDetail}
+                  />
                 ) : (
                   <TransactionList
                     transactions={transactions.filter(p.match)}
@@ -134,6 +143,43 @@ export default function DealPages({
             </div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function UnderContractPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onOpenDetail }) {
+  const sellers = transactions.filter((tx) => tx.side === "Sell");
+  const buyers = transactions.filter((tx) => tx.side === "Buy");
+
+  return (
+    <div className="comps-page">
+      <div className="comps-section comps-section--sellers">
+        <h2 className="comps-section-title">
+          Sellers <span className="comps-section-count">{sellers.length}</span>
+        </h2>
+        <TransactionList
+          transactions={sellers}
+          stages={stages}
+          currentAgent={currentAgent}
+          onStageChange={onStageChange}
+          onNotesChange={onNotesChange}
+          onOpenDetail={onOpenDetail}
+        />
+      </div>
+
+      <div className="comps-section comps-section--buyers">
+        <h2 className="comps-section-title">
+          Buyers <span className="comps-section-count">{buyers.length}</span>
+        </h2>
+        <TransactionList
+          transactions={buyers}
+          stages={stages}
+          currentAgent={currentAgent}
+          onStageChange={onStageChange}
+          onNotesChange={onNotesChange}
+          onOpenDetail={onOpenDetail}
+        />
       </div>
     </div>
   );
