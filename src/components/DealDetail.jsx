@@ -95,13 +95,14 @@ export default function DealDetail({
 
       {transaction.stage === "comps" && onCompsStatusChange && (
         <div className="comps-status-toggle">
+          <span className="comps-status-toggle-label">Move to:</span>
           {transaction.comps_status === "Waiting to List" ? (
             <button
               type="button"
               className="comps-status-btn"
               onClick={() => onCompsStatusChange(transaction.id, "Need to Send Comp")}
             >
-              Move to: Need to Send Comp
+              Need to Send Comp
             </button>
           ) : (
             <button
@@ -109,7 +110,7 @@ export default function DealDetail({
               className="comps-status-btn"
               onClick={() => onCompsStatusChange(transaction.id, "Waiting to List")}
             >
-              Move to: Waiting to List
+              Waiting to List
             </button>
           )}
         </div>

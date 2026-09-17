@@ -200,7 +200,8 @@ button { cursor: pointer; }
   from { transform: scale(0.7); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
-.comps-status-toggle { display: flex; gap: 6px; margin-bottom: 8px; }
+.comps-status-toggle { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+.comps-status-toggle-label { font-size: 11px; font-weight: 600; color: #8A8577; white-space: nowrap; }
 .comps-status-btn {
   flex: 1;
   border: 1px solid #E4E0D3;
