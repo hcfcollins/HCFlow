@@ -1,13 +1,9 @@
 import { useState } from "react";
 import { createComp } from "../lib/transactions";
-import RadioGroup from "./RadioGroup";
-import AgentField from "./AgentField";
 
 export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
-  const [selectedAgentId, setSelectedAgentId] = useState(currentAgent.id);
   const [address, setAddress] = useState("");
   const [town, setTown] = useState("");
-  const [side, setSide] = useState("Sell");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -17,7 +13,7 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
     setSaving(true);
     setError(null);
     try {
-      await createComp({ agentId: selectedAgentId, address, town, side, notes });
+      await createComp({ agentId: currentAgent.id, address, town, side: "Sell", notes });
       onSubmitted();
     } catch (e) {
       setError(e.message);
@@ -40,8 +36,6 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
 
       {error && <div className="error-banner">{error}</div>}
 
-      <AgentField currentAgent={currentAgent} value={selectedAgentId} onChange={setSelectedAgentId} />
-
       <label>
         Address
         <input value={address} onChange={(e) => setAddress(e.target.value)} required />
@@ -50,19 +44,6 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
         Town
         <input value={town} onChange={(e) => setTown(e.target.value)} />
       </label>
-
-      <fieldset>
-        <legend>Which Side?</legend>
-        <RadioGroup
-          name="side"
-          value={side}
-          onChange={setSide}
-          options={[
-            { value: "Sell", label: "Seller" },
-            { value: "Buy", label: "Buyer" },
-          ]}
-        />
-      </fieldset>
 
       <label>
         Notes
