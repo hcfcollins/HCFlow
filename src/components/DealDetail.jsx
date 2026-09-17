@@ -116,6 +116,58 @@ export default function DealDetail({
         </div>
       )}
 
+      {transaction.stage === "comps" && (
+        <div className="detail-section">
+          <h2 className="comps-section-title">Comp Details</h2>
+          <div className="detail-grid">
+            <div>
+              <div className="detail-label">Seller Name(s)</div>
+              <div>{transaction.seller_name || "—"}</div>
+            </div>
+            <EditableText
+              label="Seller Email"
+              value={transaction.seller_email}
+              type="email"
+              placeholder="—"
+              mailto
+              onSave={(v) => handleFieldSave({ seller_email: v || null })}
+            />
+            <div>
+              <div className="detail-label">Rough Timeframe</div>
+              <div>{transaction.timeframe || "—"}</div>
+            </div>
+            <div>
+              <div className="detail-label">Property Style</div>
+              <div>{transaction.property_style || "—"}</div>
+            </div>
+            <div>
+              <div className="detail-label">Electrical</div>
+              <div>{transaction.electrical || "—"}</div>
+            </div>
+            <div>
+              <div className="detail-label">Heating System</div>
+              <div>{transaction.heating_system?.length ? transaction.heating_system.join(", ") : "—"}</div>
+            </div>
+            <div>
+              <div className="detail-label">Basement</div>
+              <div>{transaction.basement?.length ? transaction.basement.join(", ") : "—"}</div>
+            </div>
+            <div>
+              <div className="detail-label">Water Source</div>
+              <div>{transaction.water_source || "—"}</div>
+            </div>
+            <div>
+              <div className="detail-label">Septic</div>
+              <div>{transaction.septic || "—"}</div>
+            </div>
+            <div>
+              <div className="detail-label">Recommendations</div>
+              <div>{transaction.recommendations?.length ? transaction.recommendations.join(", ") : "—"}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {transaction.stage !== "comps" && (
         <div className="detail-section">
           <h2 className="comps-section-title">Listing Details</h2>
@@ -204,33 +256,35 @@ export default function DealDetail({
         </div>
       )}
 
-      <div className="detail-section">
-        <h2 className="comps-section-title">Lockbox</h2>
-        <label className="tbd-toggle">
-          <input
-            type="checkbox"
-            checked={!!transaction.has_lockbox}
-            onChange={(e) => handleHasLockboxToggle(e.target.checked)}
-          />
-          Has a lockbox
-        </label>
-        {transaction.has_lockbox && (
-          <>
+      {transaction.stage !== "comps" && (
+        <div className="detail-section">
+          <h2 className="comps-section-title">Lockbox</h2>
+          <label className="tbd-toggle">
             <input
-              placeholder="Lockbox code"
-              value={lockboxCode}
-              onChange={(e) => setLockboxCode(e.target.value)}
-              onBlur={handleLockboxBlur}
+              type="checkbox"
+              checked={!!transaction.has_lockbox}
+              onChange={(e) => handleHasLockboxToggle(e.target.checked)}
             />
-            <input
-              placeholder="Notes/Location"
-              value={lockboxNote}
-              onChange={(e) => setLockboxNote(e.target.value)}
-              onBlur={handleLockboxBlur}
-            />
-          </>
-        )}
-      </div>
+            Has a lockbox
+          </label>
+          {transaction.has_lockbox && (
+            <>
+              <input
+                placeholder="Lockbox code"
+                value={lockboxCode}
+                onChange={(e) => setLockboxCode(e.target.value)}
+                onBlur={handleLockboxBlur}
+              />
+              <input
+                placeholder="Notes/Location"
+                value={lockboxNote}
+                onChange={(e) => setLockboxNote(e.target.value)}
+                onBlur={handleLockboxBlur}
+              />
+            </>
+          )}
+        </div>
+      )}
 
       {transaction.stage === "won" && (
         <div className="detail-section">
