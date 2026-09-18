@@ -1,10 +1,18 @@
 import { useState } from "react";
-import { FileText } from "lucide-react";
+import { FileText, Mail } from "lucide-react";
 import CheckboxGroup from "./CheckboxGroup";
 import RadioGroup from "./RadioGroup";
 import { updateTransactionFields, uploadCompPdf, addActivityLog } from "../lib/transactions";
 import { ROAD_FRONTAGE_OPTIONS, PARCEL_CHARACTER_OPTIONS, PERC_STATUS_OPTIONS, LAND_DEV_ITEMS } from "../lib/compPdf/landPricing";
 import { UTILITY_OPTIONS } from "../lib/compPdf/capRateMath";
+import {
+  TIMEFRAMES,
+  PROPERTY_STYLES,
+  ELECTRICAL_OPTIONS,
+  HEATING_OPTIONS,
+  BASEMENT_OPTIONS,
+  RECOMMENDATION_OPTIONS,
+} from "../lib/compFieldOptions";
 
 const DEFAULT_LAND = { acres: "", roadFrontage: "None", parcelCharacter: "Standard lot", percStatus: "None done", devItems: {}, comps: [{}, {}, {}] };
 const DEFAULT_MF = {
@@ -28,9 +36,24 @@ function resizeUnitRents(unitRents, count) {
 }
 
 export default function GenerateCompForm({ transaction, onCancel, onGenerated }) {
-  const isLand = transaction.property_style === "Land";
-  const isMultiFamily = transaction.property_style === "Multi Family";
   const saved = transaction.comp_analysis || {};
+
+  // Property/comp details, editable here in case something was entered wrong or has
+  // changed since the comp was first created — pre-filled from the transaction.
+  const [sellerName, setSellerName] = useState(transaction.seller_name || "");
+  const [sellerEmail, setSellerEmail] = useState(transaction.seller_email || "");
+  const [timeframe, setTimeframe] = useState(transaction.timeframe || TIMEFRAMES[0]);
+  const [propertyStyle, setPropertyStyle] = useState(transaction.property_style || PROPERTY_STYLES[0]);
+  const [electrical, setElectrical] = useState(transaction.electrical || "");
+  const [heatingSystem, setHeatingSystem] = useState(transaction.heating_system || []);
+  const [heatingOther, setHeatingOther] = useState("");
+  const [basement, setBasement] = useState(transaction.basement || []);
+  const [waterSource, setWaterSource] = useState(transaction.water_source || "");
+  const [septic, setSeptic] = useState(transaction.septic || "");
+  const [recommendations, setRecommendations] = useState(transaction.recommendations || []);
+
+  const isLand = propertyStyle === "Land";
+  const isMultiFamily = propertyStyle === "Multi Family";
 
   const [priceLow, setPriceLow] = useState(saved.priceLow ?? "");
   const [priceHigh, setPriceHigh] = useState(saved.priceHigh ?? "");
@@ -108,13 +131,36 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
         : undefined,
     };
 
+    // Property/comp detail edits made here save back onto the transaction itself
+    // (real columns, same as NewCompForm), separate from `form` (the comp_analysis blob).
+    const detailsPatch = {
+      seller_name: sellerName || null,
+      seller_email: sellerEmail || null,
+      timeframe,
+      property_style: propertyStyle,
+      electrical: electrical || null,
+      heating_system: heatingOther ? [...heatingSystem, heatingOther] : heatingSystem,
+      basement,
+      water_source: waterSource,
+      septic,
+      recommendations,
+    };
+    // Used for PDF generation immediately, since the `transaction` prop won't reflect
+    // these edits until the parent reloads.
+    const mergedTransaction = {
+      ...transaction,
+      ...detailsPatch,
+      heating_system: detailsPatch.heating_system,
+    };
+
     setGenerating(true);
     try {
+      await updateTransactionFields(transaction.id, detailsPatch);
       // Dynamically imported so @react-pdf/renderer and pdf-lib (a couple MB combined)
       // only load when someone actually generates a comp, not on every app load.
       const { buildCompPdf, compPdfFileName } = await import("../lib/compPdf/buildCompPdf");
-      const pdfBytes = await buildCompPdf(transaction, form, supplementalFile, anrFile);
-      const fileName = compPdfFileName(transaction);
+      const pdfBytes = await buildCompPdf(mergedTransaction, form, supplementalFile, anrFile);
+      const fileName = compPdfFileName(mergedTransaction);
       const result = await uploadCompPdf(transaction.id, pdfBytes, fileName);
       await updateTransactionFields(transaction.id, { comp_analysis: form });
       await addActivityLog(transaction.id, "Generated comp PDF", fileName);
@@ -146,6 +192,59 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
           <FileText size={14} /> View Generated Comp
         </a>
       )}
+
+      <fieldset>
+        <legend>Property Details</legend>
+        <p className="field-help">Pre-filled from the comp — fix anything that's changed or was entered wrong.</p>
+        <label>
+          Seller Name(s)
+          <input value={sellerName} onChange={(e) => setSellerName(e.target.value)} />
+        </label>
+        <label>
+          Seller Email
+          <div className="input-with-icon">
+            <input type="email" value={sellerEmail} onChange={(e) => setSellerEmail(e.target.value)} />
+            {sellerEmail && (
+              <a href={`mailto:${sellerEmail}`} className="input-icon-btn" title="Email seller">
+                <Mail size={16} />
+              </a>
+            )}
+          </div>
+        </label>
+        <div>
+          <div className="detail-label">Rough Timeframe</div>
+          <RadioGroup name="timeframe" value={timeframe} onChange={setTimeframe} options={TIMEFRAMES} />
+        </div>
+        <div>
+          <div className="detail-label">Property Type</div>
+          <RadioGroup name="propertyType" value={propertyStyle} onChange={setPropertyStyle} options={PROPERTY_STYLES} />
+        </div>
+        <div>
+          <div className="detail-label">Electrical</div>
+          <RadioGroup name="electrical" value={electrical} onChange={setElectrical} options={ELECTRICAL_OPTIONS} />
+        </div>
+        <div>
+          <div className="detail-label">Heating System</div>
+          <CheckboxGroup name="heatingSystem" values={heatingSystem} onChange={setHeatingSystem} options={HEATING_OPTIONS} />
+          <input placeholder="Other" value={heatingOther} onChange={(e) => setHeatingOther(e.target.value)} />
+        </div>
+        <div>
+          <div className="detail-label">Basement</div>
+          <CheckboxGroup name="basement" values={basement} onChange={setBasement} options={BASEMENT_OPTIONS} />
+        </div>
+        <label>
+          Water Source (and where it is)
+          <input value={waterSource} onChange={(e) => setWaterSource(e.target.value)} placeholder="e.g. Drilled well, back of the lot" />
+        </label>
+        <label>
+          Septic (type and where it is)
+          <input value={septic} onChange={(e) => setSeptic(e.target.value)} placeholder="e.g. Conventional, front yard" />
+        </label>
+        <div>
+          <div className="detail-label">Recommendations</div>
+          <CheckboxGroup name="recommendations" values={recommendations} onChange={setRecommendations} options={RECOMMENDATION_OPTIONS} />
+        </div>
+      </fieldset>
 
       <fieldset>
         <legend>Price Band</legend>

@@ -4,8 +4,7 @@ import TodoList from "./TodoList";
 import RadioGroup from "./RadioGroup";
 import GenerateCompForm from "./GenerateCompForm";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys } from "../lib/transactions";
-
-const PROPERTY_STYLES = ["Residential", "Land", "Commercial", "Multi Family"];
+import { PROPERTY_STYLES } from "../lib/compFieldOptions";
 
 /** Formats a "YYYY-MM-DD" date string as "Month Day, Year"; returns other formats unchanged. */
 function formatDate(dateStr) {
@@ -453,6 +452,12 @@ function CompDetailsGrid({ transaction, handleFieldSave }) {
         placeholder="—"
         mailto
         onSave={(v) => handleFieldSave({ seller_email: v || null })}
+      />
+      <EditableText
+        label="Referral / Lead Source (internal)"
+        value={transaction.referral_note}
+        placeholder="—"
+        onSave={(v) => handleFieldSave({ referral_note: v || null })}
       />
       <div>
         <div className="detail-label">Rough Timeframe</div>

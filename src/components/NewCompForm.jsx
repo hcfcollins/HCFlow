@@ -3,35 +3,14 @@ import { Mail } from "lucide-react";
 import { createComp } from "../lib/transactions";
 import RadioGroup from "./RadioGroup";
 import CheckboxGroup from "./CheckboxGroup";
-
-const TIMEFRAMES = ["Now", "6 months", "Next year"];
-const PROPERTY_TYPES = ["Residential", "Land", "Commercial", "Multi Family"];
-const ELECTRICAL_OPTIONS = ["200 amp", "150 amp", "100 amp", "Fuses", "Knob and Tube"];
-const HEATING_OPTIONS = [
-  "Baseboard",
-  "Hot Water",
-  "Oil",
-  "Propane",
-  "Electric",
-  "Direct Vent/Rinnai",
-  "Mini Splits",
-  "Wood Stove",
-  "Pellet Stove",
-  "Radiant",
-];
-const BASEMENT_OPTIONS = ["Dirt Floor", "Concrete Block", "Poured Concrete", "Fieldstone", "Crawlspace"];
-const RECOMMENDATION_OPTIONS = [
-  "🌸 Wait for Spring",
-  "🔍 Septic Inspection Recommended in Advance",
-  "🏠 Home Inspection Recommended in Advance",
-  "🛋️ Staging Instructions",
-  "🧹 Deep Clean / Clear Out Recommended",
-  "📐 Land Subdivision Opportunity",
-  "🎨 Painting / Complete A Few Projects",
-  "Organize Leases & Tenant Documents",
-  "Consider Evicting Tenants Before Listing",
-  "Make Repairs to Major Systems",
-];
+import {
+  TIMEFRAMES,
+  PROPERTY_STYLES as PROPERTY_TYPES,
+  ELECTRICAL_OPTIONS,
+  HEATING_OPTIONS,
+  BASEMENT_OPTIONS,
+  RECOMMENDATION_OPTIONS,
+} from "../lib/compFieldOptions";
 
 export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
   const [address, setAddress] = useState("");
@@ -47,6 +26,7 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
   const [waterSource, setWaterSource] = useState("");
   const [septic, setSeptic] = useState("");
   const [recommendations, setRecommendations] = useState([]);
+  const [referralNote, setReferralNote] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -72,6 +52,7 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
         waterSource,
         septic,
         recommendations,
+        referralNote: referralNote || null,
       });
       onSubmitted();
     } catch (e) {
@@ -118,6 +99,14 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
             </a>
           )}
         </div>
+      </label>
+      <label>
+        Referral / Lead Source <span className="field-help">(internal — never appears on the generated comp)</span>
+        <input
+          value={referralNote}
+          onChange={(e) => setReferralNote(e.target.value)}
+          placeholder="e.g. Referred by Jane Smith, owes 25%"
+        />
       </label>
 
       <fieldset>

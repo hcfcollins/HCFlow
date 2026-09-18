@@ -62,6 +62,7 @@ export async function createComp({
   waterSource,
   septic,
   recommendations,
+  referralNote,
 }) {
   const tx = await createTransaction({
     agent_id: agentId,
@@ -81,6 +82,7 @@ export async function createComp({
     water_source: waterSource,
     septic,
     recommendations,
+    referral_note: referralNote,
   });
   await addActivityLog(tx.id, "Added from Comps quick-capture", address);
   return tx;

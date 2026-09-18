@@ -67,6 +67,7 @@ create table transactions (
   water_source text,
   septic text,
   recommendations text[], -- multi-select: standard seller recommendations checklist (Wait for Spring, Septic Inspection, etc.)
+  referral_note text, -- internal note on where this client/lead came from, so a referral payment isn't missed at closing; never included in the generated comp PDF
   linked_id uuid references transactions(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
