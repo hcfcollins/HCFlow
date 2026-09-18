@@ -246,7 +246,7 @@ export async function uploadCompPdf(transactionId, pdfBytes, fileName) {
 }
 
 export async function toggleTodo(id, done) {
-  const { error } = await supabase.from("todos").update({ done }).eq("id", id);
+  const { error } = await supabase.from("todos").update({ done, completed_at: done ? new Date() : null }).eq("id", id);
   if (error) throw error;
 }
 

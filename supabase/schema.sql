@@ -121,6 +121,7 @@ create table todos (
   transaction_id uuid not null references transactions(id) on delete cascade,
   text text not null,
   done boolean not null default false,
+  completed_at timestamptz, -- set when done is checked, cleared when unchecked
   created_at timestamptz not null default now()
 );
 

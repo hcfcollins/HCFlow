@@ -256,6 +256,7 @@ button { cursor: pointer; }
 .todo-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .todo-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .todo-item.done { color: #8A8577; text-decoration: line-through; }
+.todo-completed-date { margin-left: auto; font-size: 11px; text-decoration: none; color: #B4AFA0; white-space: nowrap; }
 .todo-add { display: flex; gap: 6px; margin-top: 4px; }
 .todo-add input { flex: 1; padding: 6px 8px; border-radius: 8px; border: 1px solid #E4E0D3; font-family: 'Montserrat', sans-serif; font-size: 13px; }
 .todo-add button { border: none; background: #173348; color: #fff; border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 700; }

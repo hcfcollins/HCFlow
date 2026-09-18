@@ -226,7 +226,7 @@ export default function DealDetail({
             )}
 
             <EditableText
-              label="Seller Email"
+              label={isBuySide ? "Buyer Email" : "Seller Email"}
               value={transaction.seller_email}
               type="email"
               placeholder="—"
