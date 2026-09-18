@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Signpost, Percent, Lock } from "lucide-react";
+import { Signpost, Percent, Lock, Mail } from "lucide-react";
 import TodoList from "./TodoList";
 
 export default function TransactionList({
@@ -81,10 +81,10 @@ function TxCard({
         </select>
       </div>
 
-      {((tx.ba_comp && !isBuySide) || (isActiveListing && (tx.sign_status === "Yes" || signDeclined || tx.has_lockbox))) && (
+      {(isActiveListing || (tx.ba_comp && !isBuySide) || tx.seller_email) && (
         <div className="tx-icons-row" onClick={(e) => e.stopPropagation()}>
           {isActiveListing && tx.sign_status === "Yes" && (
-            <span className="tx-icon-badge" title="Sign is up">
+            <span className="tx-icon-badge tx-icon-badge--sign-yes" title="Sign is installed">
               <Signpost size={14} /> Sign
             </span>
           )}
@@ -96,6 +96,21 @@ function TxCard({
             >
               <Signpost size={14} /> Sign
             </button>
+          )}
+          {isActiveListing && !signDeclined && tx.sign_status !== "Yes" && (
+            <span className="tx-icon-badge tx-icon-badge--sign-need" title="Sign not installed yet">
+              <Signpost size={14} /> Need Sign
+            </span>
+          )}
+          {tx.seller_email && (
+            <a
+              href={`mailto:${tx.seller_email}`}
+              className="tx-icon-badge tx-icon-badge--btn"
+              title={`Email ${tx.seller_email}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Mail size={14} /> Email
+            </a>
           )}
           {tx.ba_comp && !isBuySide && (
             <span className="tx-icon-badge" title="Buyer agency commission">
