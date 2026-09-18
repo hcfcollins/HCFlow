@@ -111,6 +111,7 @@ button { cursor: pointer; }
 .uc-form input[type="text"],
 .uc-form input[type="number"],
 .uc-form input[type="date"],
+.uc-form input[type="email"],
 .uc-form input:not([type]),
 .uc-form select,
 .uc-form textarea {
@@ -124,6 +125,8 @@ button { cursor: pointer; }
 }
 .uc-form fieldset { border: 1px solid #F0EDE4; border-radius: 12px; padding: 12px 14px; margin: 0; }
 .uc-form legend { font-size: 12px; font-weight: 700; color: #C7155B; text-transform: uppercase; letter-spacing: 0.04em; padding: 0 4px; }
+.comp-edit-all-actions { display: flex; gap: 8px; align-items: center; }
+.comp-edit-all-actions button { flex: 1; margin-top: 0; }
 .field-help { font-size: 12px; color: #8A8577; font-weight: 400; margin: 0 0 8px; }
 .cma-export-btn {
   display: flex;
@@ -283,7 +286,9 @@ button { cursor: pointer; }
 .detail-grid select { width: 100%; padding: 6px 8px; border-radius: 6px; border: 1px solid #E4E0D3; font-family: 'Montserrat', sans-serif; font-size: 13px; }
 .editable-missing { display: flex; align-items: center; gap: 6px; color: #B5AA8E; }
 .editable-filled { display: flex; align-items: center; gap: 6px; }
+.editable-filled-text { min-width: 0; overflow-wrap: break-word; word-break: break-word; }
 .edit-icon-btn { display: inline-flex; align-items: center; justify-content: center; border: none; background: #F0EDE4; color: #173348; border-radius: 50%; width: 20px; height: 20px; padding: 0; }
+.edit-icon-btn--leading { flex-shrink: 0; }
 .detail-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
 
 .celebration {

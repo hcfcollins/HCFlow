@@ -2,9 +2,17 @@ import { useEffect, useState } from "react";
 import { Pencil, Mail, FileText, FolderOpen, ChevronDown } from "lucide-react";
 import TodoList from "./TodoList";
 import RadioGroup from "./RadioGroup";
+import CheckboxGroup from "./CheckboxGroup";
 import GenerateCompForm from "./GenerateCompForm";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys } from "../lib/transactions";
-import { PROPERTY_STYLES } from "../lib/compFieldOptions";
+import {
+  PROPERTY_STYLES,
+  TIMEFRAMES,
+  ELECTRICAL_OPTIONS,
+  HEATING_OPTIONS,
+  BASEMENT_OPTIONS,
+  RECOMMENDATION_OPTIONS,
+} from "../lib/compFieldOptions";
 
 /** Formats a "YYYY-MM-DD" date string as "Month Day, Year"; returns other formats unchanged. */
 function formatDate(dateStr) {
@@ -482,10 +490,23 @@ export default function DealDetail({
 
 /** The property/seller details collected on the New Comp form — shown live while
  * in Comps, and preserved (collapsed by default) once the deal moves on so that
- * data isn't lost from view. */
+ * data isn't lost from view. Most fields are read-only here except via "Edit All"
+ * (below) — only Seller Email and the referral note get their own quick pencil-edit,
+ * since everything else (radio/checkbox selections) has no single-field editor. */
 function CompDetailsGrid({ transaction, handleFieldSave }) {
+  const [editing, setEditing] = useState(false);
+
+  if (editing) {
+    return <CompDetailsEditForm transaction={transaction} handleFieldSave={handleFieldSave} onDone={() => setEditing(false)} />;
+  }
+
   return (
     <div className="detail-grid">
+      <div className="detail-grid-full">
+        <button type="button" className="comps-minimize-btn" onClick={() => setEditing(true)}>
+          <Pencil size={12} /> Edit All
+        </button>
+      </div>
       <div>
         <div className="detail-label">Seller Name(s)</div>
         <div>{transaction.seller_name || "—"}</div>
@@ -535,6 +556,109 @@ function CompDetailsGrid({ transaction, handleFieldSave }) {
       <div>
         <div className="detail-label">Recommendations</div>
         <div>{transaction.recommendations?.length ? transaction.recommendations.join(", ") : "—"}</div>
+      </div>
+    </div>
+  );
+}
+
+/** Full edit form for every CompDetailsGrid field at once, triggered by "Edit All". */
+function CompDetailsEditForm({ transaction, handleFieldSave, onDone }) {
+  const [sellerName, setSellerName] = useState(transaction.seller_name || "");
+  const [sellerEmail, setSellerEmail] = useState(transaction.seller_email || "");
+  const [referralNote, setReferralNote] = useState(transaction.referral_note || "");
+  const [timeframe, setTimeframe] = useState(transaction.timeframe || "");
+  const [propertyStyle, setPropertyStyle] = useState(transaction.property_style || "");
+  const [electrical, setElectrical] = useState(transaction.electrical || "");
+  const [heatingSystem, setHeatingSystem] = useState(transaction.heating_system || []);
+  const [basement, setBasement] = useState(transaction.basement || []);
+  const [waterSource, setWaterSource] = useState(transaction.water_source || "");
+  const [septic, setSeptic] = useState(transaction.septic || "");
+  const [recommendations, setRecommendations] = useState(transaction.recommendations || []);
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await handleFieldSave({
+        seller_name: sellerName || null,
+        seller_email: sellerEmail || null,
+        referral_note: referralNote || null,
+        timeframe: timeframe || null,
+        property_style: propertyStyle || null,
+        electrical: electrical || null,
+        heating_system: heatingSystem,
+        basement,
+        water_source: waterSource || null,
+        septic: septic || null,
+        recommendations,
+      });
+      onDone();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="uc-form comp-edit-all">
+      <label>
+        Seller Name(s)
+        <input value={sellerName} onChange={(e) => setSellerName(e.target.value)} />
+      </label>
+      <label>
+        Seller Email
+        <input type="email" value={sellerEmail} onChange={(e) => setSellerEmail(e.target.value)} />
+      </label>
+      <label>
+        Referral / Lead Source (internal)
+        <input value={referralNote} onChange={(e) => setReferralNote(e.target.value)} />
+      </label>
+
+      <fieldset>
+        <legend>Rough Timeframe</legend>
+        <RadioGroup name="timeframe" value={timeframe} onChange={setTimeframe} options={TIMEFRAMES} />
+      </fieldset>
+
+      <fieldset>
+        <legend>Property Type</legend>
+        <RadioGroup name="propertyStyle" value={propertyStyle} onChange={setPropertyStyle} options={PROPERTY_STYLES} />
+      </fieldset>
+
+      <fieldset>
+        <legend>Electrical</legend>
+        <RadioGroup name="electrical" value={electrical} onChange={setElectrical} options={ELECTRICAL_OPTIONS} />
+      </fieldset>
+
+      <fieldset>
+        <legend>Heating System</legend>
+        <CheckboxGroup name="heatingSystem" values={heatingSystem} onChange={setHeatingSystem} options={HEATING_OPTIONS} />
+      </fieldset>
+
+      <fieldset>
+        <legend>Basement</legend>
+        <CheckboxGroup name="basement" values={basement} onChange={setBasement} options={BASEMENT_OPTIONS} />
+      </fieldset>
+
+      <label>
+        Water Source (and where it is)
+        <input value={waterSource} onChange={(e) => setWaterSource(e.target.value)} />
+      </label>
+      <label>
+        Septic (type and where it is)
+        <input value={septic} onChange={(e) => setSeptic(e.target.value)} />
+      </label>
+
+      <fieldset>
+        <legend>Recommendations</legend>
+        <CheckboxGroup name="recommendations" values={recommendations} onChange={setRecommendations} options={RECOMMENDATION_OPTIONS} />
+      </fieldset>
+
+      <div className="comp-edit-all-actions">
+        <button type="button" onClick={onDone} disabled={saving}>
+          Cancel
+        </button>
+        <button type="button" className="google-btn" onClick={handleSave} disabled={saving}>
+          {saving ? "Saving…" : "Save"}
+        </button>
       </div>
     </div>
   );
@@ -594,10 +718,10 @@ function EditableText({ label, value, placeholder, type = "text", attorneyList, 
       <div className="detail-label">{label}</div>
       {mailto ? (
         <div className="editable-filled">
-          <span>{value}</span>
-          <a href={`mailto:${value}`} className="edit-icon-btn" title="Email seller">
+          <a href={`mailto:${value}`} className="edit-icon-btn edit-icon-btn--leading" title="Email seller">
             <Mail size={12} />
           </a>
+          <span className="editable-filled-text">{value}</span>
         </div>
       ) : (
         <div>{value}</div>
