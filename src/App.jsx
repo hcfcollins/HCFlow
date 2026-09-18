@@ -20,6 +20,7 @@ import NewCompForm from "./components/NewCompForm";
 import DealDetail from "./components/DealDetail";
 import Celebration from "./components/Celebration";
 import ManageAgents from "./components/ManageAgents";
+import { LogOut } from "lucide-react";
 
 const STAGES = [
   { key: "comps", label: "Comp" },
@@ -173,7 +174,9 @@ export default function App() {
           Signed in as <strong>{session.user.email}</strong>, but this account isn't set up as an
           agent yet. Ask Fran or Holly to add you in Manage Agents with this exact email.
         </p>
-        <button onClick={signOut}>Sign out</button>
+        <button onClick={signOut}>
+          <LogOut size={16} /> Sign out
+        </button>
       </div>
     );
   }
@@ -279,7 +282,9 @@ export default function App() {
             </button>
           )}
           {effectiveAgent.role === "broker" && <button onClick={() => setShowManageAgents(true)}>Manage Agents</button>}
-          <button onClick={signOut}>Sign out</button>
+          <button onClick={signOut} aria-label="Sign out" title="Sign out">
+            <LogOut size={18} />
+          </button>
         </div>
       </header>
 

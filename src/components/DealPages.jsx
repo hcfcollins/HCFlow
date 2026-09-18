@@ -81,7 +81,8 @@ export default function DealPages({
   const width = viewportRef.current?.offsetWidth || 1;
   const percentOffset = (dragOffset / width) * 100;
   const translate = -(pageIndex * 100) + percentOffset;
-  const onCompsPage = PAGES[pageIndex]?.key === "comps";
+  const currentPageKey = PAGES[pageIndex]?.key;
+  const onCompsPage = currentPageKey === "comps";
 
   return (
     <div className="deal-pages">
@@ -123,7 +124,11 @@ export default function DealPages({
         )}
       </div>
 
-      {(onNewComp || onNewUnderContract) && (
+      {/* Active Listings only ever contains real listing cards, each with its own
+          stage dropdown that opens the Under Contract form pre-filled with that
+          listing's details — a blank "+ Under Contract" button here would just
+          invite a manually-typed, possibly mismatched or duplicate address. */}
+      {currentPageKey !== "active" && (onNewComp || onNewUnderContract) && (
         <button
           className={`google-btn uc-launch ${onCompsPage ? "uc-launch--comps" : "uc-launch--contract"}`}
           onClick={() => (onCompsPage ? onNewComp() : onNewUnderContract())}
