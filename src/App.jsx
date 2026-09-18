@@ -13,7 +13,7 @@ import {
   terminateTransaction,
   reactivateTransaction,
 } from "./lib/transactions";
-import DealPages, { PAGES } from "./components/DealPages";
+import DealPages from "./components/DealPages";
 import LoginScreen from "./components/LoginScreen";
 import UnderContractForm from "./components/UnderContractForm";
 import NewCompForm from "./components/NewCompForm";
@@ -254,7 +254,6 @@ export default function App() {
     );
   }
 
-  const onCompsPage = PAGES[pageIndex]?.key === "comps";
   // A broker previewing "as agent" should see exactly what that agent would see —
   // just their own deals — same as RLS would actually enforce for a real agent.
   const visibleTxs = viewAsAgent ? txs.filter((tx) => tx.agent_id === agent.id) : txs;
@@ -270,7 +269,7 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <div className="brand-block">
-          <img src="/logo-mark.png" alt="Hall Collins Real Estate Group" className="brand-logo" />
+          <img src="/hall-collins-logo-full.png" alt="Hall Collins Real Estate Group" className="brand-logo" />
           <h1>Deal Tracker</h1>
         </div>
         <div className="app-header-actions">
@@ -289,20 +288,6 @@ export default function App() {
       )}
 
       {error && <div className="error-banner">{error}</div>}
-
-      <button
-        className={`google-btn uc-launch ${onCompsPage ? "uc-launch--comps" : "uc-launch--contract"}`}
-        onClick={() => {
-          if (onCompsPage) {
-            setShowNewCompForm(true);
-          } else {
-            setUnderContractPrefill(null);
-            setShowUnderContractForm(true);
-          }
-        }}
-      >
-        {onCompsPage ? "+ New Comp" : "+ Under Contract"}
-      </button>
 
       {loadingTxs ? (
         <div className="center-screen">Loading transactions…</div>
@@ -323,6 +308,11 @@ export default function App() {
           onSearchChange={setSearchQuery}
           isSearching={isSearching}
           searchResults={searchResults}
+          onNewComp={() => setShowNewCompForm(true)}
+          onNewUnderContract={() => {
+            setUnderContractPrefill(null);
+            setShowUnderContractForm(true);
+          }}
         />
       )}
     </div>

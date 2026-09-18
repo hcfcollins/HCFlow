@@ -10,7 +10,7 @@ body {
 .app-header-actions { display: flex; gap: 8px; }
 .brand-eyebrow { font-size: 11px; color: #C7155B; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
 .brand-block { display: flex; align-items: center; gap: 10px; }
-.brand-logo { height: 38px; width: auto; }
+.brand-logo { height: 34px; width: auto; }
 .brand-block h1 { margin: 0; }
 h1 { font-family: 'Playfair Display', serif; font-size: 24px; margin: 4px 0 0; }
 button { cursor: pointer; }
@@ -211,18 +211,28 @@ button { cursor: pointer; }
 
 .comps-section--need { background: rgba(199, 21, 91, 0.08); }
 .comps-section--need .tx-card { border-color: #C7155B; border-width: 1px 1px 1px 4px; }
-.comps-section--won { background: rgba(23, 51, 72, 0.14); }
-.comps-section--won .tx-card { border-color: #173348; border-width: 1px 1px 1px 4px; }
+.comps-section--won { background: rgba(91, 155, 213, 0.14); }
+.comps-section--won .tx-card { border-color: #5B9BD5; border-width: 1px 1px 1px 4px; }
 .comps-section--waiting { background: rgba(181, 170, 142, 0.14); }
 .comps-section--waiting .tx-card { border-color: #B5AA8E; border-width: 1px 1px 1px 4px; }
 .comps-section--sellers { background: rgba(199, 21, 91, 0.12); }
 .comps-section--sellers .tx-card { border-color: #C7155B; border-width: 1px 1px 1px 4px; }
-.comps-section--buyers { background: rgba(142, 21, 80, 0.18); }
-.comps-section--buyers .tx-card { border-color: #8E1550; border-width: 1px 1px 1px 4px; }
+.comps-section--buyers { background: #C7155B; }
+.comps-section--buyers .tx-card { border-color: #FFFFFF; border-width: 1px 1px 1px 4px; }
+.comps-section--buyers .comps-section-title,
+.comps-section--buyers .comps-section-count,
+.comps-section--buyers .field-help { color: #FFFFFF; }
+.comps-section--buyers .comps-minimize-btn { background: rgba(255, 255, 255, 0.15); border-color: rgba(255, 255, 255, 0.4); color: #FFFFFF; }
 .comps-section--onmarket { background: rgba(91, 155, 213, 0.14); }
 .comps-section--onmarket .tx-card { border-color: #5B9BD5; border-width: 1px 1px 1px 4px; }
 .comps-section--contract { background: rgba(126, 87, 194, 0.12); }
 .comps-section--contract .tx-card { border-color: #7E57C2; border-width: 1px 1px 1px 4px; }
+.comps-section--private { background: #173348; }
+.comps-section--private .tx-card { border-color: #FFFFFF; border-width: 1px 1px 1px 4px; }
+.comps-section--private .comps-section-title,
+.comps-section--private .comps-section-count,
+.comps-section--private .field-help { color: #FFFFFF; }
+.comps-section--private .comps-minimize-btn { background: rgba(255, 255, 255, 0.15); border-color: rgba(255, 255, 255, 0.4); color: #FFFFFF; }
 .comps-section--closed { background: rgba(120, 144, 156, 0.14); }
 .comps-section--closed .tx-card { border-color: #78909C; border-width: 1px 1px 1px 4px; }
 .comps-section--terminated { background: rgba(161, 61, 46, 0.08); }

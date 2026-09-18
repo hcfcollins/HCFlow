@@ -28,6 +28,8 @@ export default function DealPages({
   onSearchChange,
   isSearching,
   searchResults,
+  onNewComp,
+  onNewUnderContract,
 }) {
   const [dragOffset, setDragOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -79,6 +81,7 @@ export default function DealPages({
   const width = viewportRef.current?.offsetWidth || 1;
   const percentOffset = (dragOffset / width) * 100;
   const translate = -(pageIndex * 100) + percentOffset;
+  const onCompsPage = PAGES[pageIndex]?.key === "comps";
 
   return (
     <div className="deal-pages">
@@ -119,6 +122,15 @@ export default function DealPages({
           </button>
         )}
       </div>
+
+      {(onNewComp || onNewUnderContract) && (
+        <button
+          className={`google-btn uc-launch ${onCompsPage ? "uc-launch--comps" : "uc-launch--contract"}`}
+          onClick={() => (onCompsPage ? onNewComp() : onNewUnderContract())}
+        >
+          {onCompsPage ? "+ New Comp" : "+ Under Contract"}
+        </button>
+      )}
 
       {isSearching ? (
         <div className="search-results">
@@ -317,7 +329,7 @@ function ActiveListingsPage({
 
   return (
     <div className="comps-page">
-      <div className="comps-section comps-section--won">
+      <div className="comps-section comps-section--private">
         <div className="comps-section-header">
           <h2 className="comps-section-title">
             Private Listing <span className="comps-section-count">{privateListings.length}</span>
