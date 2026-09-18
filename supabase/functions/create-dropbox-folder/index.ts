@@ -104,15 +104,36 @@ async function getOrCreateSharedLink(accessToken: string, path: string): Promise
   throw new Error(`Dropbox shared link failed: ${JSON.stringify(createData)}`);
 }
 
+// Called from the browser via supabase-js, which means the browser sends a CORS
+// preflight (OPTIONS) before the real POST — without handling it and setting
+// these headers on every response, the browser blocks the call before it ever
+// reaches this code, surfacing only as "Failed to send a request to the Edge
+// Function" client-side with no server-side error to debug.
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: CORS_HEADERS });
+  }
   if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
+    return new Response("Method not allowed", { status: 405, headers: CORS_HEADERS });
   }
 
   try {
     const { transactionId } = await req.json();
     if (!transactionId) {
-      return new Response(JSON.stringify({ error: "transactionId required" }), { status: 400 });
+      return jsonResponse({ error: "transactionId required" }, 400);
     }
 
     const txRes = await fetch(
@@ -126,16 +147,13 @@ Deno.serve(async (req) => {
     );
     const [tx] = await txRes.json();
     if (!tx) {
-      return new Response(JSON.stringify({ error: "Transaction not found" }), { status: 404 });
+      return jsonResponse({ error: "Transaction not found" }, 404);
     }
 
     const agentName = tx.agent?.name;
     const parentPath = agentName ? AGENT_LISTING_PATHS[agentName] : undefined;
     if (!parentPath) {
-      return new Response(
-        JSON.stringify({ error: `No listing folder path configured for agent "${agentName}"` }),
-        { status: 400 }
-      );
+      return jsonResponse({ error: `No listing folder path configured for agent "${agentName}"` }, 400);
     }
 
     const folderLabel = getSellerLastName(tx.seller_name)
@@ -161,10 +179,8 @@ Deno.serve(async (req) => {
     });
     if (!updateRes.ok) throw new Error(`Failed to save folder link: ${await updateRes.text()}`);
 
-    return new Response(JSON.stringify({ folderUrl: sharedLink, folderPath: actualPath }), {
-      headers: { "Content-Type": "application/json" },
-    });
+    return jsonResponse({ folderUrl: sharedLink, folderPath: actualPath });
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e) }), { status: 500 });
+    return jsonResponse({ error: String(e) }, 500);
   }
 });
