@@ -118,24 +118,6 @@ export default function DealDetail({
         </select>
       </label>
 
-      {["won", "market", "contract"].includes(transaction.stage) &&
-        (transaction.terminated_at ? (
-          <button type="button" className="comps-status-btn" onClick={() => onReactivate(transaction.id)}>
-            Reactivate Deal
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="comps-status-btn comps-status-btn--danger"
-            onClick={() => {
-              const reason = window.prompt("Why is this deal being terminated? (optional)") || "";
-              onTerminate(transaction.id, reason);
-            }}
-          >
-            Terminate Deal
-          </button>
-        ))}
-
       {transaction.stage === "comps" && onCompsStatusChange && (
         <div className="comps-status-toggle">
           <span className="comps-status-toggle-label">Move to:</span>
@@ -458,6 +440,30 @@ export default function DealDetail({
           <p className="empty-state">No activity yet.</p>
         )}
       </div>
+
+      {["won", "market", "contract"].includes(transaction.stage) && (
+        <div className="detail-section danger-zone">
+          {transaction.terminated_at ? (
+            <button type="button" className="comps-status-btn" onClick={() => onReactivate(transaction.id)}>
+              Reactivate Deal
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="comps-status-btn comps-status-btn--danger"
+              onClick={() => {
+                if (!window.confirm("Are you sure you want to terminate this deal? This can be undone later with Reactivate.")) {
+                  return;
+                }
+                const reason = window.prompt("Why is this deal being terminated? (optional)") || "";
+                onTerminate(transaction.id, reason);
+              }}
+            >
+              Terminate Deal
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
