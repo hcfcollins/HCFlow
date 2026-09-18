@@ -188,6 +188,8 @@ export default function DealPages({
                       currentAgent={currentAgent}
                       onStageChange={onStageChange}
                       onNotesChange={onNotesChange}
+                      onAddTodo={onAddTodo}
+                      onToggleTodo={onToggleTodo}
                       onOpenDetail={onOpenDetail}
                     />
                   ) : p.key === "active" ? (
@@ -326,8 +328,8 @@ function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesCha
             onStageChange={onStageChange}
             onNotesChange={onNotesChange}
             onCompsStatusChange={b.key === "comps" || b.key === "waiting" ? onCompsStatusChange : undefined}
-            onAddTodo={b.key === "won" ? onAddTodo : undefined}
-            onToggleTodo={b.key === "won" ? onToggleTodo : undefined}
+            onAddTodo={onAddTodo}
+            onToggleTodo={onToggleTodo}
             onOpenDetail={onOpenDetail}
           />
         </CollapsibleSection>
@@ -345,6 +347,8 @@ function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesCha
               currentAgent={currentAgent}
               onStageChange={onStageChange}
               onNotesChange={onNotesChange}
+              onAddTodo={onAddTodo}
+              onToggleTodo={onToggleTodo}
               onOpenDetail={onOpenDetail}
             />
           </div>
@@ -360,6 +364,8 @@ function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesCha
               currentAgent={currentAgent}
               onStageChange={onStageChange}
               onNotesChange={onNotesChange}
+              onAddTodo={onAddTodo}
+              onToggleTodo={onToggleTodo}
               onOpenDetail={onOpenDetail}
             />
           </div>
@@ -421,6 +427,8 @@ function ActiveListingsPage({
           currentAgent={currentAgent}
           onStageChange={onStageChange}
           onNotesChange={onNotesChange}
+          onAddTodo={onAddTodo}
+          onToggleTodo={onToggleTodo}
           onOpenDetail={onOpenDetail}
         />
       </div>
@@ -428,7 +436,7 @@ function ActiveListingsPage({
   );
 }
 
-function UnderContractPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onOpenDetail }) {
+function UnderContractPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onAddTodo, onToggleTodo, onOpenDetail }) {
   const sellers = transactions.filter((tx) => tx.side === "Sell");
   const buyers = transactions.filter((tx) => tx.side === "Buy");
 
@@ -444,6 +452,8 @@ function UnderContractPage({ transactions, stages, currentAgent, onStageChange, 
           currentAgent={currentAgent}
           onStageChange={onStageChange}
           onNotesChange={onNotesChange}
+          onAddTodo={onAddTodo}
+          onToggleTodo={onToggleTodo}
           onOpenDetail={onOpenDetail}
         />
       </div>
@@ -458,6 +468,8 @@ function UnderContractPage({ transactions, stages, currentAgent, onStageChange, 
           currentAgent={currentAgent}
           onStageChange={onStageChange}
           onNotesChange={onNotesChange}
+          onAddTodo={onAddTodo}
+          onToggleTodo={onToggleTodo}
           onOpenDetail={onOpenDetail}
         />
       </div>

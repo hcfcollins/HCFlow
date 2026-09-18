@@ -173,19 +173,21 @@ function TxCard({
         </div>
       )}
 
-      <textarea
-        defaultValue={tx.notes || ""}
-        placeholder="Notes…"
-        onBlur={(e) => onNotesChange(tx.id, e.target.value)}
-        onClick={(e) => e.stopPropagation()}
-        rows={2}
-        className="tx-notes"
-      />
-
-      {tx.stage === "won" && onAddTodo && (
-        <div onClick={(e) => e.stopPropagation()}>
-          <TodoList todos={tx.todos} onAdd={(text) => onAddTodo(tx.id, text)} onToggle={(id, done) => onToggleTodo(id, done)} />
-        </div>
+      {tx.stage === "comps" ? (
+        <textarea
+          defaultValue={tx.notes || ""}
+          placeholder="Notes…"
+          onBlur={(e) => onNotesChange(tx.id, e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          rows={2}
+          className="tx-notes"
+        />
+      ) : (
+        onAddTodo && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <TodoList todos={tx.todos} onAdd={(text) => onAddTodo(tx.id, text)} onToggle={(id, done) => onToggleTodo(id, done)} />
+          </div>
+        )
       )}
     </div>
   );
