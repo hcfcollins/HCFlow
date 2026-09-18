@@ -67,7 +67,7 @@ create table transactions (
   property_style text check (property_style in ('Residential', 'Land', 'Commercial', 'Multi Family')),
   price numeric,
   comps_status text check (comps_status in ('Need to Send Comp', 'Waiting to List')), -- only meaningful while stage = 'comps'
-  seller_email text,
+  seller_emails text[], -- any number of contact emails (seller/buyer depending on side) — was a single seller_email column
   timeframe text check (timeframe in ('Now', '6 months', 'Next year')),
   electrical text check (electrical in ('200 amp', '150 amp', '100 amp', 'Fuses', 'Knob and Tube')),
   heating_system text[], -- multi-select: Baseboard, Hot Water, Oil, Propane, Electric, Direct Vent/Rinnai, Mini Splits, Wood Stove, Radiant, or freeform "Other" entries

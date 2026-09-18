@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Pencil, Mail, FileText, FolderOpen, ChevronDown } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Pencil, Mail, FileText, FolderOpen, ChevronDown, ChevronLeft } from "lucide-react";
 import TodoList from "./TodoList";
 import RadioGroup from "./RadioGroup";
 import CheckboxGroup from "./CheckboxGroup";
@@ -59,10 +59,37 @@ export default function DealDetail({
   const [compDetailsCollapsed, setCompDetailsCollapsed] = useState(true);
   const [retryingDropbox, setRetryingDropbox] = useState(false);
   const [showGenerateComp, setShowGenerateComp] = useState(false);
+  const swipeStart = useRef(null);
+  const swipeIntent = useRef(null);
 
   useEffect(() => {
     fetchAttorneys().then(setAttorneys).catch(() => {});
   }, []);
+
+  // Swipe left anywhere on the detail screen to go back — same intent-detection
+  // pattern as the page-switching swipe on the list screens (DealPages), so a
+  // normal vertical scroll of this long form never gets mistaken for the gesture.
+  function handleSwipeTouchStart(e) {
+    swipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    swipeIntent.current = null;
+  }
+  function handleSwipeTouchMove(e) {
+    if (!swipeStart.current) return;
+    const deltaX = e.touches[0].clientX - swipeStart.current.x;
+    const deltaY = e.touches[0].clientY - swipeStart.current.y;
+    if (swipeIntent.current === null) {
+      if (Math.abs(deltaX) < 8 && Math.abs(deltaY) < 8) return;
+      swipeIntent.current = Math.abs(deltaX) > Math.abs(deltaY) ? "horizontal" : "vertical";
+    }
+  }
+  function handleSwipeTouchEnd(e) {
+    if (swipeIntent.current === "horizontal" && swipeStart.current) {
+      const endX = e.changedTouches[0]?.clientX ?? swipeStart.current.x;
+      if (endX - swipeStart.current.x < -60) onBack();
+    }
+    swipeStart.current = null;
+    swipeIntent.current = null;
+  }
 
   function handleHasLockboxToggle(checked) {
     onLockboxChange(transaction.id, { hasLockbox: checked, lockboxCode, lockboxNote });
@@ -100,15 +127,20 @@ export default function DealDetail({
   }
 
   return (
-    <div className="deal-detail">
-      <header className="app-header">
+    <div
+      className="deal-detail"
+      onTouchStart={handleSwipeTouchStart}
+      onTouchMove={handleSwipeTouchMove}
+      onTouchEnd={handleSwipeTouchEnd}
+    >
+      <header className="detail-header">
+        <button type="button" className="detail-back-btn" onClick={onBack}>
+          <ChevronLeft size={18} /> Back
+        </button>
         <div>
           <div className="brand-eyebrow">{transaction.town || transaction.side}</div>
           <h1>{transaction.address}</h1>
         </div>
-        <button type="button" onClick={onBack}>
-          Back
-        </button>
       </header>
 
       {transaction.terminated_at && (
@@ -254,13 +286,10 @@ export default function DealDetail({
               </div>
             )}
 
-            <EditableText
-              label={isBuySide ? "Buyer Email" : "Seller Email"}
-              value={transaction.seller_email}
-              type="email"
-              placeholder="—"
-              mailto
-              onSave={(v) => handleFieldSave({ seller_email: v || null })}
+            <EditableEmailList
+              label={isBuySide ? "Buyer Email(s)" : "Seller Email(s)"}
+              values={transaction.seller_emails || []}
+              onSave={(emails) => handleFieldSave({ seller_emails: emails })}
             />
 
             {!isActiveListing && (
@@ -525,13 +554,10 @@ function CompDetailsGrid({ transaction, handleFieldSave }) {
         <div className="detail-label">Seller Name(s)</div>
         <div>{transaction.seller_name || "—"}</div>
       </div>
-      <EditableText
-        label="Seller Email"
-        value={transaction.seller_email}
-        type="email"
-        placeholder="—"
-        mailto
-        onSave={(v) => handleFieldSave({ seller_email: v || null })}
+      <EditableEmailList
+        label="Seller Email(s)"
+        values={transaction.seller_emails || []}
+        onSave={(emails) => handleFieldSave({ seller_emails: emails })}
       />
       <EditableText
         label="Referral / Lead Source (internal)"
@@ -578,7 +604,6 @@ function CompDetailsGrid({ transaction, handleFieldSave }) {
 /** Full edit form for every CompDetailsGrid field at once, triggered by "Edit All". */
 function CompDetailsEditForm({ transaction, handleFieldSave, onDone }) {
   const [sellerName, setSellerName] = useState(transaction.seller_name || "");
-  const [sellerEmail, setSellerEmail] = useState(transaction.seller_email || "");
   const [referralNote, setReferralNote] = useState(transaction.referral_note || "");
   const [timeframe, setTimeframe] = useState(transaction.timeframe || "");
   const [propertyStyle, setPropertyStyle] = useState(transaction.property_style || "");
@@ -595,7 +620,6 @@ function CompDetailsEditForm({ transaction, handleFieldSave, onDone }) {
     try {
       await handleFieldSave({
         seller_name: sellerName || null,
-        seller_email: sellerEmail || null,
         referral_note: referralNote || null,
         timeframe: timeframe || null,
         property_style: propertyStyle || null,
@@ -617,10 +641,6 @@ function CompDetailsEditForm({ transaction, handleFieldSave, onDone }) {
       <label>
         Seller Name(s)
         <input value={sellerName} onChange={(e) => setSellerName(e.target.value)} />
-      </label>
-      <label>
-        Seller Email
-        <input type="email" value={sellerEmail} onChange={(e) => setSellerEmail(e.target.value)} />
       </label>
       <label>
         Referral / Lead Source (internal)
@@ -679,7 +699,7 @@ function CompDetailsEditForm({ transaction, handleFieldSave, onDone }) {
 }
 
 /** Shows a value, or an edit icon + inline text input when it's missing/TBD. */
-function EditableText({ label, value, placeholder, type = "text", attorneyList, mailto, onSave }) {
+function EditableText({ label, value, placeholder, type = "text", attorneyList, onSave }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || "");
 
@@ -730,16 +750,83 @@ function EditableText({ label, value, placeholder, type = "text", attorneyList, 
   return (
     <div>
       <div className="detail-label">{label}</div>
-      {mailto ? (
-        <div className="editable-filled">
-          <a href={`mailto:${value}`} className="edit-icon-btn edit-icon-btn--leading" title="Email seller">
-            <Mail size={12} />
-          </a>
-          <span className="editable-filled-text">{value}</span>
+      <div>{value}</div>
+    </div>
+  );
+}
+
+/** Read-only list of mailto pills with a single pencil that reveals an add/remove/edit
+ * form for all of them at once — any number of emails, not just one. */
+function EditableEmailList({ label, values, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [drafts, setDrafts] = useState(values.length ? values : [""]);
+
+  function startEditing() {
+    setDrafts(values.length ? values : [""]);
+    setEditing(true);
+  }
+
+  function updateDraft(i, v) {
+    setDrafts((d) => d.map((x, idx) => (idx === i ? v : x)));
+  }
+  function removeDraft(i) {
+    setDrafts((d) => d.filter((_, idx) => idx !== i));
+  }
+  function addDraft() {
+    setDrafts((d) => [...d, ""]);
+  }
+  function save() {
+    setEditing(false);
+    onSave(drafts.map((v) => v.trim()).filter(Boolean));
+  }
+
+  if (editing) {
+    return (
+      <div className="detail-grid-full">
+        <div className="detail-label">{label}</div>
+        {drafts.map((v, i) => (
+          <div key={i} className="email-list-input-row">
+            <input type="email" autoFocus={i === 0} value={v} onChange={(e) => updateDraft(i, e.target.value)} />
+            {drafts.length > 1 && (
+              <button type="button" className="email-list-remove-btn" onClick={() => removeDraft(i)} aria-label="Remove email">
+                ×
+              </button>
+            )}
+          </div>
+        ))}
+        <button type="button" className="email-list-add-btn" onClick={addDraft}>
+          + Add another email
+        </button>
+        <div className="comp-edit-all-actions">
+          <button type="button" onClick={() => setEditing(false)}>
+            Cancel
+          </button>
+          <button type="button" className="google-btn" onClick={save}>
+            Save
+          </button>
         </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="detail-label">{label}</div>
+      {values.length ? (
+        values.map((email) => (
+          <div key={email} className="editable-filled">
+            <a href={`mailto:${email}`} className="edit-icon-btn edit-icon-btn--leading" title={`Email ${email}`}>
+              <Mail size={12} />
+            </a>
+            <span className="editable-filled-text">{email}</span>
+          </div>
+        ))
       ) : (
-        <div>{value}</div>
+        <div className="editable-missing">—</div>
       )}
+      <button type="button" className="edit-icon-btn" onClick={startEditing}>
+        <Pencil size={12} />
+      </button>
     </div>
   );
 }

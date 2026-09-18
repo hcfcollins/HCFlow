@@ -6,7 +6,10 @@ body {
   color: #173348;
 }
 .app { max-width: 480px; margin: 0 auto; padding: 20px 18px 60px; }
-.app-header { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 20px; }
+.app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.main-header { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 20px; }
+.detail-header { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 20px; }
+.detail-back-btn { display: inline-flex; align-items: center; gap: 2px; border: none; background: none; padding: 0; color: #173348; font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 14px; }
 .app-header-actions { display: flex; gap: 8px; align-self: flex-end; flex-wrap: wrap; justify-content: flex-end; }
 .brand-eyebrow { font-size: 11px; color: #C7155B; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
 .brand-block { display: flex; flex-direction: column; align-items: center; gap: 4px; }
@@ -43,6 +46,7 @@ button { cursor: pointer; }
   background-repeat: no-repeat;
   background-position: right 8px center;
 }
+.tx-tag-row { margin-bottom: 8px; }
 .tx-icons-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
 .tx-icon-badge {
   display: inline-flex;
@@ -305,6 +309,30 @@ button { cursor: pointer; }
 .detail-grid input:not([type="checkbox"]),
 .detail-grid select { width: 100%; padding: 6px 8px; border-radius: 6px; border: 1px solid #E4E0D3; font-family: 'Montserrat', sans-serif; font-size: 13px; }
 .editable-missing { display: flex; align-items: center; gap: 6px; color: #B5AA8E; }
+.email-list-input { display: flex; flex-direction: column; gap: 6px; }
+.email-list-input-row { display: flex; align-items: center; gap: 6px; }
+.email-list-input-row input { flex: 1; min-width: 0; }
+.email-list-remove-btn {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: #F0EDE4;
+  color: #A13D2E;
+  border-radius: 50%;
+  font-size: 16px;
+  line-height: 1;
+}
+.email-list-add-btn {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  color: #C7155B;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 0;
+}
 .editable-filled { display: flex; align-items: center; gap: 6px; }
 .editable-filled-text { min-width: 0; overflow-wrap: break-word; word-break: break-word; }
 .edit-icon-btn { display: inline-flex; align-items: center; justify-content: center; border: none; background: #F0EDE4; color: #173348; border-radius: 50%; width: 20px; height: 20px; padding: 0; }

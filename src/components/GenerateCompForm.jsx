@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { FileText, Mail } from "lucide-react";
+import { FileText } from "lucide-react";
+import EmailListInput from "./EmailListInput";
 import CheckboxGroup from "./CheckboxGroup";
 import RadioGroup from "./RadioGroup";
 import { updateTransactionFields, uploadCompPdf, addActivityLog } from "../lib/transactions";
@@ -41,7 +42,7 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
   // Property/comp details, editable here in case something was entered wrong or has
   // changed since the comp was first created — pre-filled from the transaction.
   const [sellerName, setSellerName] = useState(transaction.seller_name || "");
-  const [sellerEmail, setSellerEmail] = useState(transaction.seller_email || "");
+  const [sellerEmails, setSellerEmails] = useState(transaction.seller_emails?.length ? transaction.seller_emails : [""]);
   const [timeframe, setTimeframe] = useState(transaction.timeframe || TIMEFRAMES[0]);
   const [propertyStyle, setPropertyStyle] = useState(transaction.property_style || PROPERTY_STYLES[0]);
   const [electrical, setElectrical] = useState(transaction.electrical || "");
@@ -135,7 +136,7 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
     // (real columns, same as NewCompForm), separate from `form` (the comp_analysis blob).
     const detailsPatch = {
       seller_name: sellerName || null,
-      seller_email: sellerEmail || null,
+      seller_emails: sellerEmails.map((e) => e.trim()).filter(Boolean),
       timeframe,
       property_style: propertyStyle,
       electrical: electrical || null,
@@ -201,15 +202,8 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
           <input value={sellerName} onChange={(e) => setSellerName(e.target.value)} />
         </label>
         <label>
-          Seller Email
-          <div className="input-with-icon">
-            <input type="email" value={sellerEmail} onChange={(e) => setSellerEmail(e.target.value)} />
-            {sellerEmail && (
-              <a href={`mailto:${sellerEmail}`} className="input-icon-btn" title="Email seller">
-                <Mail size={16} />
-              </a>
-            )}
-          </div>
+          Seller Email(s)
+          <EmailListInput values={sellerEmails} onChange={setSellerEmails} />
         </label>
         <div>
           <div className="detail-label">Rough Timeframe</div>

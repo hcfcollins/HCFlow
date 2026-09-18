@@ -91,13 +91,16 @@ function TxCard({
         </select>
       </div>
 
+      {isActiveListing && PROPERTY_STYLE_TAGS[tx.property_style] && (
+        <div className="tx-tag-row" onClick={(e) => e.stopPropagation()}>
+          <span className={`tx-icon-badge tx-tag ${PROPERTY_STYLE_TAGS[tx.property_style].className}`}>
+            {PROPERTY_STYLE_TAGS[tx.property_style].emoji} {PROPERTY_STYLE_TAGS[tx.property_style].label}
+          </span>
+        </div>
+      )}
+
       {(isActiveListing || (tx.ba_comp && !isBuySide)) && (
         <div className="tx-icons-row" onClick={(e) => e.stopPropagation()}>
-          {isActiveListing && PROPERTY_STYLE_TAGS[tx.property_style] && (
-            <span className={`tx-icon-badge tx-tag ${PROPERTY_STYLE_TAGS[tx.property_style].className}`}>
-              {PROPERTY_STYLE_TAGS[tx.property_style].emoji} {PROPERTY_STYLE_TAGS[tx.property_style].label}
-            </span>
-          )}
           {isActiveListing && tx.sign_status === "Yes" && (
             <span className="tx-icon-badge tx-icon-badge--sign-yes" title="Sign is installed">
               <Signpost size={14} /> Sign
@@ -192,11 +195,11 @@ function TxCard({
         )
       )}
 
-      {tx.seller_email && (
+      {tx.seller_emails?.length > 0 && (
         <a
-          href={`mailto:${tx.seller_email}`}
+          href={`mailto:${tx.seller_emails.join(",")}`}
           className="tx-email-client-btn"
-          title={`Email ${tx.seller_email}`}
+          title={`Email ${tx.seller_emails.join(", ")}`}
           onClick={(e) => e.stopPropagation()}
         >
           <Mail size={14} /> Email Client

@@ -270,7 +270,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="app-header">
+      <header className="main-header">
         <div className="brand-block">
           <img src="/hall-collins-logo-full.png" alt="Hall Collins Real Estate Group" className="brand-logo" />
           <h1>Deal Tracker</h1>

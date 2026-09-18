@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Mail } from "lucide-react";
 import { createComp } from "../lib/transactions";
 import RadioGroup from "./RadioGroup";
 import CheckboxGroup from "./CheckboxGroup";
+import EmailListInput from "./EmailListInput";
 import {
   TIMEFRAMES,
   PROPERTY_STYLES as PROPERTY_TYPES,
@@ -16,7 +16,7 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
   const [address, setAddress] = useState("");
   const [town, setTown] = useState("");
   const [sellerName, setSellerName] = useState("");
-  const [sellerEmail, setSellerEmail] = useState("");
+  const [sellerEmails, setSellerEmails] = useState([""]);
   const [timeframe, setTimeframe] = useState(TIMEFRAMES[0]);
   const [propertyStyle, setPropertyStyle] = useState(PROPERTY_TYPES[0]);
   const [electrical, setElectrical] = useState("");
@@ -43,7 +43,7 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
         side: "Sell",
         notes,
         sellerName,
-        sellerEmail,
+        sellerEmails: sellerEmails.map((e) => e.trim()).filter(Boolean),
         timeframe,
         propertyStyle,
         electrical: electrical || null,
@@ -90,15 +90,8 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
         <input value={sellerName} onChange={(e) => setSellerName(e.target.value)} />
       </label>
       <label>
-        Seller Email
-        <div className="input-with-icon">
-          <input type="email" value={sellerEmail} onChange={(e) => setSellerEmail(e.target.value)} />
-          {sellerEmail && (
-            <a href={`mailto:${sellerEmail}`} className="input-icon-btn" title="Email seller">
-              <Mail size={16} />
-            </a>
-          )}
-        </div>
+        Seller Email(s)
+        <EmailListInput values={sellerEmails} onChange={setSellerEmails} />
       </label>
       <label>
         Referral / Lead Source <span className="field-help">(internal — never appears on the generated comp)</span>
