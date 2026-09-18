@@ -54,32 +54,62 @@ async function getDropboxAccessToken(): Promise<string> {
   return data.access_token;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Dropbox rate-limits write operations against the same parent tree — creating a
+// folder's subfolders back-to-back (previously done in parallel via Promise.all)
+// reliably triggers too_many_write_operations. Retry, respecting the retry_after
+// Dropbox sends (falling back to a small fixed backoff if it's absent/zero).
+async function withDropboxRateLimitRetry<T>(fn: () => Promise<T>, maxAttempts = 4): Promise<T> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      const message = String(e);
+      const isRateLimit = message.includes("too_many_write_operations") || message.includes("too_many_requests");
+      if (!isRateLimit || attempt === maxAttempts) throw e;
+      const retryAfterMatch = /"retry_after"\s*:\s*(\d+)/.exec(message);
+      const retryAfterSeconds = retryAfterMatch ? Number(retryAfterMatch[1]) : 0;
+      await sleep(Math.max(retryAfterSeconds, 1) * 1000);
+    }
+  }
+  throw new Error("unreachable");
+}
+
 async function createDropboxFolder(accessToken: string, path: string) {
-  const res = await fetch("https://api.dropboxapi.com/2/files/create_folder_v2", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "Dropbox-API-Path-Root": dropboxPathRootHeader,
-    },
-    // autorename:false on purpose: a retry (e.g. after the earlier step of
-    // saving the link back to the transaction failed) must be idempotent,
-    // not spawn a "Name (1)" duplicate folder for the same listing. A
-    // path/conflict/folder error below is treated as "already exists,
-    // reuse it" rather than an autorenamed duplicate.
-    body: JSON.stringify({ path, autorename: false }),
+  return withDropboxRateLimitRetry(async () => {
+    const res = await fetch("https://api.dropboxapi.com/2/files/create_folder_v2", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "Dropbox-API-Path-Root": dropboxPathRootHeader,
+      },
+      // autorename:false on purpose: a retry (e.g. after the earlier step of
+      // saving the link back to the transaction failed) must be idempotent,
+      // not spawn a "Name (1)" duplicate folder for the same listing. A
+      // path/conflict/folder error below is treated as "already exists,
+      // reuse it" rather than an autorenamed duplicate.
+      body: JSON.stringify({ path, autorename: false }),
+    });
+    const data = await res.json();
+    if (res.ok) return data.metadata.path_display as string;
+
+    const isFolderConflict =
+      data.error?.[".tag"] === "path" && data.error.path?.[".tag"] === "conflict" && data.error.path.conflict?.[".tag"] === "folder";
+    if (isFolderConflict) return path;
+
+    throw new Error(`Dropbox folder creation failed: ${JSON.stringify(data)}`);
   });
-  const data = await res.json();
-  if (res.ok) return data.metadata.path_display as string;
-
-  const isFolderConflict =
-    data.error?.[".tag"] === "path" && data.error.path?.[".tag"] === "conflict" && data.error.path.conflict?.[".tag"] === "folder";
-  if (isFolderConflict) return path;
-
-  throw new Error(`Dropbox folder creation failed: ${JSON.stringify(data)}`);
 }
 
 async function getOrCreateSharedLink(accessToken: string, path: string): Promise<string> {
+  return withDropboxRateLimitRetry(() => getOrCreateSharedLinkOnce(accessToken, path));
+}
+
+async function getOrCreateSharedLinkOnce(accessToken: string, path: string): Promise<string> {
   const createRes = await fetch("https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings", {
     method: "POST",
     headers: {
@@ -173,9 +203,11 @@ Deno.serve(async (req) => {
     // createDropboxFolder is idempotent (treats "already exists" as success), so
     // any error here is a real problem and should surface, not be swallowed.
     const actualPath = await createDropboxFolder(accessToken, folderPath);
-    await Promise.all(
-      LISTING_SUBFOLDERS.map((name) => createDropboxFolder(accessToken, `${actualPath}/${name}`))
-    );
+    // Sequential, not Promise.all — creating these back-to-back in parallel is
+    // exactly what triggers Dropbox's too_many_write_operations rate limit.
+    for (const name of LISTING_SUBFOLDERS) {
+      await createDropboxFolder(accessToken, `${actualPath}/${name}`);
+    }
     const sharedLink = await getOrCreateSharedLink(accessToken, actualPath);
 
     const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}`, {
