@@ -174,7 +174,22 @@ export async function createDropboxFolderForListing(transactionId) {
   const { data, error } = await supabase.functions.invoke("create-dropbox-folder", {
     body: { transactionId },
   });
-  if (error) throw error;
+  if (error) {
+    // supabase-js only gives a generic "non-2xx status code" message on
+    // FunctionsHttpError — the actual reason is JSON in the response body,
+    // which it stashes on error.context instead of surfacing.
+    if (error.context?.json) {
+      let detail;
+      try {
+        const body = await error.context.json();
+        detail = body?.error;
+      } catch {
+        // response body wasn't JSON — fall through to the generic error below
+      }
+      if (detail) throw new Error(detail);
+    }
+    throw error;
+  }
   return data;
 }
 
