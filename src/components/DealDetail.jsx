@@ -38,6 +38,13 @@ export default function DealDetail({
   const isBroker = currentAgent.role === "broker";
   const isActiveListing = transaction.stage === "won" || transaction.stage === "market";
   const isBuySide = transaction.side === "Buy";
+  // A freshly-Won listing doesn't necessarily have a signed Listing Agreement yet —
+  // that's tracked via the "Send Listing Agreement" to-do seeded on Won, not a
+  // separate field. Compliance-wise, terminating requires that agreement to exist
+  // (there'd be a termination addendum to file); On Market and Under Contract both
+  // inherently imply a signed agreement already exists.
+  const hasSignedListingAgreement = transaction.todos?.some((t) => t.text === "Send Listing Agreement" && t.done);
+  const isWonWithoutAgreement = transaction.stage === "won" && !hasSignedListingAgreement;
   const [lockboxCode, setLockboxCode] = useState(transaction.lockbox_code || "");
   const [lockboxNote, setLockboxNote] = useState(transaction.lockbox_note || "");
   const [attorneys, setAttorneys] = useState([]);
@@ -447,6 +454,11 @@ export default function DealDetail({
             <button type="button" className="comps-status-btn" onClick={() => onReactivate(transaction.id)}>
               Reactivate Deal
             </button>
+          ) : isWonWithoutAgreement ? (
+            <p className="field-help">
+              Termination requires a signed Listing Agreement — check off "Send Listing Agreement" in the To-Do
+              list above once it's signed to enable this.
+            </p>
           ) : (
             <button
               type="button"
