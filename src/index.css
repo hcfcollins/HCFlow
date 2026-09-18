@@ -9,7 +9,7 @@ body {
 .app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .app-header-actions { display: flex; gap: 8px; }
 .brand-eyebrow { font-size: 11px; color: #C7155B; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
-.brand-block { display: flex; align-items: center; gap: 10px; }
+.brand-block { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .brand-logo { height: 34px; width: auto; }
 .brand-block h1 { margin: 0; }
 h1 { font-family: 'Playfair Display', serif; font-size: 24px; margin: 4px 0 0; }
@@ -102,7 +102,7 @@ button { cursor: pointer; }
 .agent-list { display: flex; flex-direction: column; gap: 12px; }
 .agent-row--inactive { opacity: 0.55; }
 
-.uc-launch { width: 100%; margin-bottom: 16px; }
+.uc-launch { width: 100%; margin-top: 0; margin-bottom: 16px; }
 .uc-launch--contract { background: #C7155B; }
 .uc-launch--comps { background: #A4B792; }
 .uc-submit { width: 100%; margin-top: 24px; }
