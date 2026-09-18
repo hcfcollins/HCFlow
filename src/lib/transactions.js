@@ -11,7 +11,7 @@ export async function fetchTransactions() {
     .select(
       `
       *,
-      agent:agents!transactions_agent_id_fkey(id, name),
+      agent:agents!transactions_agent_id_fkey(id, name, cover_sheet_url),
       buyer_attorney:attorneys!transactions_buyer_attorney_id_fkey(id, name),
       seller_attorney:attorneys!transactions_seller_attorney_id_fkey(id, name),
       documents(*),
@@ -334,15 +334,60 @@ export async function fetchAgents() {
   return data;
 }
 
-export async function addAgent(name, email = null) {
-  const { data, error } = await supabase.from("agents").insert({ name, email, role: "agent" }).select().single();
+/** Broker-only roster view — includes inactive agents, unlike fetchAgents(). */
+export async function fetchAllAgents() {
+  const { data, error } = await supabase.from("agents").select("*").order("name");
   if (error) throw error;
   return data;
+}
+
+export async function addAgent({
+  name,
+  email = null,
+  role = "agent",
+  dropboxListingPath = null,
+  dropboxBuyerPath = null,
+  coverSheetUrl = null,
+}) {
+  const { data, error } = await supabase
+    .from("agents")
+    .insert({
+      name,
+      email,
+      role,
+      dropbox_listing_path: dropboxListingPath,
+      dropbox_buyer_path: dropboxBuyerPath,
+      cover_sheet_url: coverSheetUrl,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/** Generic patch for editing an agent's own fields, and for reactivating (is_active: true). */
+export async function updateAgentFields(id, patch) {
+  const { error } = await supabase.from("agents").update(patch).eq("id", id);
+  if (error) throw error;
 }
 
 export async function removeAgent(id) {
   const { error } = await supabase.from("agents").update({ is_active: false }).eq("id", id);
   if (error) throw error;
+}
+
+/** Uploads an agent's personalized CMA cover sheet PDF to the agent-assets Storage
+ * bucket and returns its public URL, for saving into agents.cover_sheet_url. */
+export async function uploadAgentCoverSheet(file, agentName) {
+  const safeName = agentName.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const path = `${safeName}-${Date.now()}.pdf`;
+  const { error } = await supabase.storage.from("agent-assets").upload(path, file, {
+    contentType: "application/pdf",
+    upsert: true,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from("agent-assets").getPublicUrl(path);
+  return data.publicUrl;
 }
 
 export async function fetchAttorneys() {

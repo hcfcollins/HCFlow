@@ -5,18 +5,10 @@
 //
 // Invoked by the app when a deal's stage first moves to "won".
 // Expects POST { transactionId: string }.
-
-// Per-agent listing folder paths. Fran and Holly share one team folder;
-// every other agent has their own isolated Dropbox space. Update this list
-// via Supabase Dashboard -> Edge Functions -> redeploy if the roster or
-// folder structure changes.
-const AGENT_LISTING_PATHS: Record<string, string> = {
-  "Fran Collins": "/Hall Collins REG Team Folder/Listings",
-  "Holly Hall": "/Hall Collins REG Team Folder/Listings",
-  "Andrew Kimbell": "/HC - Andrew Kimbell/Andrew - Listings",
-  "Rachel Noyes": "/HC - Rachel Noyes/Rachel - Listings",
-  "Bekka Soule": "/HC - Bekka Soule/Bekka - Listings",
-};
+//
+// Per-agent listing folder paths live in agents.dropbox_listing_path (set via
+// the app's Manage Agents screen), not hardcoded here — onboarding a new agent
+// no longer requires editing or redeploying this function.
 
 // Standard subfolder set created inside every new listing folder.
 const LISTING_SUBFOLDERS = ["Pitch Docs", "Listing Agreement", "Showing Docs", "Photos", "Under Contract"];
@@ -150,7 +142,7 @@ Deno.serve(async (req) => {
     }
 
     const txRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}&select=id,address,seller_name,agent:agents!transactions_agent_id_fkey(name)`,
+      `${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}&select=id,address,seller_name,agent:agents!transactions_agent_id_fkey(name,dropbox_listing_path)`,
       {
         headers: {
           apikey: SERVICE_ROLE_KEY,
@@ -164,9 +156,12 @@ Deno.serve(async (req) => {
     }
 
     const agentName = tx.agent?.name;
-    const parentPath = agentName ? AGENT_LISTING_PATHS[agentName] : undefined;
+    const parentPath = tx.agent?.dropbox_listing_path;
     if (!parentPath) {
-      return jsonResponse({ error: `No listing folder path configured for agent "${agentName}"` }, 400);
+      return jsonResponse(
+        { error: `No Dropbox listing folder configured for agent "${agentName}" — set one in Manage Agents` },
+        400
+      );
     }
 
     const folderLabel = getSellerLastName(tx.seller_name)

@@ -7,6 +7,7 @@ body {
 }
 .app { max-width: 480px; margin: 0 auto; padding: 20px 18px 60px; }
 .app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.app-header-actions { display: flex; gap: 8px; }
 .brand-eyebrow { font-size: 11px; color: #C7155B; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
 h1 { font-family: 'Playfair Display', serif; font-size: 24px; margin: 4px 0 0; }
 button { cursor: pointer; }
@@ -92,6 +93,9 @@ button { cursor: pointer; }
   padding: 2px;
 }
 .search-results { display: flex; flex-direction: column; gap: 12px; }
+
+.agent-list { display: flex; flex-direction: column; gap: 12px; }
+.agent-row--inactive { opacity: 0.55; }
 
 .uc-launch { width: 100%; margin-bottom: 16px; }
 .uc-launch--contract { background: #C7155B; }

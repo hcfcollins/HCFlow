@@ -18,6 +18,7 @@ import NewCompForm from "./components/NewCompForm";
 import DealDetail from "./components/DealDetail";
 import Celebration from "./components/Celebration";
 import TransactionList from "./components/TransactionList";
+import ManageAgents from "./components/ManageAgents";
 import { Search, X } from "lucide-react";
 
 const STAGES = [
@@ -40,6 +41,7 @@ export default function App() {
   const [showCelebration, setShowCelebration] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showManageAgents, setShowManageAgents] = useState(false);
 
   useEffect(() => {
     if (session && agent) loadTransactions();
@@ -187,6 +189,14 @@ export default function App() {
     );
   }
 
+  if (showManageAgents) {
+    return (
+      <div className="app">
+        <ManageAgents onBack={() => setShowManageAgents(false)} />
+      </div>
+    );
+  }
+
   if (showNewCompForm) {
     return (
       <div className="app">
@@ -240,7 +250,10 @@ export default function App() {
           <div className="brand-eyebrow">Hall Collins Real Estate Group</div>
           <h1>Transactions</h1>
         </div>
-        <button onClick={signOut}>Sign out</button>
+        <div className="app-header-actions">
+          {agent.role === "broker" && <button onClick={() => setShowManageAgents(true)}>Manage Agents</button>}
+          <button onClick={signOut}>Sign out</button>
+        </div>
       </header>
 
       {error && <div className="error-banner">{error}</div>}

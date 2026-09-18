@@ -5,16 +5,16 @@ import CmaDocument from "./CmaDocument";
 const DEFAULT_COVER_PDF_URL = "/cma/HC-CMA-Cover-Page.pdf";
 const LOGO_URL = "/cma/hall_collins_logo.png";
 
-// Per-agent personalized cover pages, ported from the Streamlit CMA generator's
-// app.py `_agent_cover_map` — only Rachel has one there; everyone else falls back to
-// the generic cover. Add an entry here (and the matching file in public/cma/) if
-// another agent gets their own cover sheet made.
+// Legacy static fallback for agents onboarded before Manage Agents existed, ported
+// from the Streamlit CMA generator's app.py `_agent_cover_map` — only Rachel has one
+// here. Anyone onboarded through Manage Agents gets a real agents.cover_sheet_url
+// instead (checked first, below), so this map should never need another entry.
 const AGENT_COVER_MAP = {
   "Rachel Noyes": "/cma/HC-Rachel-Noyes-Cover-Sheet.pdf",
 };
 
-function coverPdfUrlForAgent(agentName) {
-  return AGENT_COVER_MAP[agentName] || DEFAULT_COVER_PDF_URL;
+function coverPdfUrlForAgent(agent) {
+  return agent?.cover_sheet_url || AGENT_COVER_MAP[agent?.name] || DEFAULT_COVER_PDF_URL;
 }
 
 async function fetchBytes(url) {
@@ -38,7 +38,7 @@ export async function buildCompPdf(transaction, form, supplementalFile, anrFile)
   const contentBlob = await pdf(<CmaDocument transaction={transaction} form={form} logoDataUrl={LOGO_URL} />).toBlob();
   const contentBytes = await contentBlob.arrayBuffer();
 
-  const coverPdfUrl = coverPdfUrlForAgent(transaction.agent?.name);
+  const coverPdfUrl = coverPdfUrlForAgent(transaction.agent);
   const [coverBytes, contentDoc] = await Promise.all([fetchBytes(coverPdfUrl), PDFDocument.load(contentBytes)]);
 
   const out = await PDFDocument.create();

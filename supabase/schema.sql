@@ -10,16 +10,22 @@ create table agents (
   email text unique,
   role text not null default 'agent' check (role in ('agent', 'broker')),
   is_active boolean not null default true,
+  dropbox_listing_path text, -- this agent's Dropbox listing folder, read by the create-dropbox-folder Edge Function
+  dropbox_buyer_path text, -- captured for a future buyer-side Dropbox automation; not read by any function yet
+  cover_sheet_url text, -- public Storage URL to this agent's personalized CMA cover PDF, if they have one (falls back to the generic cover)
   created_at timestamptz not null default now()
 );
 
--- Seed the initial roster (edit before running, or run once and adjust in the app)
-insert into agents (name, email, role) values
-  ('Fran Collins', 'fran.collins@hallcollins.com', 'broker'),
-  ('Holly Hall', 'holly.hall@hallcollins.com', 'broker'),
-  ('Andrew Kimbell', null, 'agent'),
-  ('Rachel Noyes', null, 'agent'),
-  ('Bekka Soule', null, 'agent');
+-- Seed the initial roster (edit before running, or run once and adjust in the app).
+-- Dropbox paths reflect the designated-agency folder separation described in the
+-- app's project memory "dropbox_folder_structure" — Fran and Holly share one team
+-- folder, every other agent has their own isolated space.
+insert into agents (name, email, role, dropbox_listing_path, dropbox_buyer_path) values
+  ('Fran Collins', 'fran.collins@hallcollins.com', 'broker', '/Hall Collins REG Team Folder/Listings', '/Hall Collins REG Team Folder/Fran - Buyers'),
+  ('Holly Hall', 'holly.hall@hallcollins.com', 'broker', '/Hall Collins REG Team Folder/Listings', null),
+  ('Andrew Kimbell', null, 'agent', '/HC - Andrew Kimbell/Andrew - Listings', null),
+  ('Rachel Noyes', null, 'agent', '/HC - Rachel Noyes/Rachel - Listings', '/HC - Rachel Noyes/Rachel - Buyers'),
+  ('Bekka Soule', null, 'agent', '/HC - Bekka Soule/Bekka - Listings', null);
 
 -- ============================================================
 -- 2. ATTORNEYS (shared autocomplete list)
@@ -260,6 +266,24 @@ create policy "commission_update" on commission_data for update using (is_broker
 create policy "closeouts_select" on closeouts for select using (is_broker());
 create policy "closeouts_insert" on closeouts for insert with check (auth.uid() is not null);
 create policy "closeouts_update" on closeouts for update using (is_broker());
+
+-- ============================================================
+-- 8b. STORAGE — agent-assets bucket (cover sheets uploaded via Manage Agents)
+-- Public read (these are just letterhead-style cover art, not sensitive), broker-only
+-- write — same is_broker() gate as the agents table itself.
+-- ============================================================
+insert into storage.buckets (id, name, public)
+values ('agent-assets', 'agent-assets', true)
+on conflict (id) do nothing;
+
+create policy "agent_assets_select" on storage.objects for select
+  using (bucket_id = 'agent-assets');
+create policy "agent_assets_insert" on storage.objects for insert
+  with check (bucket_id = 'agent-assets' and is_broker());
+create policy "agent_assets_update" on storage.objects for update
+  using (bucket_id = 'agent-assets' and is_broker());
+create policy "agent_assets_delete" on storage.objects for delete
+  using (bucket_id = 'agent-assets' and is_broker());
 
 -- ============================================================
 -- 9. NOTES FOR CLAUDE CODE / WHOEVER WIRES THIS UP
