@@ -124,11 +124,12 @@ export default function DealPages({
         )}
       </div>
 
-      {/* Active Listings only ever contains real listing cards, each with its own
-          stage dropdown that opens the Under Contract form pre-filled with that
-          listing's details — a blank "+ Under Contract" button here would just
-          invite a manually-typed, possibly mismatched or duplicate address. */}
-      {currentPageKey !== "active" && (onNewComp || onNewUnderContract) && (
+      {/* Active Listings and All only ever contain cards for deals that already
+          exist, each with its own stage dropdown that opens the Under Contract
+          form pre-filled with that deal's details — a blank "+ Under Contract"
+          button here would just invite a manually-typed, possibly mismatched or
+          duplicate address. */}
+      {currentPageKey !== "active" && currentPageKey !== "all" && (onNewComp || onNewUnderContract) && (
         <button
           className={`google-btn uc-launch ${onCompsPage ? "uc-launch--comps" : "uc-launch--contract"}`}
           onClick={() => (onCompsPage ? onNewComp() : onNewUnderContract())}
