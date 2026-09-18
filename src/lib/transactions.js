@@ -193,6 +193,36 @@ export async function createDropboxFolderForListing(transactionId) {
   return data;
 }
 
+/** Uploads a generated comp PDF via the upload-comp-pdf Edge Function; routes to the
+ * listing's Pitch Docs subfolder if Won, or the shared general comps repository otherwise. */
+export async function uploadCompPdf(transactionId, pdfBytes, fileName) {
+  // supabase-js only auto-detects Content-Type for Blob/ArrayBuffer/File/FormData/String —
+  // a raw Uint8Array (what pdf-lib returns) isn't in that list and would silently get
+  // JSON-stringified, corrupting the binary. Wrap it in a Blob explicitly.
+  const { data, error } = await supabase.functions.invoke("upload-comp-pdf", {
+    body: new Blob([pdfBytes], { type: "application/pdf" }),
+    headers: {
+      "x-transaction-id": transactionId,
+      "x-file-name": encodeURIComponent(fileName),
+      "Content-Type": "application/pdf",
+    },
+  });
+  if (error) {
+    if (error.context?.json) {
+      let detail;
+      try {
+        const body = await error.context.json();
+        detail = body?.error;
+      } catch {
+        // response body wasn't JSON — fall through to the generic error below
+      }
+      if (detail) throw new Error(detail);
+    }
+    throw error;
+  }
+  return data;
+}
+
 export async function toggleTodo(id, done) {
   const { error } = await supabase.from("todos").update({ done }).eq("id", id);
   if (error) throw error;

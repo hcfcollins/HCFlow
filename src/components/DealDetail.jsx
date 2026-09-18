@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { Pencil, Mail, Download, FolderOpen, ChevronDown } from "lucide-react";
+import { Pencil, Mail, FileText, FolderOpen, ChevronDown } from "lucide-react";
 import TodoList from "./TodoList";
 import RadioGroup from "./RadioGroup";
+import GenerateCompForm from "./GenerateCompForm";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys } from "../lib/transactions";
-import { downloadCmaSessionFile } from "../lib/cmaExport";
 
-const PROPERTY_STYLES = ["Residential", "Land", "Commercial"];
+const PROPERTY_STYLES = ["Residential", "Land", "Commercial", "Multi Family"];
 
 /** Formats a "YYYY-MM-DD" date string as "Month Day, Year"; returns other formats unchanged. */
 function formatDate(dateStr) {
@@ -42,6 +42,7 @@ export default function DealDetail({
   const [attorneys, setAttorneys] = useState([]);
   const [compDetailsCollapsed, setCompDetailsCollapsed] = useState(true);
   const [retryingDropbox, setRetryingDropbox] = useState(false);
+  const [showGenerateComp, setShowGenerateComp] = useState(false);
 
   useEffect(() => {
     fetchAttorneys().then(setAttorneys).catch(() => {});
@@ -68,6 +69,18 @@ export default function DealDetail({
     const id = await resolveAttorneyId(name, attorneys);
     await updateTransactionAttorneys(transaction.id, side === "buyer" ? { buyerAttorneyId: id } : { sellerAttorneyId: id });
     onRefresh();
+  }
+
+  if (showGenerateComp) {
+    return (
+      <GenerateCompForm
+        transaction={transaction}
+        onCancel={() => setShowGenerateComp(false)}
+        onGenerated={() => {
+          onRefresh();
+        }}
+      />
+    );
   }
 
   return (
@@ -127,16 +140,24 @@ export default function DealDetail({
         <div className="detail-section">
           <h2 className="comps-section-title">Comp Details</h2>
           <CompDetailsGrid transaction={transaction} handleFieldSave={handleFieldSave} />
-
-          <button type="button" className="cma-export-btn" onClick={() => downloadCmaSessionFile(transaction)}>
-            <Download size={14} /> Download CMA Starter File
-          </button>
-          <p className="field-help">
-            Upload this in the CMA app's sidebar ("Upload .json session file") to pre-fill the address, property
-            type, fuel/septic/well, and recommendations instead of retyping them.
-          </p>
         </div>
       )}
+
+      <div className="detail-section">
+        <h2 className="comps-section-title">Comp / CMA</h2>
+        <button type="button" className="cma-export-btn" onClick={() => setShowGenerateComp(true)}>
+          <FileText size={14} /> {transaction.last_comp_url ? "Regenerate Comp" : "Generate Comp"}
+        </button>
+        {transaction.last_comp_url && (
+          <a href={transaction.last_comp_url} target="_blank" rel="noreferrer" className="cma-export-btn">
+            <FileText size={14} /> View Generated Comp
+          </a>
+        )}
+        <p className="field-help">
+          Builds a branded CMA PDF from this comp's details, your write-up, and price recommendation, and files it
+          in Dropbox — the listing's Pitch Docs folder once Won, or the shared comps repository before that.
+        </p>
+      </div>
 
       {transaction.stage !== "comps" && (
         <div className="detail-section">

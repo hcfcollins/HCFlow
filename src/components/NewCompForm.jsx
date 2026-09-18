@@ -5,7 +5,7 @@ import RadioGroup from "./RadioGroup";
 import CheckboxGroup from "./CheckboxGroup";
 
 const TIMEFRAMES = ["Now", "6 months", "Next year"];
-const PROPERTY_TYPES = ["Residential", "Land"];
+const PROPERTY_TYPES = ["Residential", "Land", "Commercial", "Multi Family"];
 const ELECTRICAL_OPTIONS = ["200 amp", "150 amp", "100 amp", "Fuses", "Knob and Tube"];
 const HEATING_OPTIONS = [
   "Baseboard",
@@ -28,6 +28,9 @@ const RECOMMENDATION_OPTIONS = [
   "🧹 Deep Clean / Clear Out Recommended",
   "📐 Land Subdivision Opportunity",
   "🎨 Painting / Complete A Few Projects",
+  "Organize Leases & Tenant Documents",
+  "Consider Evicting Tenants Before Listing",
+  "Make Repairs to Major Systems",
 ];
 
 export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {

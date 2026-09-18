@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
         Prefer: "return=minimal",
       },
-      body: JSON.stringify({ dropbox_folder_url: sharedLink }),
+      body: JSON.stringify({ dropbox_folder_url: sharedLink, dropbox_folder_path: actualPath }),
     });
     if (!updateRes.ok) throw new Error(`Failed to save folder link: ${await updateRes.text()}`);
 

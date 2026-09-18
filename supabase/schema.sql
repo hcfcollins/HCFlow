@@ -48,12 +48,15 @@ create table transactions (
   lockbox_code text,
   lockbox_note text,
   dropbox_folder_url text, -- set by the create-dropbox-folder Edge Function when a deal first moves to Won
+  dropbox_folder_path text, -- raw Dropbox path (not the shared link) for the same folder, used to target its Pitch Docs subfolder
+  comp_analysis jsonb, -- price band, agent write-up, and conditional land/multi-family analysis inputs from the Generate Comp form
+  last_comp_url text, -- shared Dropbox link to the most recently generated comp PDF
   ba_comp text,
   buyer_attorney_id uuid references attorneys(id),
   seller_attorney_id uuid references attorneys(id),
   seller_name text,
   buyer_name text,
-  property_style text check (property_style in ('Residential', 'Land', 'Commercial')),
+  property_style text check (property_style in ('Residential', 'Land', 'Commercial', 'Multi Family')),
   price numeric,
   comps_status text check (comps_status in ('Need to Send Comp', 'Waiting to List')), -- only meaningful while stage = 'comps'
   seller_email text,
