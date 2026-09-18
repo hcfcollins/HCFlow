@@ -93,12 +93,6 @@ button { cursor: pointer; }
 }
 .search-results { display: flex; flex-direction: column; gap: 12px; }
 
-.mobile-only { display: none; }
-@media (max-width: 767px) {
-  .desktop-only { display: none; }
-  .mobile-only { display: block; }
-}
-
 .uc-launch { width: 100%; margin-bottom: 16px; }
 .uc-launch--contract { background: #C7155B; }
 .uc-launch--comps { background: #A4B792; }
