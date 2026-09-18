@@ -145,18 +145,21 @@ export default function DealDetail({
 
       <div className="detail-section">
         <h2 className="comps-section-title">Comp / CMA</h2>
-        <button type="button" className="cma-export-btn" onClick={() => setShowGenerateComp(true)}>
-          <FileText size={14} /> {transaction.last_comp_url ? "Regenerate Comp" : "Generate Comp"}
-        </button>
+        <div className="desktop-only">
+          <button type="button" className="cma-export-btn" onClick={() => setShowGenerateComp(true)}>
+            <FileText size={14} /> {transaction.last_comp_url ? "Regenerate Comp" : "Generate Comp"}
+          </button>
+          <p className="field-help">
+            Builds a branded CMA PDF from this comp's details, your write-up, and price recommendation, and files it
+            in Dropbox — the listing's Pitch Docs folder once Won, or the shared comps repository before that.
+          </p>
+        </div>
         {transaction.last_comp_url && (
           <a href={transaction.last_comp_url} target="_blank" rel="noreferrer" className="cma-export-btn">
             <FileText size={14} /> View Generated Comp
           </a>
         )}
-        <p className="field-help">
-          Builds a branded CMA PDF from this comp's details, your write-up, and price recommendation, and files it
-          in Dropbox — the listing's Pitch Docs folder once Won, or the shared comps repository before that.
-        </p>
+        <p className="field-help mobile-only">Generating a comp needs a computer — the write-up and file uploads need more room than a phone screen. Open HC Flow on a desktop to do this.</p>
       </div>
 
       {transaction.stage !== "comps" && (
