@@ -1,8 +1,9 @@
 // Uploads a generated comp/CMA PDF to Dropbox and saves a shared link back onto the
 // transaction. If the listing already has a Dropbox folder (Won), the PDF goes into
-// that folder's "Pitch Docs" subfolder; otherwise it goes into the shared general
-// repository that pre-dates HC Flow (confirmed via the Streamlit CMA generator's own
-// dropbox_upload.py, which already wrote comps there).
+// that folder's "1) Pitch Docs" subfolder (numbered to match create-dropbox-folder's
+// LISTING_SUBFOLDERS — keep both in sync if this ever changes); otherwise it goes into
+// the shared general repository that pre-dates HC Flow (confirmed via the Streamlit
+// CMA generator's own dropbox_upload.py, which already wrote comps there).
 //
 // Expects POST with headers:
 //   x-transaction-id: <uuid>
@@ -146,7 +147,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Transaction not found" }, 404);
     }
 
-    const targetFolder = tx.dropbox_folder_path ? `${tx.dropbox_folder_path}/Pitch Docs` : GENERAL_COMPS_PATH;
+    const targetFolder = tx.dropbox_folder_path ? `${tx.dropbox_folder_path}/1) Pitch Docs` : GENERAL_COMPS_PATH;
 
     const accessToken = await getDropboxAccessToken();
     await ensureFolder(accessToken, targetFolder);

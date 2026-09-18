@@ -166,21 +166,23 @@ export default function DealDetail({
         </div>
       )}
 
-      <div className="detail-section">
-        <h2 className="comps-section-title">Comp / CMA</h2>
-        <button type="button" className="cma-export-btn" onClick={() => setShowGenerateComp(true)}>
-          <FileText size={14} /> {transaction.last_comp_url ? "Regenerate Comp" : "Generate Comp"}
-        </button>
-        {transaction.last_comp_url && (
-          <a href={transaction.last_comp_url} target="_blank" rel="noreferrer" className="cma-export-btn">
-            <FileText size={14} /> View Generated Comp
-          </a>
-        )}
-        <p className="field-help">
-          Builds a branded CMA PDF from this comp's details, your write-up, and price recommendation, and files it
-          in Dropbox — the listing's Pitch Docs folder once Won, or the shared comps repository before that.
-        </p>
-      </div>
+      {transaction.stage === "comps" && (
+        <div className="detail-section">
+          <h2 className="comps-section-title">Comp / CMA</h2>
+          <button type="button" className="cma-export-btn" onClick={() => setShowGenerateComp(true)}>
+            <FileText size={14} /> {transaction.last_comp_url ? "Regenerate Comp" : "Generate Comp"}
+          </button>
+          {transaction.last_comp_url && (
+            <a href={transaction.last_comp_url} target="_blank" rel="noreferrer" className="cma-export-btn">
+              <FileText size={14} /> View Generated Comp
+            </a>
+          )}
+          <p className="field-help">
+            Builds a branded CMA PDF from this comp's details, your write-up, and price recommendation, and files it
+            in Dropbox — the listing's Pitch Docs folder once Won, or the shared comps repository before that.
+          </p>
+        </div>
+      )}
 
       {transaction.stage !== "comps" && (
         <div className="detail-section">
@@ -192,7 +194,19 @@ export default function DealDetail({
             <h2 className="comps-section-title">Comp Data</h2>
             <ChevronDown size={18} className={`collapse-chevron ${compDetailsCollapsed ? "" : "collapse-chevron--open"}`} />
           </button>
-          {!compDetailsCollapsed && <CompDetailsGrid transaction={transaction} handleFieldSave={handleFieldSave} />}
+          {!compDetailsCollapsed && (
+            <>
+              <CompDetailsGrid transaction={transaction} handleFieldSave={handleFieldSave} />
+              <button type="button" className="cma-export-btn" onClick={() => setShowGenerateComp(true)}>
+                <FileText size={14} /> {transaction.last_comp_url ? "Regenerate Comp" : "Generate Comp"}
+              </button>
+              {transaction.last_comp_url && (
+                <a href={transaction.last_comp_url} target="_blank" rel="noreferrer" className="cma-export-btn">
+                  <FileText size={14} /> View Generated Comp
+                </a>
+              )}
+            </>
+          )}
         </div>
       )}
 

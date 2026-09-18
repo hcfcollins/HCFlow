@@ -10,8 +10,10 @@
 // the app's Manage Agents screen), not hardcoded here — onboarding a new agent
 // no longer requires editing or redeploying this function.
 
-// Standard subfolder set created inside every new listing folder.
-const LISTING_SUBFOLDERS = ["Pitch Docs", "Listing Agreement", "Showing Docs", "Photos", "Under Contract"];
+// Standard subfolder set created inside every new listing folder. Numbered so they
+// stay in this order in Dropbox's default alphabetical sort. upload-comp-pdf hardcodes
+// the "1) Pitch Docs" name too — keep both in sync if this ever changes again.
+const LISTING_SUBFOLDERS = ["1) Pitch Docs", "2) Listing Docs", "3) Showing Docs", "4) Photos", "5) Under Contract"];
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
