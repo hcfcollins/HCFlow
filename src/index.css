@@ -217,8 +217,8 @@ button { cursor: pointer; }
 .comps-section--waiting .tx-card { border-color: #B5AA8E; border-width: 1px 1px 1px 4px; }
 .comps-section--sellers { background: rgba(199, 21, 91, 0.12); }
 .comps-section--sellers .tx-card { border-color: #C7155B; border-width: 1px 1px 1px 4px; }
-.comps-section--buyers { background: rgba(242, 178, 193, 0.35); }
-.comps-section--buyers .tx-card { border-color: #E8879F; border-width: 1px 1px 1px 4px; }
+.comps-section--buyers { background: rgba(142, 21, 80, 0.18); }
+.comps-section--buyers .tx-card { border-color: #8E1550; border-width: 1px 1px 1px 4px; }
 .comps-section--onmarket { background: rgba(91, 155, 213, 0.14); }
 .comps-section--onmarket .tx-card { border-color: #5B9BD5; border-width: 1px 1px 1px 4px; }
 .comps-section--contract { background: rgba(126, 87, 194, 0.12); }
