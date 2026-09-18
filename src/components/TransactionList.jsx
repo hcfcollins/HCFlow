@@ -2,6 +2,13 @@ import { useState } from "react";
 import { Signpost, Percent, Lock, Mail } from "lucide-react";
 import TodoList from "./TodoList";
 
+const PROPERTY_STYLE_TAGS = {
+  Residential: { emoji: "🏠", label: "Single Family", className: "tx-tag--residential" },
+  Land: { emoji: "🌲", label: "Land", className: "tx-tag--land" },
+  "Multi Family": { emoji: "🏘️", label: "Multi Family", className: "tx-tag--multifamily" },
+  Commercial: { emoji: "🏢", label: "Commercial", className: "tx-tag--commercial" },
+};
+
 export default function TransactionList({
   transactions,
   stages,
@@ -84,8 +91,13 @@ function TxCard({
         </select>
       </div>
 
-      {(isActiveListing || (tx.ba_comp && !isBuySide) || tx.seller_email) && (
+      {(isActiveListing || (tx.ba_comp && !isBuySide)) && (
         <div className="tx-icons-row" onClick={(e) => e.stopPropagation()}>
+          {isActiveListing && PROPERTY_STYLE_TAGS[tx.property_style] && (
+            <span className={`tx-icon-badge tx-tag ${PROPERTY_STYLE_TAGS[tx.property_style].className}`}>
+              {PROPERTY_STYLE_TAGS[tx.property_style].emoji} {PROPERTY_STYLE_TAGS[tx.property_style].label}
+            </span>
+          )}
           {isActiveListing && tx.sign_status === "Yes" && (
             <span className="tx-icon-badge tx-icon-badge--sign-yes" title="Sign is installed">
               <Signpost size={14} /> Sign
@@ -104,16 +116,6 @@ function TxCard({
             <span className="tx-icon-badge tx-icon-badge--sign-need" title="Sign not installed yet">
               <Signpost size={14} /> Need Sign
             </span>
-          )}
-          {tx.seller_email && (
-            <a
-              href={`mailto:${tx.seller_email}`}
-              className="tx-icon-badge tx-icon-badge--btn"
-              title={`Email ${tx.seller_email}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Mail size={14} /> Email
-            </a>
           )}
           {tx.ba_comp && !isBuySide && (
             <span className="tx-icon-badge" title="Buyer agency commission">
@@ -188,6 +190,17 @@ function TxCard({
             <TodoList todos={tx.todos} onAdd={(text) => onAddTodo(tx.id, text)} onToggle={(id, done) => onToggleTodo(id, done)} />
           </div>
         )
+      )}
+
+      {tx.seller_email && (
+        <a
+          href={`mailto:${tx.seller_email}`}
+          className="tx-email-client-btn"
+          title={`Email ${tx.seller_email}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Mail size={14} /> Email Client
+        </a>
       )}
     </div>
   );
