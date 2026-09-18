@@ -32,6 +32,8 @@ export default function DealDetail({
   onLockboxChange,
   onRefresh,
   onRetryDropboxFolder,
+  onTerminate,
+  onReactivate,
 }) {
   const isBroker = currentAgent.role === "broker";
   const isActiveListing = transaction.stage === "won" || transaction.stage === "market";
@@ -94,6 +96,13 @@ export default function DealDetail({
         </button>
       </header>
 
+      {transaction.terminated_at && (
+        <div className="error-banner">
+          <strong>Terminated</strong> {formatDate(transaction.terminated_at.slice(0, 10))}
+          {transaction.termination_reason ? ` — ${transaction.termination_reason}` : ""}
+        </div>
+      )}
+
       <label>
         Stage
         <select
@@ -108,6 +117,24 @@ export default function DealDetail({
           ))}
         </select>
       </label>
+
+      {["won", "market", "contract"].includes(transaction.stage) &&
+        (transaction.terminated_at ? (
+          <button type="button" className="comps-status-btn" onClick={() => onReactivate(transaction.id)}>
+            Reactivate Deal
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="comps-status-btn comps-status-btn--danger"
+            onClick={() => {
+              const reason = window.prompt("Why is this deal being terminated? (optional)") || "";
+              onTerminate(transaction.id, reason);
+            }}
+          >
+            Terminate Deal
+          </button>
+        ))}
 
       {transaction.stage === "comps" && onCompsStatusChange && (
         <div className="comps-status-toggle">

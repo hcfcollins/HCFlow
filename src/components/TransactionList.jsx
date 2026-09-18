@@ -57,10 +57,13 @@ function TxCard({
   const signDeclined = tx.sign_status === "Seller Declined";
 
   return (
-    <div className="tx-card" onClick={() => onOpenDetail && onOpenDetail(tx)}>
+    <div className={`tx-card ${tx.terminated_at ? "tx-card--terminated" : ""}`} onClick={() => onOpenDetail && onOpenDetail(tx)}>
       <div className="tx-card-top">
         <div>
-          <div className="tx-address">{tx.address}</div>
+          <div className="tx-address">
+            {tx.address}
+            {tx.terminated_at && <span className="tx-terminated-badge">Terminated</span>}
+          </div>
           <div className="tx-sub">
             {tx.town}
             {isActiveListing ? "" : ` · ${tx.side} side`}

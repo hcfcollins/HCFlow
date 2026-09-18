@@ -10,6 +10,8 @@ import {
   toggleTodo,
   seedWonListingTodos,
   createDropboxFolderForListing,
+  terminateTransaction,
+  reactivateTransaction,
 } from "./lib/transactions";
 import DealPages, { PAGES } from "./components/DealPages";
 import LoginScreen from "./components/LoginScreen";
@@ -17,9 +19,7 @@ import UnderContractForm from "./components/UnderContractForm";
 import NewCompForm from "./components/NewCompForm";
 import DealDetail from "./components/DealDetail";
 import Celebration from "./components/Celebration";
-import TransactionList from "./components/TransactionList";
 import ManageAgents from "./components/ManageAgents";
-import { Search, X } from "lucide-react";
 
 const STAGES = [
   { key: "comps", label: "Comp" },
@@ -42,6 +42,7 @@ export default function App() {
   const [pageIndex, setPageIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [showManageAgents, setShowManageAgents] = useState(false);
+  const [viewAsAgent, setViewAsAgent] = useState(false);
 
   useEffect(() => {
     if (session && agent) loadTransactions();
@@ -132,6 +133,16 @@ export default function App() {
     loadTransactions({ silent: true });
   }
 
+  async function handleTerminate(id, reason) {
+    await terminateTransaction(id, reason);
+    loadTransactions({ silent: true });
+  }
+
+  async function handleReactivate(id) {
+    await reactivateTransaction(id);
+    loadTransactions({ silent: true });
+  }
+
   function handleRequestUnderContract(tx) {
     setSelectedTransaction(null);
     setUnderContractPrefill(tx);
@@ -167,11 +178,18 @@ export default function App() {
     );
   }
 
+  // A broker previewing "View as Agent" gets an agent object with the same real id
+  // (writes still attribute correctly) but role: "agent", so every existing
+  // `isBroker = currentAgent.role === "broker"` check throughout the app already
+  // reacts correctly with no per-component changes needed.
+  const isRealBroker = agent.role === "broker";
+  const effectiveAgent = viewAsAgent ? { ...agent, role: "agent" } : agent;
+
   if (showUnderContractForm) {
     return (
       <div className="app">
         <UnderContractForm
-          currentAgent={agent}
+          currentAgent={effectiveAgent}
           initialData={underContractPrefill}
           onCancel={() => {
             setShowUnderContractForm(false);
@@ -201,7 +219,7 @@ export default function App() {
     return (
       <div className="app">
         <NewCompForm
-          currentAgent={agent}
+          currentAgent={effectiveAgent}
           onCancel={() => setShowNewCompForm(false)}
           onSubmitted={() => {
             setShowNewCompForm(false);
@@ -219,7 +237,7 @@ export default function App() {
         <DealDetail
           transaction={selectedTransaction}
           stages={STAGES}
-          currentAgent={agent}
+          currentAgent={effectiveAgent}
           onBack={() => setSelectedTransaction(null)}
           onStageChange={handleStageChangeRequest}
           onNotesChange={handleNotesChange}
@@ -229,16 +247,21 @@ export default function App() {
           onLockboxChange={handleLockboxChange}
           onRefresh={() => loadTransactions({ silent: true })}
           onRetryDropboxFolder={handleRetryDropboxFolder}
+          onTerminate={handleTerminate}
+          onReactivate={handleReactivate}
         />
       </div>
     );
   }
 
   const onCompsPage = PAGES[pageIndex]?.key === "comps";
+  // A broker previewing "as agent" should see exactly what that agent would see —
+  // just their own deals — same as RLS would actually enforce for a real agent.
+  const visibleTxs = viewAsAgent ? txs.filter((tx) => tx.agent_id === agent.id) : txs;
   const trimmedQuery = searchQuery.trim().toLowerCase();
   const isSearching = trimmedQuery.length > 0;
   const searchResults = isSearching
-    ? txs.filter((tx) =>
+    ? visibleTxs.filter((tx) =>
         [tx.address, tx.seller_name, tx.buyer_name].some((field) => field?.toLowerCase().includes(trimmedQuery))
       )
     : [];
@@ -246,87 +269,61 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <div>
-          <div className="brand-eyebrow">Hall Collins Real Estate Group</div>
-          <h1>Transactions</h1>
+        <div className="brand-block">
+          <img src="/logo-mark.png" alt="Hall Collins Real Estate Group" className="brand-logo" />
+          <h1>Deal Tracker</h1>
         </div>
         <div className="app-header-actions">
-          {agent.role === "broker" && <button onClick={() => setShowManageAgents(true)}>Manage Agents</button>}
+          {isRealBroker && (
+            <button onClick={() => setViewAsAgent((v) => !v)}>
+              {viewAsAgent ? "View as Broker" : "View as Agent"}
+            </button>
+          )}
+          {effectiveAgent.role === "broker" && <button onClick={() => setShowManageAgents(true)}>Manage Agents</button>}
           <button onClick={signOut}>Sign out</button>
         </div>
       </header>
 
+      {viewAsAgent && (
+        <div className="view-as-banner">Viewing as an agent would — showing only your own deals.</div>
+      )}
+
       {error && <div className="error-banner">{error}</div>}
 
-      <div className="search-bar">
-        <Search size={16} className="search-bar-icon" />
-        <input
-          type="text"
-          className="search-bar-input"
-          placeholder="Search by address or last name…"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-        {isSearching && (
-          <button
-            type="button"
-            className="search-bar-clear"
-            onClick={() => setSearchQuery("")}
-            aria-label="Clear search"
-          >
-            <X size={16} />
-          </button>
-        )}
-      </div>
+      <button
+        className={`google-btn uc-launch ${onCompsPage ? "uc-launch--comps" : "uc-launch--contract"}`}
+        onClick={() => {
+          if (onCompsPage) {
+            setShowNewCompForm(true);
+          } else {
+            setUnderContractPrefill(null);
+            setShowUnderContractForm(true);
+          }
+        }}
+      >
+        {onCompsPage ? "+ New Comp" : "+ Under Contract"}
+      </button>
 
-      {isSearching ? (
-        <div className="search-results">
-          <TransactionList
-            transactions={searchResults}
-            stages={STAGES}
-            currentAgent={agent}
-            onStageChange={handleStageChangeRequest}
-            onNotesChange={handleNotesChange}
-            onCompsStatusChange={handleCompsStatusChange}
-            onAddTodo={handleAddTodo}
-            onToggleTodo={handleToggleTodo}
-            onOpenDetail={setSelectedTransaction}
-          />
-        </div>
+      {loadingTxs ? (
+        <div className="center-screen">Loading transactions…</div>
       ) : (
-        <>
-          <button
-            className={`google-btn uc-launch ${onCompsPage ? "uc-launch--comps" : "uc-launch--contract"}`}
-            onClick={() => {
-              if (onCompsPage) {
-                setShowNewCompForm(true);
-              } else {
-                setUnderContractPrefill(null);
-                setShowUnderContractForm(true);
-              }
-            }}
-          >
-            {onCompsPage ? "+ New Comp" : "+ Under Contract"}
-          </button>
-
-          {loadingTxs ? (
-            <div className="center-screen">Loading transactions…</div>
-          ) : (
-            <DealPages
-              transactions={txs}
-              stages={STAGES}
-              currentAgent={agent}
-              onStageChange={handleStageChangeRequest}
-              onNotesChange={handleNotesChange}
-              onCompsStatusChange={handleCompsStatusChange}
-              onAddTodo={handleAddTodo}
-              onToggleTodo={handleToggleTodo}
-              onOpenDetail={setSelectedTransaction}
-              pageIndex={pageIndex}
-              onPageIndexChange={setPageIndex}
-            />
-          )}
-        </>
+        <DealPages
+          transactions={visibleTxs}
+          stages={STAGES}
+          currentAgent={effectiveAgent}
+          onStageChange={handleStageChangeRequest}
+          onNotesChange={handleNotesChange}
+          onCompsStatusChange={handleCompsStatusChange}
+          onAddTodo={handleAddTodo}
+          onToggleTodo={handleToggleTodo}
+          onOpenDetail={setSelectedTransaction}
+          pageIndex={pageIndex}
+          onPageIndexChange={setPageIndex}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          isSearching={isSearching}
+          searchResults={searchResults}
+        />
       )}
     </div>
   );

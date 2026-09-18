@@ -32,6 +32,26 @@ export async function updateTransactionStage(id, stage) {
   if (error) throw error;
 }
 
+/** Flags a listing or under-contract deal as fallen-through, without losing its stage
+ * history. Pulls it out of the active pipeline pages into the "Terminated" bucket on
+ * the All page. Any future reminder-email automation must treat this as the cancel
+ * signal (check terminated_at is null before sending). */
+export async function terminateTransaction(id, reason) {
+  const { error } = await supabase
+    .from("transactions")
+    .update({ terminated_at: new Date(), termination_reason: reason || null, updated_at: new Date() })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function reactivateTransaction(id) {
+  const { error } = await supabase
+    .from("transactions")
+    .update({ terminated_at: null, termination_reason: null, updated_at: new Date() })
+    .eq("id", id);
+  if (error) throw error;
+}
+
 export async function updateTransactionNotes(id, notes) {
   const { error } = await supabase.from("transactions").update({ notes, updated_at: new Date() }).eq("id", id);
   if (error) throw error;

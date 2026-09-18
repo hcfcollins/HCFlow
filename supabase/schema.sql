@@ -46,6 +46,8 @@ create table transactions (
   region text check (region in ('VT', 'NH')),
   side text not null check (side in ('Buy', 'Sell', 'Split')), -- 'Split' only when the producing agent is Fran or Holly personally repping both sides
   stage text not null default 'comps' check (stage in ('comps', 'won', 'market', 'contract', 'closed')),
+  terminated_at timestamptz, -- set when a listing or under-contract deal falls through; stage is left as-is for history, this just flags it out of the active pipeline. Any future reminder-email automation (second deposit, closeout, etc.) must check this is null before sending.
+  termination_reason text,
   agent_id uuid references agents(id),
   next_date text,
   notes text default '',

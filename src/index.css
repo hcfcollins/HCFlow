@@ -9,10 +9,14 @@ body {
 .app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .app-header-actions { display: flex; gap: 8px; }
 .brand-eyebrow { font-size: 11px; color: #C7155B; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.brand-block { display: flex; align-items: center; gap: 10px; }
+.brand-logo { height: 38px; width: auto; }
+.brand-block h1 { margin: 0; }
 h1 { font-family: 'Playfair Display', serif; font-size: 24px; margin: 4px 0 0; }
 button { cursor: pointer; }
 .center-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; text-align: center; }
 .error-banner { background: #F8E7E2; color: #A13D2E; padding: 10px 14px; border-radius: 10px; margin-bottom: 14px; font-size: 13px; }
+.view-as-banner { background: #EEF1F4; color: #173348; padding: 8px 14px; border-radius: 10px; margin-bottom: 14px; font-size: 12px; font-weight: 600; text-align: center; }
 .login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
 .login-card { text-align: center; background: #FFFFFF; padding: 40px 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
 .google-btn { margin-top: 20px; padding: 12px 24px; background: #173348; color: #fff; border: none; border-radius: 9px; font-weight: 700; font-size: 14px; }
@@ -207,16 +211,37 @@ button { cursor: pointer; }
 
 .comps-section--need { background: rgba(199, 21, 91, 0.08); }
 .comps-section--need .tx-card { border-color: #C7155B; border-width: 1px 1px 1px 4px; }
-.comps-section--won { background: rgba(110, 151, 189, 0.14); }
-.comps-section--won .tx-card { border-color: #6E97BD; border-width: 1px 1px 1px 4px; }
+.comps-section--won { background: rgba(23, 51, 72, 0.14); }
+.comps-section--won .tx-card { border-color: #173348; border-width: 1px 1px 1px 4px; }
 .comps-section--waiting { background: rgba(181, 170, 142, 0.14); }
 .comps-section--waiting .tx-card { border-color: #B5AA8E; border-width: 1px 1px 1px 4px; }
 .comps-section--sellers { background: rgba(199, 21, 91, 0.12); }
 .comps-section--sellers .tx-card { border-color: #C7155B; border-width: 1px 1px 1px 4px; }
 .comps-section--buyers { background: rgba(242, 178, 193, 0.35); }
 .comps-section--buyers .tx-card { border-color: #E8879F; border-width: 1px 1px 1px 4px; }
-.comps-section--onmarket { background: rgba(201, 155, 47, 0.14); }
-.comps-section--onmarket .tx-card { border-color: #C99B2F; border-width: 1px 1px 1px 4px; }
+.comps-section--onmarket { background: rgba(91, 155, 213, 0.14); }
+.comps-section--onmarket .tx-card { border-color: #5B9BD5; border-width: 1px 1px 1px 4px; }
+.comps-section--contract { background: rgba(126, 87, 194, 0.12); }
+.comps-section--contract .tx-card { border-color: #7E57C2; border-width: 1px 1px 1px 4px; }
+.comps-section--closed { background: rgba(120, 144, 156, 0.14); }
+.comps-section--closed .tx-card { border-color: #78909C; border-width: 1px 1px 1px 4px; }
+.comps-section--terminated { background: rgba(161, 61, 46, 0.08); }
+.comps-section--terminated .tx-card { border-color: #A13D2E; border-width: 1px 1px 1px 4px; }
+
+.tx-card--terminated { opacity: 0.7; }
+.tx-terminated-badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #A13D2E;
+  background: #F8E7E2;
+  padding: 2px 7px;
+  border-radius: 10px;
+  vertical-align: middle;
+}
 .todo-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .todo-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .todo-item.done { color: #8A8577; text-decoration: line-through; }
@@ -292,3 +317,4 @@ button { cursor: pointer; }
   font-weight: 600;
   color: #8A8577;
 }
+.comps-status-btn--danger { border-color: #E8A5A5; color: #A13D2E; }

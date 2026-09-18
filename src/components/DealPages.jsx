@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Search, X } from "lucide-react";
 import TransactionList from "./TransactionList";
 
 export const PAGES = [
@@ -23,12 +24,20 @@ export default function DealPages({
   onOpenDetail,
   pageIndex,
   onPageIndexChange,
+  searchQuery,
+  onSearchChange,
+  isSearching,
+  searchResults,
 }) {
   const [dragOffset, setDragOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
   const touchStart = useRef(null);
   const intent = useRef(null);
   const viewportRef = useRef(null);
+
+  // Terminated deals are pulled out of the working pages (they're not active work
+  // anymore) but still visible in their own bucket on the All page.
+  const activeTransactions = transactions.filter((tx) => !tx.terminated_at);
 
   function handleTouchStart(e) {
     touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -75,7 +84,7 @@ export default function DealPages({
     <div className="deal-pages">
       <div className="deal-pages-tabs">
         {PAGES.map((p, i) => {
-          const count = transactions.filter(p.match).length;
+          const count = activeTransactions.filter(p.match).length;
           return (
             <button
               key={p.key}
@@ -90,71 +99,204 @@ export default function DealPages({
         })}
       </div>
 
-      <div
-        className="deal-pages-viewport"
-        ref={viewportRef}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
-        <div
-          className="deal-pages-track"
-          style={{
-            transform: `translateX(${translate}%)`,
-            transition: dragging ? "none" : "transform 0.25s ease",
-          }}
-        >
-          {PAGES.map((p) => (
-            <div key={p.key} className="deal-page">
-              <div className={`deal-page-inner deal-page--${p.key}`}>
-                {p.key === "comps" ? (
-                  <CompsPage
-                    transactions={transactions}
-                    stages={stages}
-                    currentAgent={currentAgent}
-                    onStageChange={onStageChange}
-                    onNotesChange={onNotesChange}
-                    onCompsStatusChange={onCompsStatusChange}
-                    onAddTodo={onAddTodo}
-                    onToggleTodo={onToggleTodo}
-                    onOpenDetail={onOpenDetail}
-                  />
-                ) : p.key === "contract" ? (
-                  <UnderContractPage
-                    transactions={transactions.filter(p.match)}
-                    stages={stages}
-                    currentAgent={currentAgent}
-                    onStageChange={onStageChange}
-                    onNotesChange={onNotesChange}
-                    onOpenDetail={onOpenDetail}
-                  />
-                ) : p.key === "active" ? (
-                  <ActiveListingsPage
-                    transactions={transactions.filter(p.match)}
-                    stages={stages}
-                    currentAgent={currentAgent}
-                    onStageChange={onStageChange}
-                    onNotesChange={onNotesChange}
-                    onAddTodo={onAddTodo}
-                    onToggleTodo={onToggleTodo}
-                    onOpenDetail={onOpenDetail}
-                  />
-                ) : (
-                  <TransactionList
-                    transactions={transactions.filter(p.match)}
-                    stages={stages}
-                    currentAgent={currentAgent}
-                    onStageChange={onStageChange}
-                    onNotesChange={onNotesChange}
-                    onCompsStatusChange={onCompsStatusChange}
-                    onOpenDetail={onOpenDetail}
-                  />
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+      <div className="search-bar">
+        <Search size={16} className="search-bar-icon" />
+        <input
+          type="text"
+          className="search-bar-input"
+          placeholder="Search by address or last name…"
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+        />
+        {isSearching && (
+          <button
+            type="button"
+            className="search-bar-clear"
+            onClick={() => onSearchChange("")}
+            aria-label="Clear search"
+          >
+            <X size={16} />
+          </button>
+        )}
       </div>
+
+      {isSearching ? (
+        <div className="search-results">
+          <TransactionList
+            transactions={searchResults}
+            stages={stages}
+            currentAgent={currentAgent}
+            onStageChange={onStageChange}
+            onNotesChange={onNotesChange}
+            onCompsStatusChange={onCompsStatusChange}
+            onAddTodo={onAddTodo}
+            onToggleTodo={onToggleTodo}
+            onOpenDetail={onOpenDetail}
+          />
+        </div>
+      ) : (
+        <div
+          className="deal-pages-viewport"
+          ref={viewportRef}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          <div
+            className="deal-pages-track"
+            style={{
+              transform: `translateX(${translate}%)`,
+              transition: dragging ? "none" : "transform 0.25s ease",
+            }}
+          >
+            {PAGES.map((p) => (
+              <div key={p.key} className="deal-page">
+                <div className={`deal-page-inner deal-page--${p.key}`}>
+                  {p.key === "comps" ? (
+                    <CompsPage
+                      transactions={activeTransactions}
+                      stages={stages}
+                      currentAgent={currentAgent}
+                      onStageChange={onStageChange}
+                      onNotesChange={onNotesChange}
+                      onCompsStatusChange={onCompsStatusChange}
+                      onAddTodo={onAddTodo}
+                      onToggleTodo={onToggleTodo}
+                      onOpenDetail={onOpenDetail}
+                    />
+                  ) : p.key === "contract" ? (
+                    <UnderContractPage
+                      transactions={activeTransactions.filter(p.match)}
+                      stages={stages}
+                      currentAgent={currentAgent}
+                      onStageChange={onStageChange}
+                      onNotesChange={onNotesChange}
+                      onOpenDetail={onOpenDetail}
+                    />
+                  ) : p.key === "active" ? (
+                    <ActiveListingsPage
+                      transactions={activeTransactions.filter(p.match)}
+                      stages={stages}
+                      currentAgent={currentAgent}
+                      onStageChange={onStageChange}
+                      onNotesChange={onNotesChange}
+                      onAddTodo={onAddTodo}
+                      onToggleTodo={onToggleTodo}
+                      onOpenDetail={onOpenDetail}
+                    />
+                  ) : (
+                    <AllPage
+                      transactions={transactions}
+                      stages={stages}
+                      currentAgent={currentAgent}
+                      onStageChange={onStageChange}
+                      onNotesChange={onNotesChange}
+                      onCompsStatusChange={onCompsStatusChange}
+                      onAddTodo={onAddTodo}
+                      onToggleTodo={onToggleTodo}
+                      onOpenDetail={onOpenDetail}
+                    />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A collapsible bucket, minimized by default — used throughout the All page so a
+ * full pipeline overview doesn't turn into one giant scroll. */
+function CollapsibleSection({ title, count, colorClass, children }) {
+  const [collapsed, setCollapsed] = useState(true);
+  if (count === 0) return null;
+  return (
+    <div className={`comps-section ${colorClass}`}>
+      <div className="comps-section-header">
+        <h2 className="comps-section-title">
+          {title} <span className="comps-section-count">{count}</span>
+        </h2>
+        <button type="button" className="comps-minimize-btn" onClick={() => setCollapsed((c) => !c)}>
+          {collapsed ? "Show" : "Minimize"}
+        </button>
+      </div>
+      {!collapsed && children}
+    </div>
+  );
+}
+
+function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange, onAddTodo, onToggleTodo, onOpenDetail }) {
+  const active = transactions.filter((tx) => !tx.terminated_at);
+  const terminated = transactions.filter((tx) => tx.terminated_at);
+
+  const buckets = [
+    {
+      key: "comps",
+      title: "Comps",
+      colorClass: "comps-section--need",
+      items: active.filter((tx) => tx.stage === "comps" && tx.comps_status !== "Waiting to List"),
+    },
+    {
+      key: "won",
+      title: "Won Listing",
+      colorClass: "comps-section--won",
+      items: active.filter((tx) => tx.stage === "won"),
+    },
+    {
+      key: "waiting",
+      title: "Waiting to List",
+      colorClass: "comps-section--waiting",
+      items: active.filter((tx) => tx.stage === "comps" && tx.comps_status === "Waiting to List"),
+    },
+    {
+      key: "market",
+      title: "Active Listings",
+      colorClass: "comps-section--onmarket",
+      items: active.filter((tx) => tx.stage === "market"),
+    },
+    {
+      key: "contract",
+      title: "Under Contract",
+      colorClass: "comps-section--contract",
+      items: active.filter((tx) => tx.stage === "contract"),
+    },
+    {
+      key: "closed",
+      title: "Closed",
+      colorClass: "comps-section--closed",
+      items: active.filter((tx) => tx.stage === "closed"),
+    },
+    {
+      key: "terminated",
+      title: "Terminated",
+      colorClass: "comps-section--terminated",
+      items: terminated,
+    },
+  ];
+
+  if (buckets.every((b) => b.items.length === 0)) {
+    return <p className="empty-state">No transactions yet.</p>;
+  }
+
+  return (
+    <div className="comps-page">
+      {buckets.map((b) => (
+        <CollapsibleSection key={b.key} title={b.title} count={b.items.length} colorClass={b.colorClass}>
+          <TransactionList
+            transactions={b.items}
+            stages={stages}
+            currentAgent={currentAgent}
+            onStageChange={onStageChange}
+            onNotesChange={onNotesChange}
+            onCompsStatusChange={b.key === "comps" || b.key === "waiting" ? onCompsStatusChange : undefined}
+            onAddTodo={b.key === "won" ? onAddTodo : undefined}
+            onToggleTodo={b.key === "won" ? onToggleTodo : undefined}
+            onOpenDetail={onOpenDetail}
+          />
+        </CollapsibleSection>
+      ))}
     </div>
   );
 }
@@ -171,24 +313,34 @@ function ActiveListingsPage({
 }) {
   const privateListings = transactions.filter((tx) => tx.stage === "won");
   const onMarket = transactions.filter((tx) => tx.stage === "market");
+  const [privateCollapsed, setPrivateCollapsed] = useState(privateListings.length === 0);
 
   return (
     <div className="comps-page">
       <div className="comps-section comps-section--won">
-        <h2 className="comps-section-title">
-          Private Listing <span className="comps-section-count">{privateListings.length}</span>
-        </h2>
-        <p className="field-help">Not live yet — still gathering documents.</p>
-        <TransactionList
-          transactions={privateListings}
-          stages={stages}
-          currentAgent={currentAgent}
-          onStageChange={onStageChange}
-          onNotesChange={onNotesChange}
-          onAddTodo={onAddTodo}
-          onToggleTodo={onToggleTodo}
-          onOpenDetail={onOpenDetail}
-        />
+        <div className="comps-section-header">
+          <h2 className="comps-section-title">
+            Private Listing <span className="comps-section-count">{privateListings.length}</span>
+          </h2>
+          <button type="button" className="comps-minimize-btn" onClick={() => setPrivateCollapsed((c) => !c)}>
+            {privateCollapsed ? "Show" : "Minimize"}
+          </button>
+        </div>
+        {!privateCollapsed && (
+          <>
+            <p className="field-help">Not live yet — still gathering documents.</p>
+            <TransactionList
+              transactions={privateListings}
+              stages={stages}
+              currentAgent={currentAgent}
+              onStageChange={onStageChange}
+              onNotesChange={onNotesChange}
+              onAddTodo={onAddTodo}
+              onToggleTodo={onToggleTodo}
+              onOpenDetail={onOpenDetail}
+            />
+          </>
+        )}
       </div>
 
       <div className="comps-section comps-section--onmarket">
