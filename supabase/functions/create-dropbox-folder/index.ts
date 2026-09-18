@@ -67,11 +67,21 @@ async function createDropboxFolder(accessToken: string, path: string) {
       "Content-Type": "application/json",
       "Dropbox-API-Path-Root": dropboxPathRootHeader,
     },
-    body: JSON.stringify({ path, autorename: true }),
+    // autorename:false on purpose: a retry (e.g. after the earlier step of
+    // saving the link back to the transaction failed) must be idempotent,
+    // not spawn a "Name (1)" duplicate folder for the same listing. A
+    // path/conflict/folder error below is treated as "already exists,
+    // reuse it" rather than an autorenamed duplicate.
+    body: JSON.stringify({ path, autorename: false }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(`Dropbox folder creation failed: ${JSON.stringify(data)}`);
-  return data.metadata.path_display as string;
+  if (res.ok) return data.metadata.path_display as string;
+
+  const isFolderConflict =
+    data.error?.[".tag"] === "path" && data.error.path?.[".tag"] === "conflict" && data.error.path.conflict?.[".tag"] === "folder";
+  if (isFolderConflict) return path;
+
+  throw new Error(`Dropbox folder creation failed: ${JSON.stringify(data)}`);
 }
 
 async function getOrCreateSharedLink(accessToken: string, path: string): Promise<string> {
