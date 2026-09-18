@@ -19,6 +19,7 @@ button { cursor: pointer; }
 .view-as-banner { background: #EEF1F4; color: #173348; padding: 8px 14px; border-radius: 10px; margin-bottom: 14px; font-size: 12px; font-weight: 600; text-align: center; }
 .login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
 .login-card { text-align: center; background: #FFFFFF; padding: 40px 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+.login-logo { width: 220px; max-width: 100%; height: auto; margin-bottom: 8px; }
 .google-btn { margin-top: 20px; padding: 12px 24px; background: #173348; color: #fff; border: none; border-radius: 9px; font-weight: 700; font-size: 14px; }
 .tx-list { display: flex; flex-direction: column; gap: 12px; }
 .tx-card { background: #fff; border: 1px solid #F0EDE4; border-radius: 14px; padding: 14px 16px; cursor: pointer; }

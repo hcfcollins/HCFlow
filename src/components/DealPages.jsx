@@ -239,9 +239,26 @@ function CollapsibleSection({ title, count, colorClass, children }) {
   );
 }
 
+/** The year a deal actually closed — prefers the closing date (next_date, set on the
+ * Under Contract form) since updated_at can get bumped by unrelated later edits.
+ * Unparseable/missing dates count as "this year" so nothing silently vanishes into
+ * the prior-years archive without a clear signal that it's actually old. */
+function closedYear(tx) {
+  const raw = tx.next_date || tx.updated_at;
+  const year = raw ? new Date(raw).getFullYear() : NaN;
+  return Number.isNaN(year) ? new Date().getFullYear() : year;
+}
+
 function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange, onAddTodo, onToggleTodo, onOpenDetail }) {
   const active = transactions.filter((tx) => !tx.terminated_at);
   const terminated = transactions.filter((tx) => tx.terminated_at);
+  const currentYear = new Date().getFullYear();
+
+  const allClosed = active.filter((tx) => tx.stage === "closed");
+  const closedThisYear = allClosed.filter((tx) => closedYear(tx) >= currentYear);
+  const closedPriorYears = allClosed.filter((tx) => closedYear(tx) < currentYear);
+  const priorSellers = closedPriorYears.filter((tx) => tx.side === "Sell");
+  const priorBuyers = closedPriorYears.filter((tx) => tx.side === "Buy");
 
   const buckets = [
     {
@@ -278,7 +295,7 @@ function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesCha
       key: "closed",
       title: "Closed",
       colorClass: "comps-section--closed",
-      items: active.filter((tx) => tx.stage === "closed"),
+      items: closedThisYear,
     },
     {
       key: "terminated",
@@ -288,7 +305,8 @@ function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesCha
     },
   ];
 
-  if (buckets.every((b) => b.items.length === 0)) {
+  const nothingAtAll = buckets.every((b) => b.items.length === 0) && closedPriorYears.length === 0;
+  if (nothingAtAll) {
     return <p className="empty-state">No transactions yet.</p>;
   }
 
@@ -309,6 +327,39 @@ function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesCha
           />
         </CollapsibleSection>
       ))}
+
+      <CollapsibleSection title="Prior Years" count={closedPriorYears.length} colorClass="comps-section--closed">
+        {priorSellers.length > 0 && (
+          <div className="timeframe-group">
+            <h3 className="timeframe-group-title">
+              Closed Sellers <span className="comps-section-count">{priorSellers.length}</span>
+            </h3>
+            <TransactionList
+              transactions={priorSellers}
+              stages={stages}
+              currentAgent={currentAgent}
+              onStageChange={onStageChange}
+              onNotesChange={onNotesChange}
+              onOpenDetail={onOpenDetail}
+            />
+          </div>
+        )}
+        {priorBuyers.length > 0 && (
+          <div className="timeframe-group">
+            <h3 className="timeframe-group-title">
+              Closed Buyers <span className="comps-section-count">{priorBuyers.length}</span>
+            </h3>
+            <TransactionList
+              transactions={priorBuyers}
+              stages={stages}
+              currentAgent={currentAgent}
+              onStageChange={onStageChange}
+              onNotesChange={onNotesChange}
+              onOpenDetail={onOpenDetail}
+            />
+          </div>
+        )}
+      </CollapsibleSection>
     </div>
   );
 }
