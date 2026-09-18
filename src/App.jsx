@@ -17,6 +17,8 @@ import UnderContractForm from "./components/UnderContractForm";
 import NewCompForm from "./components/NewCompForm";
 import DealDetail from "./components/DealDetail";
 import Celebration from "./components/Celebration";
+import TransactionList from "./components/TransactionList";
+import { Search, X } from "lucide-react";
 
 const STAGES = [
   { key: "comps", label: "Comp" },
@@ -37,6 +39,7 @@ export default function App() {
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (session && agent) loadTransactions();
@@ -222,6 +225,13 @@ export default function App() {
   }
 
   const onCompsPage = PAGES[pageIndex]?.key === "comps";
+  const trimmedQuery = searchQuery.trim().toLowerCase();
+  const isSearching = trimmedQuery.length > 0;
+  const searchResults = isSearching
+    ? txs.filter((tx) =>
+        [tx.address, tx.seller_name, tx.buyer_name].some((field) => field?.toLowerCase().includes(trimmedQuery))
+      )
+    : [];
 
   return (
     <div className="app">
@@ -235,36 +245,75 @@ export default function App() {
 
       {error && <div className="error-banner">{error}</div>}
 
-      <button
-        className={`google-btn uc-launch ${onCompsPage ? "uc-launch--comps" : "uc-launch--contract"}`}
-        onClick={() => {
-          if (onCompsPage) {
-            setShowNewCompForm(true);
-          } else {
-            setUnderContractPrefill(null);
-            setShowUnderContractForm(true);
-          }
-        }}
-      >
-        {onCompsPage ? "+ New Comp" : "+ Under Contract"}
-      </button>
-
-      {loadingTxs ? (
-        <div className="center-screen">Loading transactions…</div>
-      ) : (
-        <DealPages
-          transactions={txs}
-          stages={STAGES}
-          currentAgent={agent}
-          onStageChange={handleStageChangeRequest}
-          onNotesChange={handleNotesChange}
-          onCompsStatusChange={handleCompsStatusChange}
-          onAddTodo={handleAddTodo}
-          onToggleTodo={handleToggleTodo}
-          onOpenDetail={setSelectedTransaction}
-          pageIndex={pageIndex}
-          onPageIndexChange={setPageIndex}
+      <div className="search-bar">
+        <Search size={16} className="search-bar-icon" />
+        <input
+          type="text"
+          className="search-bar-input"
+          placeholder="Search by address or last name…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
         />
+        {isSearching && (
+          <button
+            type="button"
+            className="search-bar-clear"
+            onClick={() => setSearchQuery("")}
+            aria-label="Clear search"
+          >
+            <X size={16} />
+          </button>
+        )}
+      </div>
+
+      {isSearching ? (
+        <div className="search-results">
+          <TransactionList
+            transactions={searchResults}
+            stages={STAGES}
+            currentAgent={agent}
+            onStageChange={handleStageChangeRequest}
+            onNotesChange={handleNotesChange}
+            onCompsStatusChange={handleCompsStatusChange}
+            onAddTodo={handleAddTodo}
+            onToggleTodo={handleToggleTodo}
+            onOpenDetail={setSelectedTransaction}
+          />
+        </div>
+      ) : (
+        <>
+          <button
+            className={`google-btn uc-launch ${onCompsPage ? "uc-launch--comps" : "uc-launch--contract"}`}
+            onClick={() => {
+              if (onCompsPage) {
+                setShowNewCompForm(true);
+              } else {
+                setUnderContractPrefill(null);
+                setShowUnderContractForm(true);
+              }
+            }}
+          >
+            {onCompsPage ? "+ New Comp" : "+ Under Contract"}
+          </button>
+
+          {loadingTxs ? (
+            <div className="center-screen">Loading transactions…</div>
+          ) : (
+            <DealPages
+              transactions={txs}
+              stages={STAGES}
+              currentAgent={agent}
+              onStageChange={handleStageChangeRequest}
+              onNotesChange={handleNotesChange}
+              onCompsStatusChange={handleCompsStatusChange}
+              onAddTodo={handleAddTodo}
+              onToggleTodo={handleToggleTodo}
+              onOpenDetail={setSelectedTransaction}
+              pageIndex={pageIndex}
+              onPageIndexChange={setPageIndex}
+            />
+          )}
+        </>
       )}
     </div>
   );

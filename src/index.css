@@ -57,6 +57,39 @@ button { cursor: pointer; }
 .tx-notes { width: 100%; border: 1px solid #E4E0D3; border-radius: 8px; padding: 8px 10px; font-family: 'Montserrat', sans-serif; font-size: 13px; resize: none; }
 .empty-state { text-align: center; color: #8A8577; padding: 40px 0; }
 
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid #E4E0D3;
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+}
+.search-bar-icon { color: #8A8577; flex-shrink: 0; }
+.search-bar-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  color: #173348;
+  background: transparent;
+}
+.search-bar-input::placeholder { color: #B4AFA0; }
+.search-bar-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: #8A8577;
+  padding: 2px;
+}
+.search-results { display: flex; flex-direction: column; gap: 12px; }
+
 .uc-launch { width: 100%; margin-bottom: 16px; }
 .uc-launch--contract { background: #C7155B; }
 .uc-launch--comps { background: #A4B792; }

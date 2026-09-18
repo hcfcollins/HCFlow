@@ -18,6 +18,9 @@ const AGENT_LISTING_PATHS: Record<string, string> = {
   "Bekka Soule": "/HC - Bekka Soule/Bekka - Listings",
 };
 
+// Standard subfolder set created inside every new listing folder.
+const LISTING_SUBFOLDERS = ["Pitch Docs", "Listing Agreement", "Showing Docs", "Photos", "Under Contract"];
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const DROPBOX_APP_KEY = Deno.env.get("DROPBOX_APP_KEY")!;
@@ -172,9 +175,12 @@ Deno.serve(async (req) => {
     const folderPath = `${parentPath}/${sanitizeFolderName(folderLabel)}`;
 
     const accessToken = await getDropboxAccessToken();
-    // autorename:true means a name conflict never throws (Dropbox just appends "(1)"
-    // etc.) — so any error here is a real problem and should surface, not be swallowed.
+    // createDropboxFolder is idempotent (treats "already exists" as success), so
+    // any error here is a real problem and should surface, not be swallowed.
     const actualPath = await createDropboxFolder(accessToken, folderPath);
+    await Promise.all(
+      LISTING_SUBFOLDERS.map((name) => createDropboxFolder(accessToken, `${actualPath}/${name}`))
+    );
     const sharedLink = await getOrCreateSharedLink(accessToken, actualPath);
 
     const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}`, {
