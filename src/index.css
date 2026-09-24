@@ -124,6 +124,28 @@ button { cursor: pointer; }
 .search-results { display: flex; flex-direction: column; gap: 12px; }
 
 .agent-list { display: flex; flex-direction: column; gap: 12px; }
+.onboarding-checklist {
+  background: #EEF1F4;
+  border: 1px solid #D7E2EF;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: #173348;
+}
+.onboarding-checklist ol { margin: 6px 0 0; padding-left: 18px; }
+.onboarding-checklist li { margin-bottom: 4px; }
+.onboarding-checklist code { background: #fff; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+.onboarding-package-text {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #E4E0D3;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  background: #fff;
+  resize: vertical;
+  margin-bottom: 10px;
+}
 .agent-row--inactive { opacity: 0.55; }
 
 .uc-launch { width: 100%; margin-top: 0; margin-bottom: 16px; }
