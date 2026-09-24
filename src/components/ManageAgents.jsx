@@ -211,12 +211,19 @@ function OnboardingPackage({ text, onDone }) {
 }
 
 function AgentRow({ agent, onChanged }) {
+  const [expanded, setExpanded] = useState(false);
   const [email, setEmail] = useState(agent.email || "");
   const [dropboxListingPath, setDropboxListingPath] = useState(agent.dropbox_listing_path || "");
   const [dropboxBuyerPath, setDropboxBuyerPath] = useState(agent.dropbox_buyer_path || "");
   const [coverFile, setCoverFile] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  const isDirty =
+    email !== (agent.email || "") ||
+    dropboxListingPath !== (agent.dropbox_listing_path || "") ||
+    dropboxBuyerPath !== (agent.dropbox_buyer_path || "") ||
+    coverFile !== null;
 
   async function handleSave() {
     setSaving(true);
@@ -239,7 +246,11 @@ function AgentRow({ agent, onChanged }) {
     }
   }
 
-  async function handleToggleActive() {
+  async function handleToggleActive(e) {
+    e.stopPropagation();
+    if (agent.is_active && !window.confirm(`Deactivate ${agent.name}? They'll disappear from the active agent picker until reactivated.`)) {
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -255,45 +266,51 @@ function AgentRow({ agent, onChanged }) {
 
   return (
     <div className={`tx-card uc-form agent-row ${agent.is_active ? "" : "agent-row--inactive"}`}>
-      <div className="tx-card-top">
+      <div className="tx-card-top agent-row-header" onClick={() => setExpanded((x) => !x)}>
         <div>
           <div className="tx-address">{agent.name}</div>
           <div className="tx-sub">
             {agent.role} {agent.is_active ? "" : "· inactive"}
           </div>
         </div>
-        <button type="button" className="comps-status-btn" onClick={handleToggleActive} disabled={saving}>
+        <button type="button" className="agent-deactivate-btn" onClick={handleToggleActive} disabled={saving}>
           {agent.is_active ? "Deactivate" : "Reactivate"}
         </button>
       </div>
 
-      {error && <div className="error-banner">{error}</div>}
+      {expanded && (
+        <>
+          {error && <div className="error-banner">{error}</div>}
 
-      <label>
-        Email
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      </label>
-      <label>
-        Dropbox Listing Folder
-        <input value={dropboxListingPath} onChange={(e) => setDropboxListingPath(e.target.value)} />
-      </label>
-      <label>
-        Dropbox Buyer Folder
-        <input value={dropboxBuyerPath} onChange={(e) => setDropboxBuyerPath(e.target.value)} />
-      </label>
-      <label>
-        Cover Sheet PDF
-        <input type="file" accept="application/pdf" onChange={(e) => setCoverFile(e.target.files?.[0] || null)} />
-      </label>
-      {agent.cover_sheet_url && !coverFile && (
-        <a href={agent.cover_sheet_url} target="_blank" rel="noreferrer" className="cma-export-btn">
-          <FileText size={14} /> Current Cover Sheet
-        </a>
+          <label>
+            Email
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <label>
+            Dropbox Listing Folder
+            <input value={dropboxListingPath} onChange={(e) => setDropboxListingPath(e.target.value)} />
+          </label>
+          <label>
+            Dropbox Buyer Folder
+            <input value={dropboxBuyerPath} onChange={(e) => setDropboxBuyerPath(e.target.value)} />
+          </label>
+          <label>
+            Cover Sheet PDF
+            <input type="file" accept="application/pdf" onChange={(e) => setCoverFile(e.target.files?.[0] || null)} />
+          </label>
+          {agent.cover_sheet_url && !coverFile && (
+            <a href={agent.cover_sheet_url} target="_blank" rel="noreferrer" className="cma-export-btn">
+              <FileText size={14} /> Current Cover Sheet
+            </a>
+          )}
+
+          {isDirty && (
+            <button type="button" className="google-btn uc-submit" onClick={handleSave} disabled={saving}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+          )}
+        </>
       )}
-
-      <button type="button" className="google-btn uc-submit" onClick={handleSave} disabled={saving}>
-        {saving ? "Saving…" : "Save"}
-      </button>
     </div>
   );
 }
