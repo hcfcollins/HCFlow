@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Search, X } from "lucide-react";
+import { Search, X, Signpost } from "lucide-react";
 import TransactionList from "./TransactionList";
 
 export const PAGES = [
@@ -389,23 +389,50 @@ function ActiveListingsPage({
   const privateListings = transactions.filter((tx) => tx.stage === "won");
   const onMarket = transactions.filter((tx) => tx.stage === "market");
   const [privateCollapsed, setPrivateCollapsed] = useState(privateListings.length === 0);
+  const [signInventoryOpen, setSignInventoryOpen] = useState(false);
 
   return (
     <div className="comps-page">
-      <div className="comps-section comps-section--private">
-        <div className="comps-section-header">
-          <h2 className="comps-section-title">
-            Private Listing <span className="comps-section-count">{privateListings.length}</span>
-          </h2>
-          <button type="button" className="comps-minimize-btn" onClick={() => setPrivateCollapsed((c) => !c)}>
-            {privateCollapsed ? "Show" : "Minimize"}
-          </button>
-        </div>
-        {!privateCollapsed && (
-          <>
-            <p className="field-help">Not live yet — still gathering documents.</p>
+      <button type="button" className="sign-inventory-toggle" onClick={() => setSignInventoryOpen((o) => !o)}>
+        <Signpost size={14} /> {signInventoryOpen ? "Back to Listings" : "Sign Inventory"}
+      </button>
+
+      {signInventoryOpen ? (
+        <SignInventory transactions={[...privateListings, ...onMarket]} onOpenDetail={onOpenDetail} />
+      ) : (
+        <>
+          <div className="comps-section comps-section--private">
+            <div className="comps-section-header">
+              <h2 className="comps-section-title">
+                Private Listing <span className="comps-section-count">{privateListings.length}</span>
+              </h2>
+              <button type="button" className="comps-minimize-btn" onClick={() => setPrivateCollapsed((c) => !c)}>
+                {privateCollapsed ? "Show" : "Minimize"}
+              </button>
+            </div>
+            {!privateCollapsed && (
+              <>
+                <p className="field-help">Not live yet — still gathering documents.</p>
+                <TransactionList
+                  transactions={privateListings}
+                  stages={stages}
+                  currentAgent={currentAgent}
+                  onStageChange={onStageChange}
+                  onNotesChange={onNotesChange}
+                  onAddTodo={onAddTodo}
+                  onToggleTodo={onToggleTodo}
+                  onOpenDetail={onOpenDetail}
+                />
+              </>
+            )}
+          </div>
+
+          <div className="comps-section comps-section--onmarket">
+            <h2 className="comps-section-title">
+              On Market <span className="comps-section-count">{onMarket.length}</span>
+            </h2>
             <TransactionList
-              transactions={privateListings}
+              transactions={onMarket}
               stages={stages}
               currentAgent={currentAgent}
               onStageChange={onStageChange}
@@ -414,25 +441,60 @@ function ActiveListingsPage({
               onToggleTodo={onToggleTodo}
               onOpenDetail={onOpenDetail}
             />
-          </>
-        )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+const SIGN_GROUPS = [
+  {
+    key: "need",
+    title: "Need Sign",
+    colorClass: "sign-inventory--need",
+    match: (tx) => tx.sign_status !== "Yes" && tx.sign_status !== "Seller Declined",
+  },
+  { key: "installed", title: "Sign Installed", colorClass: "sign-inventory--installed", match: (tx) => tx.sign_status === "Yes" },
+  { key: "declined", title: "Seller Declined", colorClass: "sign-inventory--declined", match: (tx) => tx.sign_status === "Seller Declined" },
+];
+
+function SignInventory({ transactions, onOpenDetail }) {
+  const groups = SIGN_GROUPS.map((g) => ({ ...g, items: transactions.filter(g.match) }));
+
+  if (transactions.length === 0) {
+    return <p className="empty-state">No active listings yet.</p>;
+  }
+
+  return (
+    <div className="sign-inventory">
+      <div className="sign-inventory-summary">
+        {groups.map((g) => (
+          <div key={g.key} className={`sign-inventory-stat ${g.colorClass}`}>
+            <span className="sign-inventory-stat-count">{g.items.length}</span>
+            <span className="sign-inventory-stat-label">{g.title}</span>
+          </div>
+        ))}
       </div>
 
-      <div className="comps-section comps-section--onmarket">
-        <h2 className="comps-section-title">
-          On Market <span className="comps-section-count">{onMarket.length}</span>
-        </h2>
-        <TransactionList
-          transactions={onMarket}
-          stages={stages}
-          currentAgent={currentAgent}
-          onStageChange={onStageChange}
-          onNotesChange={onNotesChange}
-          onAddTodo={onAddTodo}
-          onToggleTodo={onToggleTodo}
-          onOpenDetail={onOpenDetail}
-        />
-      </div>
+      {groups.map(
+        (g) =>
+          g.items.length > 0 && (
+            <div key={g.key} className="sign-inventory-group">
+              <h3 className="timeframe-group-title">
+                {g.title} <span className="comps-section-count">{g.items.length}</span>
+              </h3>
+              <ul className="sign-inventory-list">
+                {g.items.map((tx) => (
+                  <li key={tx.id} onClick={() => onOpenDetail(tx)}>
+                    <span className="tx-address">{tx.address}</span>
+                    <span className="tx-sub">{tx.town}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+      )}
     </div>
   );
 }

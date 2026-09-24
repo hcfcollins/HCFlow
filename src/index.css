@@ -66,6 +66,50 @@ button { cursor: pointer; }
 .tx-icon-badge--declined { background: #F8E7E2; color: #A13D2E; text-decoration: line-through; position: relative; }
 .tx-icon-badge--sign-yes { background: #E1EFE3; color: #2F7A42; }
 .tx-icon-badge--sign-need { background: #DCEBFB; color: #1C6DD0; }
+
+.sign-inventory-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin-bottom: 14px;
+  padding: 8px 14px;
+  border: 1px solid #D7E2EF;
+  background: #fff;
+  border-radius: 20px;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  color: #173348;
+}
+.sign-inventory-summary { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+.sign-inventory-stat {
+  flex: 1;
+  min-width: 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 8px;
+  border-radius: 12px;
+}
+.sign-inventory-stat-count { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 700; }
+.sign-inventory-stat-label { font-size: 11px; font-weight: 600; text-align: center; }
+.sign-inventory--need { background: #DCEBFB; color: #1C6DD0; }
+.sign-inventory--installed { background: #E1EFE3; color: #2F7A42; }
+.sign-inventory--declined { background: #F8E7E2; color: #A13D2E; }
+.sign-inventory-group { margin-bottom: 18px; }
+.sign-inventory-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.sign-inventory-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #F0EDE4;
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
 .tx-tag { font-weight: 700; }
 .tx-tag--residential { background: rgba(74, 124, 89, 0.15); color: #4A7C59; }
 .tx-tag--land { background: rgba(141, 110, 78, 0.15); color: #8D6E4E; }
