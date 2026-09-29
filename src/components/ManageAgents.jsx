@@ -77,16 +77,46 @@ export default function ManageAgents({ onBack }) {
   );
 }
 
+/** Guesses email + Dropbox paths from a "First Last" name, matching the
+ * firstname.lastname@hallcollins.com and /HC - First Last/First - Listings
+ * conventions already used by the rest of the roster. Returns null until
+ * there's at least a first and last name to work with. */
+function predictAgentFields(fullName) {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return null;
+  const first = parts[0];
+  const last = parts[parts.length - 1];
+  const properName = `${first} ${last}`;
+  return {
+    email: `${first.toLowerCase()}.${last.toLowerCase()}@hallcollins.com`,
+    dropboxListingPath: `/HC - ${properName}/${first} - Listings`,
+    dropboxBuyerPath: `/HC - ${properName}/${first} - Buyers`,
+  };
+}
+
 function AddAgentForm({ onAdded }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("agent");
   const [dropboxListingPath, setDropboxListingPath] = useState("");
   const [dropboxBuyerPath, setDropboxBuyerPath] = useState("");
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [pathsTouched, setPathsTouched] = useState(false);
   const [coverFile, setCoverFile] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [onboardingPackage, setOnboardingPackage] = useState(null);
+
+  function handleNameChange(v) {
+    setName(v);
+    const prediction = predictAgentFields(v);
+    if (!prediction) return;
+    if (!emailTouched) setEmail(prediction.email);
+    if (!pathsTouched) {
+      setDropboxListingPath(prediction.dropboxListingPath);
+      setDropboxBuyerPath(prediction.dropboxBuyerPath);
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -109,6 +139,8 @@ function AddAgentForm({ onAdded }) {
       setRole("agent");
       setDropboxListingPath("");
       setDropboxBuyerPath("");
+      setEmailTouched(false);
+      setPathsTouched(false);
       setCoverFile(null);
       onAdded();
     } catch (e) {
@@ -141,23 +173,42 @@ function AddAgentForm({ onAdded }) {
         {error && <div className="error-banner">{error}</div>}
         <label>
           Name
-          <input value={name} onChange={(e) => setName(e.target.value)} required />
+          <input value={name} onChange={(e) => handleNameChange(e.target.value)} required />
         </label>
         <label>
-          Email <span className="field-help">(must match their Google Sign-In email)</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          Email <span className="field-help">(guessed from their name — must match their actual Google Sign-In email)</span>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setEmailTouched(true);
+            }}
+          />
         </label>
         <div>
           <div className="detail-label">Role</div>
           <RadioGroup name="role" value={role} onChange={setRole} options={["agent", "broker"]} />
         </div>
         <label>
-          Dropbox Listing Folder <span className="field-help">(e.g. /HC - Jane Doe/Jane - Listings)</span>
-          <input value={dropboxListingPath} onChange={(e) => setDropboxListingPath(e.target.value)} />
+          Dropbox Listing Folder <span className="field-help">(guessed from their name — e.g. /HC - Jane Doe/Jane - Listings)</span>
+          <input
+            value={dropboxListingPath}
+            onChange={(e) => {
+              setDropboxListingPath(e.target.value);
+              setPathsTouched(true);
+            }}
+          />
         </label>
         <label>
-          Dropbox Buyer Folder <span className="field-help">(optional, not yet used by any automation)</span>
-          <input value={dropboxBuyerPath} onChange={(e) => setDropboxBuyerPath(e.target.value)} />
+          Dropbox Buyer Folder <span className="field-help">(guessed from their name — optional, not yet used by any automation)</span>
+          <input
+            value={dropboxBuyerPath}
+            onChange={(e) => {
+              setDropboxBuyerPath(e.target.value);
+              setPathsTouched(true);
+            }}
+          />
         </label>
         <label>
           Personalized Cover Sheet PDF <span className="field-help">(optional — falls back to the generic cover)</span>
