@@ -20,6 +20,7 @@ import NewCompForm from "./components/NewCompForm";
 import DealDetail from "./components/DealDetail";
 import Celebration from "./components/Celebration";
 import ManageAgents from "./components/ManageAgents";
+import { SkeletonList } from "./components/Skeleton";
 import { LogOut } from "lucide-react";
 
 const STAGES = [
@@ -295,7 +296,7 @@ export default function App() {
       {error && <div className="error-banner">{error}</div>}
 
       {loadingTxs ? (
-        <div className="center-screen">Loading transactions…</div>
+        <SkeletonList count={4} />
       ) : (
         <DealPages
           transactions={visibleTxs}

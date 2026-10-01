@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { FileText, Copy, Check } from "lucide-react";
 import RadioGroup from "./RadioGroup";
 import ConfirmDialog from "./ConfirmDialog";
+import { SkeletonList } from "./Skeleton";
 import { useToast } from "../lib/ToastContext";
 import { fetchAllAgents, addAgent, updateAgentFields, removeAgent, uploadAgentCoverSheet } from "../lib/transactions";
 
@@ -66,7 +67,7 @@ export default function ManageAgents({ onBack }) {
       <div className="detail-section">
         <h2 className="comps-section-title">Roster</h2>
         {loading ? (
-          <p className="empty-state">Loading…</p>
+          <SkeletonList count={3} />
         ) : (
           <div className="agent-list">
             {agents.map((agent) => (
