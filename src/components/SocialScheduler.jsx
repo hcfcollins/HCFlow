@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { listListingPhotos, fetchListingFile } from "../lib/transactions";
+import { listListingPhotos, fetchListingFile, extractListingDescription } from "../lib/transactions";
 import { composeNewListingGraphic } from "../lib/instagramPost";
+import { useToast } from "../lib/ToastContext";
 
 const CALENDAR_DAYS = 14;
 const BOOST_POST_PHOTO_COUNT = 5;
@@ -40,6 +41,10 @@ function BoostPostPanel({ transaction, onClose }) {
   const [previews, setPreviews] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [caption, setCaption] = useState("");
+  const [captionNote, setCaptionNote] = useState(null);
+  const [captionLoading, setCaptionLoading] = useState(true);
+  const showToast = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -65,11 +70,32 @@ function BoostPostPanel({ transaction, onClose }) {
     }
     load();
 
+    extractListingDescription(transaction.id)
+      .then((result) => {
+        if (cancelled) return;
+        if (result.description) {
+          setCaption(result.description);
+          if (result.source === "fallback") {
+            setCaptionNote("Couldn't find a clear description in the packet — here's the top of the sheet, edit as needed.");
+          }
+        } else {
+          setCaptionNote(result.note || "Couldn't draft a caption — write your own below.");
+        }
+      })
+      .catch((e) => setCaptionNote(`Couldn't draft a caption: ${e.message}`))
+      .finally(() => {
+        if (!cancelled) setCaptionLoading(false);
+      });
+
     return () => {
       cancelled = true;
       urls.forEach((url) => URL.revokeObjectURL(url));
     };
   }, [transaction.id]);
+
+  function handleCopyCaption() {
+    navigator.clipboard.writeText(caption).then(() => showToast("Caption copied"));
+  }
 
   return (
     <div className="confirm-dialog-overlay" onClick={onClose}>
@@ -90,6 +116,18 @@ function BoostPostPanel({ transaction, onClose }) {
             ))}
           </div>
         )}
+
+        <label className="confirm-dialog-prompt-label">
+          Caption{captionLoading ? " (drafting…)" : ""}
+          <textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={4} placeholder="Write a caption…" />
+        </label>
+        {captionNote && <p className="field-help">{captionNote}</p>}
+        <div className="comp-edit-all-actions">
+          <button type="button" className="comps-minimize-btn" onClick={handleCopyCaption} disabled={!caption}>
+            Copy Caption
+          </button>
+        </div>
+
         <div className="confirm-dialog-actions">
           <button type="button" onClick={onClose}>
             Close

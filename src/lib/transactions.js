@@ -209,6 +209,17 @@ export async function fetchListingFile(transactionId, path) {
   return data;
 }
 
+/** Best-effort caption draft pulled from the MLS description in the listing's
+ * "packet" PDF (Showing Docs). Always meant to be reviewed/edited before use —
+ * returns { description, source: "heading"|"fallback", note? }. */
+export async function extractListingDescription(transactionId) {
+  const { data, error } = await supabase.functions.invoke("social-post-assets", {
+    body: { action: "extractDescription", transactionId },
+  });
+  if (error) throw error;
+  return data;
+}
+
 /** Resolves an attorney name to an id, creating a new attorney record if there's no match yet. */
 export async function resolveAttorneyId(name, attorneys) {
   if (!name.trim()) return null;

@@ -1,9 +1,13 @@
 // Backs the Social Scheduler's Boost Post / New Listing Graphic buttons: lists
 // photos in a listing's Dropbox "4) Photos" subfolder and streams individual
 // file bytes back to the browser (used both for picker thumbnails/previews and
-// as the actual image source for client-side canvas compositing).
+// as the actual image source for client-side canvas compositing). Also drafts
+// a Boost Post caption by pulling the MLS description out of the listing's
+// "packet" PDF in "3) Showing Docs".
 //
-// Expects POST { action: "listPhotos" | "fetchFile", transactionId, path? }.
+// Expects POST { action: "listPhotos" | "fetchFile" | "extractDescription", transactionId, path? }.
+
+import pdfParse from "npm:pdf-parse@1.1.1";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -14,7 +18,14 @@ const DROPBOX_TEAM_ROOT_NAMESPACE_ID = Deno.env.get("DROPBOX_TEAM_ROOT_NAMESPACE
 const dropboxPathRootHeader = JSON.stringify({ ".tag": "root", root: DROPBOX_TEAM_ROOT_NAMESPACE_ID });
 
 const PHOTOS_SUBFOLDER = "4) Photos";
+const SHOWING_DOCS_SUBFOLDER = "3) Showing Docs";
 const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".heic"];
+
+// Common MLS export field labels — whichever appears first in the packet's text
+// is treated as the start of the listing description. Checked in order so a more
+// specific label (e.g. "Public Remarks") wins over a generic one if both exist.
+const DESCRIPTION_HEADINGS = ["Public Remarks", "Marketing Remarks", "MLS Description", "Agent Remarks", "Remarks", "Description"];
+const DESCRIPTION_MAX_LENGTH = 350;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -63,7 +74,7 @@ async function getTransactionFolderPath(transactionId: string): Promise<string> 
   return tx.dropbox_folder_path as string;
 }
 
-async function listPhotos(accessToken: string, folderPath: string) {
+async function listFolder(accessToken: string, folderPath: string) {
   const res = await fetch("https://api.dropboxapi.com/2/files/list_folder", {
     method: "POST",
     headers: {
@@ -71,15 +82,60 @@ async function listPhotos(accessToken: string, folderPath: string) {
       "Content-Type": "application/json",
       "Dropbox-API-Path-Root": dropboxPathRootHeader,
     },
-    body: JSON.stringify({ path: `${folderPath}/${PHOTOS_SUBFOLDER}` }),
+    body: JSON.stringify({ path: folderPath }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(`Dropbox list_folder failed: ${JSON.stringify(data)}`);
+  return (data.entries ?? []).filter((e: { [key: string]: unknown }) => e[".tag"] === "file") as {
+    name: string;
+    path_display: string;
+    server_modified: string;
+  }[];
+}
 
-  return (data.entries ?? [])
-    .filter((e: { [key: string]: unknown }) => e[".tag"] === "file")
-    .filter((e: { name: string }) => IMAGE_EXTENSIONS.some((ext) => e.name.toLowerCase().endsWith(ext)))
-    .map((e: { name: string; path_display: string }) => ({ name: e.name, path: e.path_display }));
+async function listPhotos(accessToken: string, folderPath: string) {
+  const entries = await listFolder(accessToken, `${folderPath}/${PHOTOS_SUBFOLDER}`);
+  return entries
+    .filter((e) => IMAGE_EXTENSIONS.some((ext) => e.name.toLowerCase().endsWith(ext)))
+    .map((e) => ({ name: e.name, path: e.path_display }));
+}
+
+/** Finds the packet file (name contains "packet", case-insensitive) in Showing Docs —
+ * if more than one matches, the most recently modified wins. */
+async function findPacketFile(accessToken: string, folderPath: string) {
+  const entries = await listFolder(accessToken, `${folderPath}/${SHOWING_DOCS_SUBFOLDER}`);
+  const matches = entries
+    .filter((e) => e.name.toLowerCase().includes("packet") && e.name.toLowerCase().endsWith(".pdf"))
+    .sort((a, b) => new Date(b.server_modified).getTime() - new Date(a.server_modified).getTime());
+  return matches[0] ?? null;
+}
+
+/** Best-effort: finds the first recognized MLS remarks/description heading in the
+ * packet's text and returns the paragraph after it, trimmed to caption length. Falls
+ * back to the top of the document if no heading is recognized — never throws, since
+ * a bad extraction shouldn't block the rest of the Boost Post panel from working. */
+function extractDescriptionFromText(text: string): { description: string; source: "heading" | "fallback" } {
+  const searchArea = text.slice(0, 8000);
+  for (const heading of DESCRIPTION_HEADINGS) {
+    const headingRegex = new RegExp(`${heading}\\s*:?\\s*`, "i");
+    const match = headingRegex.exec(searchArea);
+    if (!match) continue;
+    const afterHeading = searchArea.slice(match.index + match[0].length);
+    // Stop at the next all-caps label-like line (another MLS field) or a blank line.
+    const stopMatch = /\n\s*\n|\n[A-Z][A-Z \/]{3,}:?\s*\n/.exec(afterHeading);
+    const paragraph = (stopMatch ? afterHeading.slice(0, stopMatch.index) : afterHeading).replace(/\s+/g, " ").trim();
+    if (paragraph.length > 20) {
+      return { description: truncateToCaption(paragraph), source: "heading" };
+    }
+  }
+  return { description: truncateToCaption(searchArea.replace(/\s+/g, " ").trim()), source: "fallback" };
+}
+
+function truncateToCaption(text: string): string {
+  if (text.length <= DESCRIPTION_MAX_LENGTH) return text;
+  const cut = text.slice(0, DESCRIPTION_MAX_LENGTH);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${cut.slice(0, lastSpace > 0 ? lastSpace : DESCRIPTION_MAX_LENGTH)}…`;
 }
 
 async function downloadFile(accessToken: string, path: string): Promise<ArrayBuffer> {
@@ -123,6 +179,17 @@ Deno.serve(async (req) => {
       return new Response(bytes, {
         headers: { ...CORS_HEADERS, "Content-Type": contentTypeForPath(path) },
       });
+    }
+
+    if (action === "extractDescription") {
+      const packet = await findPacketFile(accessToken, folderPath);
+      if (!packet) {
+        return jsonResponse({ description: null, note: "No packet PDF found in Showing Docs" });
+      }
+      const bytes = await downloadFile(accessToken, packet.path_display);
+      const parsed = await pdfParse(new Uint8Array(bytes));
+      const { description, source } = extractDescriptionFromText(parsed.text ?? "");
+      return jsonResponse({ description, source, packetFileName: packet.name });
     }
 
     return jsonResponse({ error: `Unknown action "${action}"` }, 400);
