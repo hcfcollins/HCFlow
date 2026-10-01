@@ -389,6 +389,7 @@ function ActiveListingsPage({
   const privateListings = transactions.filter((tx) => tx.stage === "won");
   const onMarket = transactions.filter((tx) => tx.stage === "market");
   const [privateCollapsed, setPrivateCollapsed] = useState(privateListings.length === 0);
+  const [onMarketCollapsed, setOnMarketCollapsed] = useState(onMarket.length === 0);
   const [signInventoryOpen, setSignInventoryOpen] = useState(false);
 
   return (
@@ -428,19 +429,26 @@ function ActiveListingsPage({
           </div>
 
           <div className="comps-section comps-section--onmarket">
-            <h2 className="comps-section-title">
-              On Market <span className="comps-section-count">{onMarket.length}</span>
-            </h2>
-            <TransactionList
-              transactions={onMarket}
-              stages={stages}
-              currentAgent={currentAgent}
-              onStageChange={onStageChange}
-              onNotesChange={onNotesChange}
-              onAddTodo={onAddTodo}
-              onToggleTodo={onToggleTodo}
-              onOpenDetail={onOpenDetail}
-            />
+            <div className="comps-section-header">
+              <h2 className="comps-section-title">
+                On Market <span className="comps-section-count">{onMarket.length}</span>
+              </h2>
+              <button type="button" className="comps-minimize-btn" onClick={() => setOnMarketCollapsed((c) => !c)}>
+                {onMarketCollapsed ? "Show" : "Minimize"}
+              </button>
+            </div>
+            {!onMarketCollapsed && (
+              <TransactionList
+                transactions={onMarket}
+                stages={stages}
+                currentAgent={currentAgent}
+                onStageChange={onStageChange}
+                onNotesChange={onNotesChange}
+                onAddTodo={onAddTodo}
+                onToggleTodo={onToggleTodo}
+                onOpenDetail={onOpenDetail}
+              />
+            )}
           </div>
         </>
       )}
@@ -502,39 +510,55 @@ function SignInventory({ transactions, onOpenDetail }) {
 function UnderContractPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onAddTodo, onToggleTodo, onOpenDetail }) {
   const sellers = transactions.filter((tx) => tx.side === "Sell");
   const buyers = transactions.filter((tx) => tx.side === "Buy");
+  const [sellersCollapsed, setSellersCollapsed] = useState(sellers.length === 0);
+  const [buyersCollapsed, setBuyersCollapsed] = useState(buyers.length === 0);
 
   return (
     <div className="comps-page">
       <div className="comps-section comps-section--sellers">
-        <h2 className="comps-section-title">
-          Sellers <span className="comps-section-count">{sellers.length}</span>
-        </h2>
-        <TransactionList
-          transactions={sellers}
-          stages={stages}
-          currentAgent={currentAgent}
-          onStageChange={onStageChange}
-          onNotesChange={onNotesChange}
-          onAddTodo={onAddTodo}
-          onToggleTodo={onToggleTodo}
-          onOpenDetail={onOpenDetail}
-        />
+        <div className="comps-section-header">
+          <h2 className="comps-section-title">
+            Sellers <span className="comps-section-count">{sellers.length}</span>
+          </h2>
+          <button type="button" className="comps-minimize-btn" onClick={() => setSellersCollapsed((c) => !c)}>
+            {sellersCollapsed ? "Show" : "Minimize"}
+          </button>
+        </div>
+        {!sellersCollapsed && (
+          <TransactionList
+            transactions={sellers}
+            stages={stages}
+            currentAgent={currentAgent}
+            onStageChange={onStageChange}
+            onNotesChange={onNotesChange}
+            onAddTodo={onAddTodo}
+            onToggleTodo={onToggleTodo}
+            onOpenDetail={onOpenDetail}
+          />
+        )}
       </div>
 
       <div className="comps-section comps-section--buyers">
-        <h2 className="comps-section-title">
-          Buyers <span className="comps-section-count">{buyers.length}</span>
-        </h2>
-        <TransactionList
-          transactions={buyers}
-          stages={stages}
-          currentAgent={currentAgent}
-          onStageChange={onStageChange}
-          onNotesChange={onNotesChange}
-          onAddTodo={onAddTodo}
-          onToggleTodo={onToggleTodo}
-          onOpenDetail={onOpenDetail}
-        />
+        <div className="comps-section-header">
+          <h2 className="comps-section-title">
+            Buyers <span className="comps-section-count">{buyers.length}</span>
+          </h2>
+          <button type="button" className="comps-minimize-btn" onClick={() => setBuyersCollapsed((c) => !c)}>
+            {buyersCollapsed ? "Show" : "Minimize"}
+          </button>
+        </div>
+        {!buyersCollapsed && (
+          <TransactionList
+            transactions={buyers}
+            stages={stages}
+            currentAgent={currentAgent}
+            onStageChange={onStageChange}
+            onNotesChange={onNotesChange}
+            onAddTodo={onAddTodo}
+            onToggleTodo={onToggleTodo}
+            onOpenDetail={onOpenDetail}
+          />
+        )}
       </div>
     </div>
   );
@@ -551,43 +575,58 @@ function CompsPage({
   onToggleTodo,
   onOpenDetail,
 }) {
-  const [waitingCollapsed, setWaitingCollapsed] = useState(false);
-
   const needToSend = transactions.filter((tx) => tx.stage === "comps" && tx.comps_status !== "Waiting to List");
   const waitingToList = transactions.filter((tx) => tx.stage === "comps" && tx.comps_status === "Waiting to List");
   const wonListings = transactions.filter((tx) => tx.stage === "won");
+  const [needCollapsed, setNeedCollapsed] = useState(needToSend.length === 0);
+  const [wonCollapsed, setWonCollapsed] = useState(wonListings.length === 0);
+  const [waitingCollapsed, setWaitingCollapsed] = useState(false);
 
   return (
     <div className="comps-page">
       <div className="comps-section comps-section--need">
-        <h2 className="comps-section-title">
-          Need to Send Comp <span className="comps-section-count">{needToSend.length}</span>
-        </h2>
-        <TransactionList
-          transactions={needToSend}
-          stages={stages}
-          currentAgent={currentAgent}
-          onStageChange={onStageChange}
-          onNotesChange={onNotesChange}
-          onCompsStatusChange={onCompsStatusChange}
-          onOpenDetail={onOpenDetail}
-        />
+        <div className="comps-section-header">
+          <h2 className="comps-section-title">
+            Need to Send Comp <span className="comps-section-count">{needToSend.length}</span>
+          </h2>
+          <button type="button" className="comps-minimize-btn" onClick={() => setNeedCollapsed((c) => !c)}>
+            {needCollapsed ? "Show" : "Minimize"}
+          </button>
+        </div>
+        {!needCollapsed && (
+          <TransactionList
+            transactions={needToSend}
+            stages={stages}
+            currentAgent={currentAgent}
+            onStageChange={onStageChange}
+            onNotesChange={onNotesChange}
+            onCompsStatusChange={onCompsStatusChange}
+            onOpenDetail={onOpenDetail}
+          />
+        )}
       </div>
 
       <div className="comps-section comps-section--won">
-        <h2 className="comps-section-title">
-          Won Listing <span className="comps-section-count">{wonListings.length}</span>
-        </h2>
-        <TransactionList
-          transactions={wonListings}
-          stages={stages}
-          currentAgent={currentAgent}
-          onStageChange={onStageChange}
-          onNotesChange={onNotesChange}
-          onAddTodo={onAddTodo}
-          onToggleTodo={onToggleTodo}
-          onOpenDetail={onOpenDetail}
-        />
+        <div className="comps-section-header">
+          <h2 className="comps-section-title">
+            Won Listing <span className="comps-section-count">{wonListings.length}</span>
+          </h2>
+          <button type="button" className="comps-minimize-btn" onClick={() => setWonCollapsed((c) => !c)}>
+            {wonCollapsed ? "Show" : "Minimize"}
+          </button>
+        </div>
+        {!wonCollapsed && (
+          <TransactionList
+            transactions={wonListings}
+            stages={stages}
+            currentAgent={currentAgent}
+            onStageChange={onStageChange}
+            onNotesChange={onNotesChange}
+            onAddTodo={onAddTodo}
+            onToggleTodo={onToggleTodo}
+            onOpenDetail={onOpenDetail}
+          />
+        )}
       </div>
 
       <div className="comps-section comps-section--waiting">
