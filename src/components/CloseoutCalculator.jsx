@@ -2,6 +2,7 @@ import { useState } from "react";
 import RadioGroup from "./RadioGroup";
 import { saveCloseout } from "../lib/transactions";
 import { calculateCloseout } from "../lib/commissionCalc";
+import { useToast } from "../lib/ToastContext";
 
 const LEAD_TYPES = ["Organic", "Provided"];
 
@@ -11,6 +12,7 @@ function money(n) {
 }
 
 export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
+  const showToast = useToast();
   const saved = transaction.closeouts || {};
   const [price, setPrice] = useState(saved.price ?? transaction.price ?? "");
   const [commissionPct, setCommissionPct] = useState(saved.commission_pct ?? "");
@@ -55,6 +57,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         fran_commission: result.franCommission,
         bank_amount: result.bankAmount,
       });
+      showToast("Close-out saved — deal marked Closed");
       onSaved();
     } catch (e) {
       setError(e.message);

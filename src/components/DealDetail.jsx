@@ -4,6 +4,9 @@ import TodoList from "./TodoList";
 import RadioGroup from "./RadioGroup";
 import CheckboxGroup from "./CheckboxGroup";
 import GenerateCompForm from "./GenerateCompForm";
+import CloseoutCalculator from "./CloseoutCalculator";
+import ConfirmDialog from "./ConfirmDialog";
+import { useToast } from "../lib/ToastContext";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys } from "../lib/transactions";
 import {
   PROPERTY_STYLES,
@@ -59,8 +62,11 @@ export default function DealDetail({
   const [compDetailsCollapsed, setCompDetailsCollapsed] = useState(true);
   const [retryingDropbox, setRetryingDropbox] = useState(false);
   const [showGenerateComp, setShowGenerateComp] = useState(false);
+  const [showCloseoutCalculator, setShowCloseoutCalculator] = useState(false);
+  const [showTerminateConfirm, setShowTerminateConfirm] = useState(false);
   const swipeStart = useRef(null);
   const swipeIntent = useRef(null);
+  const showToast = useToast();
 
   useEffect(() => {
     fetchAttorneys().then(setAttorneys).catch(() => {});
@@ -106,12 +112,14 @@ export default function DealDetail({
   async function handleFieldSave(patch) {
     await updateTransactionFields(transaction.id, patch);
     onRefresh();
+    showToast("Saved");
   }
 
   async function handleAttorneySave(side, name) {
     const id = await resolveAttorneyId(name, attorneys);
     await updateTransactionAttorneys(transaction.id, side === "buyer" ? { buyerAttorneyId: id } : { sellerAttorneyId: id });
     onRefresh();
+    showToast("Saved");
   }
 
   if (showGenerateComp) {
@@ -120,6 +128,19 @@ export default function DealDetail({
         transaction={transaction}
         onCancel={() => setShowGenerateComp(false)}
         onGenerated={() => {
+          onRefresh();
+        }}
+      />
+    );
+  }
+
+  if (showCloseoutCalculator) {
+    return (
+      <CloseoutCalculator
+        transaction={transaction}
+        onCancel={() => setShowCloseoutCalculator(false)}
+        onSaved={() => {
+          setShowCloseoutCalculator(false);
           onRefresh();
         }}
       />
@@ -437,6 +458,47 @@ export default function DealDetail({
               <div>{transaction.commission_data?.appraiser || "—"}</div>
             </div>
           </div>
+
+          {transaction.closeouts?.commission_after_referral != null && (
+            <>
+              <h3 className="timeframe-group-title closeout-split-title">Close-Out Split</h3>
+              <div className="detail-grid">
+                <div>
+                  <div className="detail-label">Commission After Referral</div>
+                  <div>${Number(transaction.closeouts.commission_after_referral).toLocaleString()}</div>
+                </div>
+                {transaction.closeouts.agent_commission != null ? (
+                  <div>
+                    <div className="detail-label">Agent Commission</div>
+                    <div>${Number(transaction.closeouts.agent_commission).toLocaleString()}</div>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="detail-label">Deal Type</div>
+                    <div>Owner deal (Fran/Holly)</div>
+                  </div>
+                )}
+                <div>
+                  <div className="detail-label">Holly's Cut</div>
+                  <div>${Number(transaction.closeouts.holly_commission ?? 0).toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="detail-label">Fran's Cut</div>
+                  <div>${Number(transaction.closeouts.fran_commission ?? 0).toLocaleString()}</div>
+                </div>
+                {transaction.closeouts.bank_amount != null && (
+                  <div>
+                    <div className="detail-label">Bank Amount</div>
+                    <div>${Number(transaction.closeouts.bank_amount).toLocaleString()}</div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          <button type="button" className="cma-export-btn" onClick={() => setShowCloseoutCalculator(true)}>
+            <FileText size={14} /> {transaction.closeouts?.commission_after_referral != null ? "Edit Close-Out" : "Run Close-Out Calculator"}
+          </button>
         </div>
       )}
 
@@ -502,7 +564,14 @@ export default function DealDetail({
       {["won", "market", "contract"].includes(transaction.stage) && (
         <div className="detail-section danger-zone">
           {transaction.terminated_at ? (
-            <button type="button" className="comps-status-btn" onClick={() => onReactivate(transaction.id)}>
+            <button
+              type="button"
+              className="comps-status-btn"
+              onClick={() => {
+                onReactivate(transaction.id);
+                showToast("Deal reactivated");
+              }}
+            >
               Reactivate Deal
             </button>
           ) : isWonWithoutAgreement ? (
@@ -511,22 +580,28 @@ export default function DealDetail({
               list above once it's signed to enable this.
             </p>
           ) : (
-            <button
-              type="button"
-              className="comps-status-btn comps-status-btn--danger"
-              onClick={() => {
-                if (!window.confirm("Are you sure you want to terminate this deal? This can be undone later with Reactivate.")) {
-                  return;
-                }
-                const reason = window.prompt("Why is this deal being terminated? (optional)") || "";
-                onTerminate(transaction.id, reason);
-              }}
-            >
+            <button type="button" className="comps-status-btn comps-status-btn--danger" onClick={() => setShowTerminateConfirm(true)}>
               Terminate Deal
             </button>
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={showTerminateConfirm}
+        title="Terminate this deal?"
+        message="This can be undone later with Reactivate."
+        promptLabel="Reason (optional)"
+        promptPlaceholder="Why is this deal being terminated?"
+        confirmLabel="Terminate Deal"
+        danger
+        onConfirm={(reason) => {
+          setShowTerminateConfirm(false);
+          onTerminate(transaction.id, reason || "");
+          showToast("Deal terminated");
+        }}
+        onCancel={() => setShowTerminateConfirm(false)}
+      />
     </div>
   );
 }

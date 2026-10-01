@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { FileText, Copy, Check } from "lucide-react";
 import RadioGroup from "./RadioGroup";
+import ConfirmDialog from "./ConfirmDialog";
+import { useToast } from "../lib/ToastContext";
 import { fetchAllAgents, addAgent, updateAgentFields, removeAgent, uploadAgentCoverSheet } from "../lib/transactions";
 
 /** Uses the app's actual current URL — never a guessed/hardcoded domain, so the
@@ -269,6 +271,8 @@ function AgentRow({ agent, onChanged }) {
   const [coverFile, setCoverFile] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
+  const showToast = useToast();
 
   const isDirty =
     email !== (agent.email || "") ||
@@ -290,6 +294,7 @@ function AgentRow({ agent, onChanged }) {
       });
       setCoverFile(null);
       onChanged();
+      showToast("Agent updated");
     } catch (e) {
       setError(e.message);
     } finally {
@@ -297,21 +302,27 @@ function AgentRow({ agent, onChanged }) {
     }
   }
 
-  async function handleToggleActive(e) {
-    e.stopPropagation();
-    if (agent.is_active && !window.confirm(`Deactivate ${agent.name}? They'll disappear from the active agent picker until reactivated.`)) {
-      return;
-    }
+  async function performToggleActive() {
     setSaving(true);
     setError(null);
     try {
       if (agent.is_active) await removeAgent(agent.id);
       else await updateAgentFields(agent.id, { is_active: true });
       onChanged();
+      showToast(agent.is_active ? "Agent deactivated" : "Agent reactivated");
     } catch (e) {
       setError(e.message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  function handleToggleActive(e) {
+    e.stopPropagation();
+    if (agent.is_active) {
+      setShowDeactivateConfirm(true);
+    } else {
+      performToggleActive();
     }
   }
 
@@ -362,6 +373,19 @@ function AgentRow({ agent, onChanged }) {
           )}
         </>
       )}
+
+      <ConfirmDialog
+        open={showDeactivateConfirm}
+        title={`Deactivate ${agent.name}?`}
+        message="They'll disappear from the active agent picker until reactivated."
+        confirmLabel="Deactivate"
+        danger
+        onConfirm={() => {
+          setShowDeactivateConfirm(false);
+          performToggleActive();
+        }}
+        onCancel={() => setShowDeactivateConfirm(false)}
+      />
     </div>
   );
 }

@@ -464,6 +464,65 @@ button { cursor: pointer; }
 .danger-zone { margin-top: 32px; padding-top: 16px; border-top: 1px solid #F0EDE4; }
 .danger-zone .comps-status-btn { width: 100%; padding: 12px 16px; font-size: 13px; }
 
+.closeout-split-title { margin-top: 16px; }
+
+/* ===== Toast (save confirmations) ===== */
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  background: #173348;
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 24px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+  z-index: 1000;
+  animation: toast-in 0.2s ease-out;
+}
+
+/* ===== Confirm dialog (branded replacement for window.confirm/prompt) ===== */
+.confirm-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(23, 51, 72, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
+}
+.confirm-dialog {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+}
+.confirm-dialog-title { font-family: 'Playfair Display', serif; font-size: 19px; margin: 0 0 8px; color: #173348; }
+.confirm-dialog-message { font-size: 13px; color: #5A5648; margin: 0 0 14px; line-height: 1.4; }
+.confirm-dialog-prompt-label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: #173348; margin-bottom: 16px; }
+.confirm-dialog-prompt-label textarea {
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid #E4E0D3;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  resize: vertical;
+}
+.confirm-dialog-actions { display: flex; gap: 10px; }
+.confirm-dialog-actions button { flex: 1; }
+.confirm-dialog-confirm { margin-top: 0; }
+
 /* ===== Tablet (iPad and up) — widen the container and let card lists flow
    into columns instead of just stretching a single centered column. ===== */
 @media (min-width: 700px) {
