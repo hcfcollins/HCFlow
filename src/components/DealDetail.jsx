@@ -32,6 +32,7 @@ function formatDate(dateStr) {
 
 export default function DealDetail({
   transaction,
+  className,
   stages,
   currentAgent,
   onBack,
@@ -149,7 +150,7 @@ export default function DealDetail({
 
   return (
     <div
-      className="deal-detail"
+      className={`deal-detail ${className || ""}`}
       onTouchStart={handleSwipeTouchStart}
       onTouchMove={handleSwipeTouchMove}
       onTouchEnd={handleSwipeTouchEnd}

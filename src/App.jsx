@@ -46,6 +46,7 @@ export default function App() {
   const [underContractPrefill, setUnderContractPrefill] = useState(null);
   const [showNewCompForm, setShowNewCompForm] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [closingTransaction, setClosingTransaction] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
@@ -193,6 +194,18 @@ export default function App() {
     loadTransactions({ silent: true });
   }
 
+  // Plays the exit animation before actually clearing selectedTransaction, instead of
+  // snapping the detail screen away instantly — 200ms matches .deal-detail-exit's CSS
+  // transition duration. Shared by the Back button and DealDetail's swipe-left gesture,
+  // since both call this same onBack prop.
+  function handleCloseDetail() {
+    setClosingTransaction(true);
+    setTimeout(() => {
+      setSelectedTransaction(null);
+      setClosingTransaction(false);
+    }, 200);
+  }
+
   function handleRequestUnderContract(tx) {
     setSelectedTransaction(null);
     setUnderContractPrefill(tx);
@@ -301,10 +314,12 @@ export default function App() {
       <div className="app">
         {error && <div className="error-banner">{error}</div>}
         <DealDetail
+          key={selectedTransaction.id}
+          className={closingTransaction ? "deal-detail-exit" : "deal-detail-enter"}
           transaction={selectedTransaction}
           stages={STAGES}
           currentAgent={effectiveAgent}
-          onBack={() => setSelectedTransaction(null)}
+          onBack={handleCloseDetail}
           onStageChange={handleStageChangeRequest}
           onNotesChange={handleNotesChange}
           onCompsStatusChange={handleCompsStatusChange}

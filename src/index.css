@@ -439,6 +439,12 @@ button { cursor: pointer; }
 .todo-add button { border: none; background: var(--color-navy); color: var(--color-white); border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 700; }
 
 .deal-detail { display: flex; flex-direction: column; gap: 16px; }
+@keyframes deal-detail-slide-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.deal-detail-enter { animation: deal-detail-slide-in 0.2s ease-out; }
+.deal-detail-exit { animation: deal-detail-slide-in 0.2s ease-out reverse; }
 .deal-detail .stage-select { width: 100%; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--color-border-input); font-family: 'Montserrat', sans-serif; }
 .detail-section { background: var(--color-white); border: 1px solid var(--color-border); border-radius: 14px; padding: 14px 16px; }
 .detail-section input:not([type="checkbox"]) { width: 100%; margin-top: 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--color-border-input); font-family: 'Montserrat', sans-serif; font-size: 13px; }
