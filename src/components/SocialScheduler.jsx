@@ -1,6 +1,18 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { listListingPhotos, fetchListingFile } from "../lib/transactions";
 
 const CALENDAR_DAYS = 14;
+const BOOST_POST_PHOTO_COUNT = 5;
+
+function sampleRandom(items, count) {
+  const pool = [...items];
+  const picked = [];
+  while (pool.length && picked.length < count) {
+    const i = Math.floor(Math.random() * pool.length);
+    picked.push(pool.splice(i, 1)[0]);
+  }
+  return picked;
+}
 
 function daysSince(dateStr) {
   if (!dateStr) return "Never";
@@ -19,8 +31,77 @@ function calendarLabel(dayOffset) {
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
+/** Random 4-5 photos from the listing's Dropbox Photos folder, shown as a tappable
+ * grid — tapping one opens it full-size in a new tab so Holly can use the phone's
+ * native share/save sheet, rather than forcing a multi-file download (which iOS
+ * Safari routinely breaks). */
+function BoostPostPanel({ transaction, onClose }) {
+  const [previews, setPreviews] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const urls = [];
+
+    async function load() {
+      try {
+        const all = await listListingPhotos(transaction.id);
+        const picked = sampleRandom(all, Math.min(BOOST_POST_PHOTO_COUNT, all.length));
+        const withUrls = [];
+        for (const photo of picked) {
+          const blob = await fetchListingFile(transaction.id, photo.path);
+          const url = URL.createObjectURL(blob);
+          urls.push(url);
+          withUrls.push({ ...photo, url });
+        }
+        if (!cancelled) setPreviews(withUrls);
+      } catch (e) {
+        if (!cancelled) setError(e.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+
+    return () => {
+      cancelled = true;
+      urls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [transaction.id]);
+
+  return (
+    <div className="confirm-dialog-overlay" onClick={onClose}>
+      <div className="confirm-dialog social-post-panel" onClick={(e) => e.stopPropagation()}>
+        <h2 className="confirm-dialog-title">Boost Post — {transaction.address}</h2>
+        <p className="confirm-dialog-message">
+          Tap a photo to open it full-size, then use your phone's share/save option.
+        </p>
+        {loading && <p className="field-help">Loading photos…</p>}
+        {error && <p className="field-note">{error}</p>}
+        {previews && previews.length === 0 && <p className="empty-state">No photos found in this listing's Dropbox Photos folder.</p>}
+        {previews && previews.length > 0 && (
+          <div className="social-photo-grid">
+            {previews.map((p) => (
+              <a key={p.path} href={p.url} target="_blank" rel="noreferrer" className="social-photo-thumb">
+                <img src={p.url} alt={p.name} />
+              </a>
+            ))}
+          </div>
+        )}
+        <div className="confirm-dialog-actions">
+          <button type="button" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SocialScheduler({ transactions, onBack, onMarkPosted, onMarkClosingPosted, onReorder }) {
   const [view, setView] = useState("queue");
+  const [boostPostTx, setBoostPostTx] = useState(null);
   const dragIndex = useRef(null);
 
   const rotation = transactions
@@ -85,9 +166,14 @@ export default function SocialScheduler({ transactions, onBack, onMarkPosted, on
                 <span className="tx-address">{tx.address}</span>
                 <span className="tx-sub"> — {daysSince(tx.social_last_posted_at)}</span>
               </div>
-              <button type="button" className="comps-minimize-btn" onClick={() => onMarkPosted(tx.id)}>
-                Mark Posted
-              </button>
+              <div className="social-row-actions">
+                <button type="button" className="comps-minimize-btn" onClick={() => setBoostPostTx(tx)}>
+                  Boost Post
+                </button>
+                <button type="button" className="comps-minimize-btn" onClick={() => onMarkPosted(tx.id)}>
+                  Mark Posted
+                </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -113,9 +199,14 @@ export default function SocialScheduler({ transactions, onBack, onMarkPosted, on
                   >
                     <span className="tx-address">{tx.address}</span>
                     <span className="tx-sub">{daysSince(tx.social_last_posted_at)}</span>
-                    <button type="button" className="comps-minimize-btn" onClick={() => onMarkPosted(tx.id)}>
-                      Mark Posted
-                    </button>
+                    <div className="social-row-actions">
+                      <button type="button" className="comps-minimize-btn" onClick={() => setBoostPostTx(tx)}>
+                        Boost Post
+                      </button>
+                      <button type="button" className="comps-minimize-btn" onClick={() => onMarkPosted(tx.id)}>
+                        Mark Posted
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <p className="field-help">No listing scheduled</p>
@@ -125,6 +216,8 @@ export default function SocialScheduler({ transactions, onBack, onMarkPosted, on
           })}
         </div>
       )}
+
+      {boostPostTx && <BoostPostPanel transaction={boostPostTx} onClose={() => setBoostPostTx(null)} />}
     </div>
   );
 }

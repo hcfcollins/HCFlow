@@ -188,6 +188,27 @@ export async function reorderSocialQueue(orderedIds) {
   );
 }
 
+/** Lists the image files in a listing's Dropbox "4) Photos" subfolder, via the
+ * social-post-assets Edge Function. Returns [{name, path}]. */
+export async function listListingPhotos(transactionId) {
+  const { data, error } = await supabase.functions.invoke("social-post-assets", {
+    body: { action: "listPhotos", transactionId },
+  });
+  if (error) throw error;
+  return data.photos;
+}
+
+/** Fetches one Dropbox file's raw bytes as a Blob — used both for picker
+ * thumbnails/previews (via URL.createObjectURL) and as the image source for
+ * client-side canvas compositing (blob URLs are never cross-origin-tainted). */
+export async function fetchListingFile(transactionId, path) {
+  const { data, error } = await supabase.functions.invoke("social-post-assets", {
+    body: { action: "fetchFile", transactionId, path },
+  });
+  if (error) throw error;
+  return data;
+}
+
 /** Resolves an attorney name to an id, creating a new attorney record if there's no match yet. */
 export async function resolveAttorneyId(name, attorneys) {
   if (!name.trim()) return null;
