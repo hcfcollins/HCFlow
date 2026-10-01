@@ -26,6 +26,7 @@ import DealDetail from "./components/DealDetail";
 import Celebration from "./components/Celebration";
 import ManageAgents from "./components/ManageAgents";
 import SocialScheduler from "./components/SocialScheduler";
+import SpreadsheetView from "./components/SpreadsheetView";
 import { SkeletonList } from "./components/Skeleton";
 import { LogOut } from "lucide-react";
 
@@ -52,6 +53,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showManageAgents, setShowManageAgents] = useState(false);
   const [showSocialScheduler, setShowSocialScheduler] = useState(false);
+  const [showSpreadsheetView, setShowSpreadsheetView] = useState(false);
   const [viewAsAgent, setViewAsAgent] = useState(false);
 
   useEffect(() => {
@@ -294,6 +296,22 @@ export default function App() {
     );
   }
 
+  if (showSpreadsheetView) {
+    return (
+      <div className="app">
+        <SpreadsheetView
+          transactions={txs}
+          onBack={() => setShowSpreadsheetView(false)}
+          onRefresh={() => loadTransactions({ silent: true })}
+          onOpenDetail={(tx) => {
+            setShowSpreadsheetView(false);
+            setSelectedTransaction(tx);
+          }}
+        />
+      </div>
+    );
+  }
+
   if (showNewCompForm) {
     return (
       <div className="app">
@@ -368,6 +386,9 @@ export default function App() {
             {effectiveAgent.role === "broker" && <button onClick={() => setShowManageAgents(true)}>Manage Agents</button>}
             {effectiveAgent.role === "broker" && (
               <button onClick={() => setShowSocialScheduler(true)}>Social Scheduler</button>
+            )}
+            {effectiveAgent.role === "broker" && (
+              <button onClick={() => setShowSpreadsheetView(true)}>Spreadsheet View</button>
             )}
           </div>
         )}

@@ -677,6 +677,49 @@ button { cursor: pointer; }
 .confirm-dialog-actions button { flex: 1; }
 .confirm-dialog-confirm { margin-top: 0; }
 
+/* ===== Spreadsheet View (broker-only grid) ===== */
+.sv-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.sv-filter-search {
+  flex: 1;
+  min-width: 160px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border-input);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+}
+.sv-filters select { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--color-border-input); font-family: 'Montserrat', sans-serif; font-size: 13px; }
+.sv-table-wrap { overflow: auto; border: 1px solid var(--color-border); border-radius: 12px; max-height: 75vh; }
+.sv-table { border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+.sv-table th,
+.sv-table td { padding: 6px 10px; border-bottom: 1px solid var(--color-border); text-align: left; }
+.sv-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--color-cream-bg);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+  z-index: 1;
+}
+.sv-th-sortable { cursor: pointer; user-select: none; }
+.sv-th-sortable:hover { color: var(--color-navy); }
+.sv-cell-btn {
+  border: none;
+  background: none;
+  padding: 2px 4px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  color: var(--color-navy);
+  border-radius: 4px;
+}
+.sv-cell-btn:hover { background: var(--color-border); }
+.sv-cell-input { width: 100%; min-width: 90px; padding: 2px 4px; border-radius: 4px; border: 1px solid var(--color-accent-blue); font-family: 'Montserrat', sans-serif; font-size: 12px; }
+.sv-cell-readonly { padding: 2px 4px; color: var(--color-text-muted); }
+.sv-row-actions { position: sticky; right: 0; background: var(--color-cream-bg); }
+
 /* ===== Tablet (iPad and up) — widen the container and let card lists flow
    into columns instead of just stretching a single centered column. ===== */
 @media (min-width: 700px) {

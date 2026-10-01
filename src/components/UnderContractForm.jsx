@@ -3,7 +3,7 @@ import { fetchAttorneys, submitUnderContract, resolveAttorneyId as resolveAttorn
 import RadioGroup from "./RadioGroup";
 import AgentField from "./AgentField";
 
-const CLIENT_SOURCES = [
+export const CLIENT_SOURCES = [
   "Prior Client/Sphere",
   "Zillow",
   "Postcard/Mailer",
