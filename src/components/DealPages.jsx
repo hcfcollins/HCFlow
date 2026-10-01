@@ -103,27 +103,6 @@ export default function DealPages({
         })}
       </div>
 
-      <div className="search-bar">
-        <Search size={16} className="search-bar-icon" />
-        <input
-          type="text"
-          className="search-bar-input"
-          placeholder="Search by address or last name…"
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-        />
-        {isSearching && (
-          <button
-            type="button"
-            className="search-bar-clear"
-            onClick={() => onSearchChange("")}
-            aria-label="Clear search"
-          >
-            <X size={16} />
-          </button>
-        )}
-      </div>
-
       {/* Active Listings and All only ever contain cards for deals that already
           exist, each with its own stage dropdown that opens the Under Contract
           form pre-filled with that deal's details — a blank "+ Under Contract"
@@ -223,6 +202,27 @@ export default function DealPages({
           </div>
         </div>
       )}
+
+      <div className="search-bar search-bar--fixed">
+        <Search size={16} className="search-bar-icon" />
+        <input
+          type="text"
+          className="search-bar-input"
+          placeholder="Search by address or last name…"
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+        />
+        {isSearching && (
+          <button
+            type="button"
+            className="search-bar-clear"
+            onClick={() => onSearchChange("")}
+            aria-label="Clear search"
+          >
+            <X size={16} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -270,8 +270,14 @@ function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesCha
 
   const buckets = [
     {
+      key: "waiting",
+      title: "Waiting to List",
+      colorClass: "comps-section--waiting",
+      items: active.filter((tx) => tx.stage === "comps" && tx.comps_status === "Waiting to List"),
+    },
+    {
       key: "comps",
-      title: "Comps",
+      title: "Need to Send Comp",
       colorClass: "comps-section--need",
       items: active.filter((tx) => tx.stage === "comps" && tx.comps_status !== "Waiting to List"),
     },
@@ -280,12 +286,6 @@ function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesCha
       title: "Won Listing",
       colorClass: "comps-section--won",
       items: active.filter((tx) => tx.stage === "won"),
-    },
-    {
-      key: "waiting",
-      title: "Waiting to List",
-      colorClass: "comps-section--waiting",
-      items: active.filter((tx) => tx.stage === "comps" && tx.comps_status === "Waiting to List"),
     },
     {
       key: "market",
@@ -393,16 +393,31 @@ function ActiveListingsPage({
   const [privateCollapsed, setPrivateCollapsed] = useState(privateListings.length === 0);
   const [onMarketCollapsed, setOnMarketCollapsed] = useState(onMarket.length === 0);
   const [landCollapsed, setLandCollapsed] = useState(onMarketLand.length === 0);
-  const [signInventoryOpen, setSignInventoryOpen] = useState(false);
+  const [activeFilter, setActiveFilter] = useState(null); // null | "signs" | "social"
 
   return (
     <div className="comps-page">
-      <button type="button" className="sign-inventory-toggle" onClick={() => setSignInventoryOpen((o) => !o)}>
-        <Signpost size={14} /> {signInventoryOpen ? "Back to Listings" : "Sign Inventory"}
-      </button>
+      <div className="listing-filter-toggles">
+        <button
+          type="button"
+          className="sign-inventory-toggle"
+          onClick={() => setActiveFilter((f) => (f === "signs" ? null : "signs"))}
+        >
+          <Signpost size={14} /> {activeFilter === "signs" ? "Back to Listings" : "Sign Inventory"}
+        </button>
+        <button
+          type="button"
+          className="sign-inventory-toggle"
+          onClick={() => setActiveFilter((f) => (f === "social" ? null : "social"))}
+        >
+          {activeFilter === "social" ? "Back to Listings" : "Social Rotation"}
+        </button>
+      </div>
 
-      {signInventoryOpen ? (
+      {activeFilter === "signs" ? (
         <SignInventory transactions={[...privateListings, ...onMarketAll]} onOpenDetail={onOpenDetail} />
+      ) : activeFilter === "social" ? (
+        <SocialRotationFilter transactions={[...privateListings, ...onMarketAll]} onOpenDetail={onOpenDetail} />
       ) : (
         <>
           <div className="comps-section comps-section--private">
@@ -495,6 +510,70 @@ const SIGN_GROUPS = [
 
 function SignInventory({ transactions, onOpenDetail }) {
   const groups = SIGN_GROUPS.map((g) => ({ ...g, items: transactions.filter(g.match) }));
+
+  if (transactions.length === 0) {
+    return <p className="empty-state">No active listings yet.</p>;
+  }
+
+  return (
+    <div className="sign-inventory">
+      <div className="sign-inventory-summary">
+        {groups.map((g) => (
+          <div key={g.key} className={`sign-inventory-stat ${g.colorClass}`}>
+            <span className="sign-inventory-stat-count">{g.items.length}</span>
+            <span className="sign-inventory-stat-label">{g.title}</span>
+          </div>
+        ))}
+      </div>
+
+      {groups.map(
+        (g) =>
+          g.items.length > 0 && (
+            <div key={g.key} className="sign-inventory-group">
+              <h3 className="timeframe-group-title">
+                {g.title} <span className="comps-section-count">{g.items.length}</span>
+              </h3>
+              <ul className="sign-inventory-list">
+                {g.items.map((tx) => (
+                  <li key={tx.id} onClick={() => onOpenDetail(tx)}>
+                    <span className="tx-address">{tx.address}</span>
+                    <span className="tx-sub">{tx.town}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+      )}
+    </div>
+  );
+}
+
+const SOCIAL_GROUPS = [
+  {
+    key: "never",
+    title: "Never Posted",
+    colorClass: "sign-inventory--need",
+    match: (tx) => !tx.social_last_posted_at,
+  },
+  {
+    key: "overdue",
+    title: "Posted 7+ Days Ago",
+    colorClass: "sign-inventory--declined",
+    match: (tx) => tx.social_last_posted_at && Date.now() - new Date(tx.social_last_posted_at).getTime() >= 7 * 86400000,
+  },
+  {
+    key: "fresh",
+    title: "Posted This Week",
+    colorClass: "sign-inventory--installed",
+    match: (tx) => tx.social_last_posted_at && Date.now() - new Date(tx.social_last_posted_at).getTime() < 7 * 86400000,
+  },
+];
+
+/** Read-only quick check-in for the social rotation, mirroring SignInventory — actually
+ * marking something posted only happens from the broker-only Social Scheduler screen, so
+ * there's a single source of truth for that write instead of two. */
+function SocialRotationFilter({ transactions, onOpenDetail }) {
+  const groups = SOCIAL_GROUPS.map((g) => ({ ...g, items: transactions.filter(g.match) }));
 
   if (transactions.length === 0) {
     return <p className="empty-state">No active listings yet.</p>;

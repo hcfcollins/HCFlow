@@ -12,6 +12,11 @@ import {
   createDropboxFolderForListing,
   terminateTransaction,
   reactivateTransaction,
+  setSocialRotation,
+  markSocialPosted,
+  markSocialClosingPosted,
+  reorderSocialQueue,
+  updateTransactionFields,
 } from "./lib/transactions";
 import DealPages from "./components/DealPages";
 import LoginScreen from "./components/LoginScreen";
@@ -20,6 +25,7 @@ import NewCompForm from "./components/NewCompForm";
 import DealDetail from "./components/DealDetail";
 import Celebration from "./components/Celebration";
 import ManageAgents from "./components/ManageAgents";
+import SocialScheduler from "./components/SocialScheduler";
 import { SkeletonList } from "./components/Skeleton";
 import { LogOut } from "lucide-react";
 
@@ -44,6 +50,7 @@ export default function App() {
   const [pageIndex, setPageIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [showManageAgents, setShowManageAgents] = useState(false);
+  const [showSocialScheduler, setShowSocialScheduler] = useState(false);
   const [viewAsAgent, setViewAsAgent] = useState(false);
 
   useEffect(() => {
@@ -91,6 +98,18 @@ export default function App() {
         }
       }
     }
+    if (stage === "contract" || stage === "closed") {
+      const tx = txs.find((t) => t.id === id);
+      // Leaving the daily social rotation on its own doesn't erase social_went_live_at,
+      // which is what still makes it eligible for the one-time closing shoutout.
+      if (tx && tx.social_queue_order != null) {
+        try {
+          await updateTransactionFields(id, { social_queue_order: null });
+        } catch (e) {
+          console.error("Failed to pull listing out of the social rotation:", e);
+        }
+      }
+    }
     await updateTransactionStage(id, stage);
     // loadTransactions clears any stale error on success, so set ours after it,
     // not before — otherwise the refresh would immediately wipe it out.
@@ -130,8 +149,26 @@ export default function App() {
     loadTransactions({ silent: true });
   }
 
-  async function handleToggleTodo(id, done) {
-    await toggleTodo(id, done);
+  async function handleToggleTodo(todo, done) {
+    await toggleTodo(todo.id, done);
+    if (todo.text === "Go Live") {
+      await setSocialRotation(todo.transaction_id, done);
+    }
+    loadTransactions({ silent: true });
+  }
+
+  async function handleMarkSocialPosted(id) {
+    await markSocialPosted(id);
+    loadTransactions({ silent: true });
+  }
+
+  async function handleMarkSocialClosingPosted(id) {
+    await markSocialClosingPosted(id);
+    loadTransactions({ silent: true });
+  }
+
+  async function handleReorderSocialQueue(orderedIds) {
+    await reorderSocialQueue(orderedIds);
     loadTransactions({ silent: true });
   }
 
@@ -219,6 +256,20 @@ export default function App() {
     );
   }
 
+  if (showSocialScheduler) {
+    return (
+      <div className="app">
+        <SocialScheduler
+          transactions={txs}
+          onBack={() => setShowSocialScheduler(false)}
+          onMarkPosted={handleMarkSocialPosted}
+          onMarkClosingPosted={handleMarkSocialClosingPosted}
+          onReorder={handleReorderSocialQueue}
+        />
+      </div>
+    );
+  }
+
   if (showNewCompForm) {
     return (
       <div className="app">
@@ -272,21 +323,28 @@ export default function App() {
   return (
     <div className="app">
       <header className="main-header">
-        <div className="brand-block">
+        <div className="main-header-row">
           <img src="/hall-collins-logo-full.png" alt="Hall Collins Real Estate Group" className="brand-logo" />
-          <h1>Deal Tracker</h1>
-        </div>
-        <div className="app-header-actions">
-          {isRealBroker && (
-            <button onClick={() => setViewAsAgent((v) => !v)}>
-              {viewAsAgent ? "View as Broker" : "View as Agent"}
+          <div className="main-header-right">
+            <h1>Deal Flow</h1>
+            <button onClick={signOut} aria-label="Sign out" title="Sign out">
+              <LogOut size={18} />
             </button>
-          )}
-          {effectiveAgent.role === "broker" && <button onClick={() => setShowManageAgents(true)}>Manage Agents</button>}
-          <button onClick={signOut} aria-label="Sign out" title="Sign out">
-            <LogOut size={18} />
-          </button>
+          </div>
         </div>
+        {(isRealBroker || effectiveAgent.role === "broker") && (
+          <div className="app-header-actions">
+            {isRealBroker && (
+              <button onClick={() => setViewAsAgent((v) => !v)}>
+                {viewAsAgent ? "View as Broker" : "View as Agent"}
+              </button>
+            )}
+            {effectiveAgent.role === "broker" && <button onClick={() => setShowManageAgents(true)}>Manage Agents</button>}
+            {effectiveAgent.role === "broker" && (
+              <button onClick={() => setShowSocialScheduler(true)}>Social Scheduler</button>
+            )}
+          </div>
+        )}
       </header>
 
       {viewAsAgent && (

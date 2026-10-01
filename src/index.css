@@ -7,14 +7,15 @@ body {
 }
 .app { max-width: 480px; margin: 0 auto; padding: 20px 18px 60px; }
 .app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.main-header { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 20px; }
+.main-header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.main-header-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.main-header-right { display: flex; align-items: center; gap: 10px; }
+.main-header-right h1 { margin: 0; }
 .detail-header { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 20px; }
 .detail-back-btn { display: inline-flex; align-items: center; gap: 2px; border: none; background: none; padding: 0; color: #173348; font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 14px; }
-.app-header-actions { display: flex; gap: 8px; align-self: flex-end; flex-wrap: wrap; justify-content: flex-end; }
+.app-header-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .brand-eyebrow { font-size: 11px; color: #C7155B; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
-.brand-block { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.brand-logo { height: 60px; width: auto; max-width: 100%; }
-.brand-block h1 { margin: 0; text-align: center; }
+.brand-logo { height: 40px; width: auto; max-width: 100%; }
 h1 { font-family: 'Playfair Display', serif; font-size: 24px; margin: 4px 0 0; }
 button { cursor: pointer; }
 .center-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; text-align: center; }
@@ -67,6 +68,7 @@ button { cursor: pointer; }
 .tx-icon-badge--sign-yes { background: #E1EFE3; color: #2F7A42; }
 .tx-icon-badge--sign-need { background: #DCEBFB; color: #1C6DD0; }
 
+.listing-filter-toggles { display: flex; gap: 8px; flex-wrap: wrap; }
 .sign-inventory-toggle {
   display: inline-flex;
   align-items: center;
@@ -143,6 +145,17 @@ button { cursor: pointer; }
   border-radius: 12px;
   padding: 10px 12px;
   margin-bottom: 16px;
+}
+.search-bar--fixed {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: calc(100% - 36px);
+  max-width: 480px;
+  margin: 0 0 calc(14px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 50;
 }
 .search-bar-icon { color: #8A8577; flex-shrink: 0; }
 .search-bar-input {
@@ -258,7 +271,7 @@ button { cursor: pointer; }
 .input-with-icon input { flex: 1; }
 .input-icon-btn { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 34px; height: 34px; border-radius: 8px; background: #F0EDE4; color: #173348; }
 
-.deal-pages { display: flex; flex-direction: column; }
+.deal-pages { display: flex; flex-direction: column; padding-bottom: 76px; }
 .deal-pages-tabs { display: flex; gap: 4px; background: #EFEBE1; border-radius: 12px; padding: 4px; margin-bottom: 16px; }
 .deal-pages-tab {
   flex: 1;
@@ -317,8 +330,8 @@ button { cursor: pointer; }
 
 .comps-section--need { background: rgba(199, 21, 91, 0.08); }
 .comps-section--need .tx-card { border-color: #C7155B; border-width: 1px 1px 1px 4px; }
-.comps-section--won { background: rgba(91, 155, 213, 0.14); }
-.comps-section--won .tx-card { border-color: #5B9BD5; border-width: 1px 1px 1px 4px; }
+.comps-section--won { background: rgba(91, 155, 213, 0.06); }
+.comps-section--won .tx-card { border-color: #ADCDEA; border-width: 1px 1px 1px 4px; }
 .comps-section--waiting { background: rgba(181, 170, 142, 0.14); }
 .comps-section--waiting .tx-card { border-color: #B5AA8E; border-width: 1px 1px 1px 4px; }
 .comps-section--sellers { background: rgba(199, 21, 91, 0.12); }
@@ -331,8 +344,8 @@ button { cursor: pointer; }
 .comps-section--buyers .comps-minimize-btn { background: rgba(255, 255, 255, 0.15); border-color: rgba(255, 255, 255, 0.4); color: #FFFFFF; }
 .comps-section--onmarket { background: rgba(91, 155, 213, 0.14); }
 .comps-section--onmarket .tx-card { border-color: #5B9BD5; border-width: 1px 1px 1px 4px; }
-.comps-section--contract { background: rgba(126, 87, 194, 0.12); }
-.comps-section--contract .tx-card { border-color: #7E57C2; border-width: 1px 1px 1px 4px; }
+.comps-section--contract { background: rgba(199, 21, 91, 0.12); }
+.comps-section--contract .tx-card { border-color: #C7155B; border-width: 1px 1px 1px 4px; }
 .comps-section--private { background: #173348; }
 .comps-section--private .tx-card { border-color: #FFFFFF; border-width: 1px 1px 1px 4px; }
 .comps-section--private .comps-section-title,
@@ -464,6 +477,32 @@ button { cursor: pointer; }
 .danger-zone { margin-top: 32px; padding-top: 16px; border-top: 1px solid #F0EDE4; }
 .danger-zone .comps-status-btn { width: 100%; padding: 12px 16px; font-size: 13px; }
 
+/* ===== Social Scheduler ===== */
+.social-queue-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #F0EDE4;
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+.social-calendar { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.social-calendar-day { background: #FBF9F4; border: 1px solid #E4E0D3; border-radius: 10px; padding: 10px 12px; }
+.social-calendar-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #F0EDE4;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 4px;
+  cursor: grab;
+}
+.social-calendar-card .comps-minimize-btn { margin-left: auto; flex-shrink: 0; }
+
 .closeout-split-title { margin-top: 16px; }
 
 /* ===== Loading skeletons ===== */
@@ -547,4 +586,6 @@ button { cursor: pointer; }
   .tx-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); align-items: start; gap: 12px; }
   .detail-grid { grid-template-columns: repeat(3, 1fr); }
   .sign-inventory-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+  .social-calendar { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); align-items: start; }
+  .search-bar--fixed { max-width: 500px; }
 }

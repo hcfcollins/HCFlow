@@ -77,6 +77,10 @@ create table transactions (
   recommendations text[], -- multi-select: standard seller recommendations checklist (Wait for Spring, Septic Inspection, etc.)
   referral_note text, -- internal note on where this client/lead came from, so a referral payment isn't missed at closing; never included in the generated comp PDF
   linked_id uuid references transactions(id),
+  social_queue_order integer, -- position in the social media daily rotation queue; null = not currently in rotation
+  social_went_live_at timestamptz, -- set once, first time the "Go Live" to-do is checked; never cleared — marks eligibility for the one closing shoutout
+  social_last_posted_at timestamptz, -- bumped every time a social post (rotation or closing) is marked done
+  social_closing_posted_at timestamptz, -- set once the one-time closing shoutout has been posted
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

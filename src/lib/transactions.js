@@ -130,6 +130,64 @@ export async function updateTransactionFields(id, patch) {
   if (error) throw error;
 }
 
+/** Joins or leaves the social media daily rotation queue — called when the "Go Live" to-do
+ * is checked/unchecked. Joining puts the listing at the very front (lowest order) so it
+ * gets promoted right away; leaving just clears its position, it isn't deleted from history. */
+export async function setSocialRotation(transactionId, joining) {
+  if (!joining) {
+    return updateTransactionFields(transactionId, { social_queue_order: null });
+  }
+  const { data: rows, error: selErr } = await supabase
+    .from("transactions")
+    .select("social_queue_order")
+    .not("social_queue_order", "is", null)
+    .order("social_queue_order", { ascending: true })
+    .limit(1);
+  if (selErr) throw selErr;
+  const newOrder = rows?.length ? rows[0].social_queue_order - 1000 : 0;
+  const { error } = await supabase
+    .from("transactions")
+    .update({ social_queue_order: newOrder, social_went_live_at: new Date(), updated_at: new Date() })
+    .eq("id", transactionId);
+  if (error) throw error;
+}
+
+/** Marks a listing as posted today and cycles it to the back of the rotation queue —
+ * the "fair exposure" mechanic that keeps the same listing from getting posted twice
+ * in a row while others wait. */
+export async function markSocialPosted(transactionId) {
+  const { data: rows, error: selErr } = await supabase
+    .from("transactions")
+    .select("social_queue_order")
+    .not("social_queue_order", "is", null)
+    .order("social_queue_order", { ascending: false })
+    .limit(1);
+  if (selErr) throw selErr;
+  const newOrder = rows?.length ? rows[0].social_queue_order + 1000 : 0;
+  const { error } = await supabase
+    .from("transactions")
+    .update({ social_last_posted_at: new Date(), social_queue_order: newOrder, updated_at: new Date() })
+    .eq("id", transactionId);
+  if (error) throw error;
+}
+
+/** Marks the one-time "closing" social shoutout as posted — after this the listing never
+ * appears in the scheduler again. */
+export async function markSocialClosingPosted(transactionId) {
+  return updateTransactionFields(transactionId, {
+    social_closing_posted_at: new Date(),
+    social_last_posted_at: new Date(),
+  });
+}
+
+/** Drag-and-drop reorder: given the full new id order for the rotation queue, renumbers
+ * every row's position in one batch. */
+export async function reorderSocialQueue(orderedIds) {
+  await Promise.all(
+    orderedIds.map((id, index) => updateTransactionFields(id, { social_queue_order: index * 1000 }))
+  );
+}
+
 /** Resolves an attorney name to an id, creating a new attorney record if there's no match yet. */
 export async function resolveAttorneyId(name, attorneys) {
   if (!name.trim()) return null;
@@ -181,7 +239,14 @@ export async function addTodo(transactionId, text) {
   if (error) throw error;
 }
 
-const WON_LISTING_BASELINE_TODOS = ["Schedule Photos", "Grab docs", "Send Listing Agreement", "Disclosures"];
+const WON_LISTING_BASELINE_TODOS = [
+  "Schedule Photos",
+  "Grab docs",
+  "Send Listing Agreement",
+  "Disclosures",
+  "Create Packet",
+  "Go Live",
+];
 
 /** Pre-populates the standard checklist when a deal first moves into Listing Won. */
 export async function seedWonListingTodos(transactionId) {

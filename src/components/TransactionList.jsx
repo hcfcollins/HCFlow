@@ -190,7 +190,7 @@ function TxCard({
       ) : (
         onAddTodo && (
           <div onClick={(e) => e.stopPropagation()}>
-            <TodoList todos={tx.todos} onAdd={(text) => onAddTodo(tx.id, text)} onToggle={(id, done) => onToggleTodo(id, done)} />
+            <TodoList todos={tx.todos} onAdd={(text) => onAddTodo(tx.id, text)} onToggle={(todo, done) => onToggleTodo(todo, done)} />
           </div>
         )
       )}

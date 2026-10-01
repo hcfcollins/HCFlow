@@ -19,7 +19,7 @@ export default function TodoList({ todos = [], onAdd, onToggle }) {
     <div className="todo-list">
       {todos.map((t) => (
         <label key={t.id} className={`todo-item ${t.done ? "done" : ""}`}>
-          <input type="checkbox" checked={t.done} onChange={(e) => onToggle(t.id, e.target.checked)} />
+          <input type="checkbox" checked={t.done} onChange={(e) => onToggle(t, e.target.checked)} />
           {t.text}
           {t.done && t.completed_at && <span className="todo-completed-date">{formatCompletedDate(t.completed_at)}</span>}
         </label>
