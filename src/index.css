@@ -513,6 +513,13 @@ button { cursor: pointer; }
   aspect-ratio: 1;
 }
 .social-photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.social-photo-thumb--btn { padding: 0; cursor: pointer; }
+.social-photo-thumb--loading {
+  background: linear-gradient(90deg, #F0EDE4 25%, #E8E4D8 37%, #F0EDE4 63%);
+  background-size: 400px 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+.social-photo-preview-large { width: 100%; border-radius: 10px; margin: 14px 0; display: block; }
 
 .closeout-split-title { margin-top: 16px; }
 
