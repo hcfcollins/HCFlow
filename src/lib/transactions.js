@@ -266,8 +266,8 @@ export async function addActivityLog(transactionId, label, detail) {
 }
 
 /** Won Listing to-do list. */
-export async function addTodo(transactionId, text) {
-  const { error } = await supabase.from("todos").insert({ transaction_id: transactionId, text });
+export async function addTodo(transactionId, text, dueDate) {
+  const { error } = await supabase.from("todos").insert({ transaction_id: transactionId, text, due_date: dueDate || null });
   if (error) throw error;
 }
 

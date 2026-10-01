@@ -2,6 +2,15 @@ import { useState } from "react";
 import { Signpost, Percent, Lock, Mail } from "lucide-react";
 import TodoList from "./TodoList";
 
+/** Today as YYYY-MM-DD in local time (not toISOString, which is UTC and can be
+ * a day off near midnight) — todos.due_date is a plain date column, so a string
+ * comparison against this is enough to catch "due today or earlier". */
+function todayStr() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 const PROPERTY_STYLE_TAGS = {
   Residential: { emoji: "🏠", label: "Single Family", className: "tx-tag--residential" },
   Land: { emoji: "🌲", label: "Land", className: "tx-tag--land" },
@@ -62,6 +71,7 @@ function TxCard({
   const isActiveListing = tx.stage === "won" || tx.stage === "market";
   const isBuySide = tx.side === "Buy";
   const signDeclined = tx.sign_status === "Seller Declined";
+  const dueTodoCount = (tx.todos || []).filter((t) => !t.done && t.due_date && t.due_date <= todayStr()).length;
 
   return (
     <div className={`tx-card ${tx.terminated_at ? "tx-card--terminated" : ""}`} onClick={() => onOpenDetail && onOpenDetail(tx)}>
@@ -70,6 +80,11 @@ function TxCard({
           <div className="tx-address">
             {tx.address}
             {tx.terminated_at && <span className="tx-terminated-badge">Terminated</span>}
+            {!tx.terminated_at && dueTodoCount > 0 && (
+              <span className="tx-due-badge">
+                {dueTodoCount} To-Do{dueTodoCount > 1 ? "s" : ""} Due
+              </span>
+            )}
           </div>
           <div className="tx-sub">
             {tx.town}
@@ -190,7 +205,11 @@ function TxCard({
       ) : (
         onAddTodo && (
           <div onClick={(e) => e.stopPropagation()}>
-            <TodoList todos={tx.todos} onAdd={(text) => onAddTodo(tx.id, text)} onToggle={(todo, done) => onToggleTodo(todo, done)} />
+            <TodoList
+              todos={tx.todos}
+              onAdd={(text, dueDate) => onAddTodo(tx.id, text, dueDate)}
+              onToggle={(todo, done) => onToggleTodo(todo, done)}
+            />
           </div>
         )
       )}

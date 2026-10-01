@@ -384,7 +384,7 @@ export default function DealDetail({
           <h2 className="comps-section-title">To-Do</h2>
           <TodoList
             todos={transaction.todos}
-            onAdd={(text) => onAddTodo(transaction.id, text)}
+            onAdd={(text, dueDate) => onAddTodo(transaction.id, text, dueDate)}
             onToggle={onToggleTodo}
           />
         </div>

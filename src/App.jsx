@@ -145,8 +145,8 @@ export default function App() {
     loadTransactions({ silent: true });
   }
 
-  async function handleAddTodo(id, text) {
-    await addTodo(id, text);
+  async function handleAddTodo(id, text, dueDate) {
+    await addTodo(id, text, dueDate);
     loadTransactions({ silent: true });
   }
 
