@@ -151,10 +151,21 @@ export default function App() {
 
   async function handleToggleTodo(todo, done) {
     await toggleTodo(todo.id, done);
+    // The checkbox itself must always flip and the list must always refresh, even if
+    // the Go Live rotation side effect fails (e.g. the social_* columns migration
+    // hasn't been run yet) — otherwise one broken side effect makes every checkbox
+    // look unresponsive, including ones unrelated to Go Live.
+    let sideEffectError = null;
     if (todo.text === "Go Live") {
-      await setSocialRotation(todo.transaction_id, done);
+      try {
+        await setSocialRotation(todo.transaction_id, done);
+      } catch (e) {
+        console.error("Failed to update the social rotation queue:", e);
+        sideEffectError = `Checked off, but couldn't update the social rotation queue: ${e.message}`;
+      }
     }
-    loadTransactions({ silent: true });
+    await loadTransactions({ silent: true });
+    if (sideEffectError) setError(sideEffectError);
   }
 
   async function handleMarkSocialPosted(id) {
