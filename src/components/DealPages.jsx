@@ -387,9 +387,12 @@ function ActiveListingsPage({
   onOpenDetail,
 }) {
   const privateListings = transactions.filter((tx) => tx.stage === "won");
-  const onMarket = transactions.filter((tx) => tx.stage === "market");
+  const onMarketAll = transactions.filter((tx) => tx.stage === "market");
+  const onMarketLand = onMarketAll.filter((tx) => tx.property_style === "Land");
+  const onMarket = onMarketAll.filter((tx) => tx.property_style !== "Land");
   const [privateCollapsed, setPrivateCollapsed] = useState(privateListings.length === 0);
   const [onMarketCollapsed, setOnMarketCollapsed] = useState(onMarket.length === 0);
+  const [landCollapsed, setLandCollapsed] = useState(onMarketLand.length === 0);
   const [signInventoryOpen, setSignInventoryOpen] = useState(false);
 
   return (
@@ -399,7 +402,7 @@ function ActiveListingsPage({
       </button>
 
       {signInventoryOpen ? (
-        <SignInventory transactions={[...privateListings, ...onMarket]} onOpenDetail={onOpenDetail} />
+        <SignInventory transactions={[...privateListings, ...onMarketAll]} onOpenDetail={onOpenDetail} />
       ) : (
         <>
           <div className="comps-section comps-section--private">
@@ -440,6 +443,29 @@ function ActiveListingsPage({
             {!onMarketCollapsed && (
               <TransactionList
                 transactions={onMarket}
+                stages={stages}
+                currentAgent={currentAgent}
+                onStageChange={onStageChange}
+                onNotesChange={onNotesChange}
+                onAddTodo={onAddTodo}
+                onToggleTodo={onToggleTodo}
+                onOpenDetail={onOpenDetail}
+              />
+            )}
+          </div>
+
+          <div className="comps-section comps-section--waiting">
+            <div className="comps-section-header">
+              <h2 className="comps-section-title">
+                Land <span className="comps-section-count">{onMarketLand.length}</span>
+              </h2>
+              <button type="button" className="comps-minimize-btn" onClick={() => setLandCollapsed((c) => !c)}>
+                {landCollapsed ? "Show" : "Minimize"}
+              </button>
+            </div>
+            {!landCollapsed && (
+              <TransactionList
+                transactions={onMarketLand}
                 stages={stages}
                 currentAgent={currentAgent}
                 onStageChange={onStageChange}
