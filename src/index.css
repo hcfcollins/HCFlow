@@ -463,3 +463,12 @@ button { cursor: pointer; }
 .comps-status-btn--danger { border-color: #E8A5A5; color: #A13D2E; }
 .danger-zone { margin-top: 32px; padding-top: 16px; border-top: 1px solid #F0EDE4; }
 .danger-zone .comps-status-btn { width: 100%; padding: 12px 16px; font-size: 13px; }
+
+/* ===== Tablet (iPad and up) — widen the container and let card lists flow
+   into columns instead of just stretching a single centered column. ===== */
+@media (min-width: 700px) {
+  .app { max-width: 900px; }
+  .tx-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); align-items: start; gap: 12px; }
+  .detail-grid { grid-template-columns: repeat(3, 1fr); }
+  .sign-inventory-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+}
