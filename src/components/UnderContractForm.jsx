@@ -16,7 +16,7 @@ const OWNER_NAMES = ["Fran Collins", "Holly Hall"];
 
 // Percentage fields are always entered as plain numbers (e.g. 3, not .03 or 3%).
 // A value under 1 almost certainly means someone typed the decimal form by mistake.
-function correctPercentInput(value) {
+export function correctPercentInput(value) {
   const parsed = parseFloat(value);
   if (!isNaN(parsed) && parsed > 0 && parsed < 1) {
     return String(Math.round(parsed * 100 * 100) / 100);
@@ -38,7 +38,7 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
   const [selectedAgentId, setSelectedAgentId] = useState(initialData?.agent_id || currentAgent.id);
   const [selectedAgentName, setSelectedAgentName] = useState(initialData?.agent?.name || currentAgent.name);
   const [side, setSide] = useState(initialData?.side || "Sell");
-  const [leadType, setLeadType] = useState("Organic");
+  const [leadType, setLeadType] = useState(initialData?.commission_data?.lead_type || "Organic");
   const [sellerName, setSellerName] = useState(initialData?.seller_name || "");
   const [buyerName, setBuyerName] = useState(initialData?.buyer_name || "");
   const [address, setAddress] = useState(initialData?.address || "");
@@ -60,10 +60,13 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
   const [secondDeposit, setSecondDeposit] = useState("No");
   const [secondDepositAmount, setSecondDepositAmount] = useState("");
   const [secondDepositDueDate, setSecondDepositDueDate] = useState("");
-  const [clientSource, setClientSource] = useState(CLIENT_SOURCES[0]);
-  const [referralOwedTo, setReferralOwedTo] = useState("");
-  const [referralPctChoice, setReferralPctChoice] = useState("25");
-  const [referralPct, setReferralPct] = useState("25");
+  const [clientSource, setClientSource] = useState(initialData?.commission_data?.client_source || CLIENT_SOURCES[0]);
+  const [referralOwedTo, setReferralOwedTo] = useState(initialData?.commission_data?.referral_owed_to || "");
+  const initialReferralPct = initialData?.commission_data?.referral_pct;
+  const [referralPctChoice, setReferralPctChoice] = useState(
+    initialReferralPct == null ? "25" : ["25", "30"].includes(String(initialReferralPct)) ? String(initialReferralPct) : "Other"
+  );
+  const [referralPct, setReferralPct] = useState(initialReferralPct != null ? String(initialReferralPct) : "25");
   const [referralPctAutoAdjusted, setReferralPctAutoAdjusted] = useState(false);
 
   useEffect(() => {

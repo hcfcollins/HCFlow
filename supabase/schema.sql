@@ -262,6 +262,9 @@ create policy "todos_insert" on todos for insert
 create policy "todos_update" on todos for update
   using (exists (select 1 from transactions t where t.id = transaction_id
     and (is_broker() or t.agent_id = current_agent_id())));
+create policy "todos_delete" on todos for delete
+  using (exists (select 1 from transactions t where t.id = transaction_id
+    and (is_broker() or t.agent_id = current_agent_id())));
 
 -- Commission data & close-outs: reading is BROKER ONLY — this is the sensitive layer.
 -- Insert is open to any signed-in user because the Under Contract form (filled out by
@@ -269,7 +272,13 @@ create policy "todos_update" on todos for update
 -- Build Spec §6 and §5 for why writes and reads have different access rules here.
 create policy "commission_select" on commission_data for select using (is_broker());
 create policy "commission_insert" on commission_data for insert with check (auth.uid() is not null);
-create policy "commission_update" on commission_data for update using (is_broker());
+-- Update (not just insert) is also open to the owning agent, not just brokers —
+-- New Comp and Under Contract both write these fields, and an agent correcting
+-- their own entry (e.g. a referral %) shouldn't be silently blocked. Reading
+-- commission data back stays broker-only above, unchanged.
+create policy "commission_update" on commission_data for update
+  using (exists (select 1 from transactions t where t.id = transaction_id
+    and (is_broker() or t.agent_id = current_agent_id())));
 
 create policy "closeouts_select" on closeouts for select using (is_broker());
 create policy "closeouts_insert" on closeouts for insert with check (auth.uid() is not null);

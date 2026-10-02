@@ -83,6 +83,10 @@ export async function createComp({
   septic,
   recommendations,
   referralNote,
+  leadType,
+  clientSource,
+  referralOwedTo,
+  referralPct,
 }) {
   const tx = await createTransaction({
     agent_id: agentId,
@@ -103,6 +107,14 @@ export async function createComp({
     septic,
     recommendations,
     referral_note: referralNote,
+  });
+  // Captured as early as possible so it's already in place by the time this deal
+  // reaches Under Contract instead of only being tracked informally until then.
+  await upsertCommissionData(tx.id, {
+    lead_type: leadType,
+    client_source: clientSource,
+    referral_owed_to: clientSource === "Referral" ? referralOwedTo : null,
+    referral_pct: clientSource === "Referral" ? referralPct : null,
   });
   await addActivityLog(tx.id, "Added from Comps quick-capture", address);
   return tx;
@@ -350,10 +362,9 @@ export async function toggleTodo(id, done) {
 /**
  * Handles the Under Contract form's submit (Build Spec §5): matches an existing
  * transaction by address or creates a new one, then records the commission-related
- * inputs. Uses insert (not upsert) for commission_data/closeouts because RLS only
- * allows brokers to update those tables — a duplicate-row conflict here means this
- * address's commission info was already submitted, so it's swallowed rather than
- * thrown; a broker can correct it directly if needed.
+ * inputs. commission_data is upserted (New Comp may have already created this row
+ * with lead source/referral info) — still insert-with-swallowed-conflict for
+ * closeouts, which really is only ever written once, at actual close-out.
  */
 export async function submitUnderContract(fields) {
   const {
@@ -392,8 +403,11 @@ export async function submitUnderContract(fields) {
     tx = await createTransaction({ address, ...txPatch });
   }
 
-  const { error: commissionError } = await supabase.from("commission_data").insert({
-    transaction_id: tx.id,
+  // Upsert, not insert — New Comp may have already created this row (lead source/
+  // referral captured earlier), and an agent correcting it here on their own deal
+  // now has update rights too (commission_update RLS policy), so this should
+  // actually take effect instead of silently conflicting on a duplicate key.
+  await upsertCommissionData(tx.id, {
     lead_type: leadType,
     client_source: clientSource,
     referral_owed_to: referralOwedTo,
@@ -407,7 +421,6 @@ export async function submitUnderContract(fields) {
     financing_date: financingDate || null,
     appraiser,
   });
-  if (commissionError && commissionError.code !== "23505") throw commissionError;
 
   const { error: closeoutError } = await supabase.from("closeouts").insert({
     transaction_id: tx.id,

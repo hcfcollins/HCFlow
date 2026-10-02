@@ -3,6 +3,7 @@ import { createComp } from "../lib/transactions";
 import RadioGroup from "./RadioGroup";
 import CheckboxGroup from "./CheckboxGroup";
 import EmailListInput from "./EmailListInput";
+import { CLIENT_SOURCES, correctPercentInput } from "./UnderContractForm";
 import {
   TIMEFRAMES,
   PROPERTY_STYLES as PROPERTY_TYPES,
@@ -28,8 +29,30 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
   const [recommendations, setRecommendations] = useState([]);
   const [referralNote, setReferralNote] = useState("");
   const [notes, setNotes] = useState("");
+  const [leadType, setLeadType] = useState("Organic");
+  const [clientSource, setClientSource] = useState(CLIENT_SOURCES[0]);
+  const [referralOwedTo, setReferralOwedTo] = useState("");
+  const [referralPctChoice, setReferralPctChoice] = useState("25");
+  const [referralPct, setReferralPct] = useState("25");
+  const [referralPctAutoAdjusted, setReferralPctAutoAdjusted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  function handleReferralPctBlur() {
+    const corrected = correctPercentInput(referralPct);
+    if (corrected) {
+      setReferralPct(corrected);
+      setReferralPctAutoAdjusted(true);
+    } else {
+      setReferralPctAutoAdjusted(false);
+    }
+  }
+
+  function handleReferralPctChoice(value) {
+    setReferralPctChoice(value);
+    setReferralPctAutoAdjusted(false);
+    setReferralPct(value === "Other" ? "" : value);
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -53,6 +76,10 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
         septic,
         recommendations,
         referralNote: referralNote || null,
+        leadType,
+        clientSource,
+        referralOwedTo,
+        referralPct,
       });
       onSubmitted();
     } catch (e) {
@@ -93,12 +120,74 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
         Seller Email(s)
         <EmailListInput values={sellerEmails} onChange={setSellerEmails} />
       </label>
+      <fieldset>
+        <legend>Lead Type</legend>
+        <p className="field-help">
+          Did the brokerage provide this lead, or did you bring it organically? Not related to
+          referrals or client source.
+        </p>
+        <RadioGroup name="leadType" value={leadType} onChange={setLeadType} options={["Organic", "Provided"]} />
+      </fieldset>
+
       <label>
-        Referral / Lead Source <span className="field-help">(internal — never appears on the generated comp)</span>
+        Client Source
+        <select value={clientSource} onChange={(e) => setClientSource(e.target.value)}>
+          {CLIENT_SOURCES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {clientSource === "Referral" && (
+        <>
+          <label>
+            Who is the referral owed to?
+            <input value={referralOwedTo} onChange={(e) => setReferralOwedTo(e.target.value)} />
+          </label>
+          <fieldset>
+            <legend>Referral % owed</legend>
+            <RadioGroup
+              name="referralPctChoice"
+              value={referralPctChoice}
+              onChange={handleReferralPctChoice}
+              options={[
+                { value: "25", label: "25%" },
+                { value: "30", label: "30%" },
+                { value: "Other", label: "Other" },
+              ]}
+            />
+            {referralPctChoice === "Other" && (
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                placeholder="Referral %, e.g. 20"
+                value={referralPct}
+                onChange={(e) => {
+                  setReferralPct(e.target.value);
+                  setReferralPctAutoAdjusted(false);
+                }}
+                onBlur={handleReferralPctBlur}
+              />
+            )}
+            {referralPctAutoAdjusted && (
+              <span className="field-note">
+                Adjusted to {referralPct}% — enter referral % as a plain number like 25, not 0.25.
+              </span>
+            )}
+          </fieldset>
+        </>
+      )}
+
+      <label>
+        Referral / Lead Notes <span className="field-help">(internal — never appears on the generated comp)</span>
         <input
           value={referralNote}
           onChange={(e) => setReferralNote(e.target.value)}
-          placeholder="e.g. Referred by Jane Smith, owes 25%"
+          placeholder="Any extra context, e.g. how the referral came about"
         />
       </label>
 
