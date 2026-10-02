@@ -1,9 +1,8 @@
 // Ports create_instagram_posts() from hall-collins-listing-packet-combiner's
-// ultra_simple_combiner.py (the "New Listing" template only) to an in-browser
-// canvas composite — same 1080x1350 layout, photo crop, and text positioning,
-// using Playfair Display (this app's existing brand serif) instead of the
-// original's hardcoded Times New Roman system-font path, which has no web
-// equivalent to ship.
+// ultra_simple_combiner.py to an in-browser canvas composite — same 1080x1350
+// layout, photo crop, and text positioning for all three post types, using
+// Playfair Display (this app's existing brand serif) instead of the original's
+// hardcoded Times New Roman system-font path, which has no web equivalent to ship.
 
 const CANVAS_WIDTH = 1080;
 const CANVAS_HEIGHT = 1350;
@@ -14,8 +13,12 @@ const ADDRESS_FONT_SIZE = 59;
 const CITY_FONT_SIZE = 40;
 const CITY_Y_OFFSET = 60;
 const TEXT_X_OFFSET = 100;
-const TEXT_COLOR = "white";
-const TEMPLATE_URL = "/instagram-new-listing-template.png";
+
+export const POST_TYPES = {
+  newListing: { label: "New Listing", templateUrl: "/instagram-new-listing-template.png", textColor: "white" },
+  underContract: { label: "Under Contract", templateUrl: "/instagram-under-contract-template.png", textColor: "#173348" },
+  sold: { label: "Sold", templateUrl: "/instagram-sold-template.png", textColor: "#173348" },
+};
 
 function loadImage(src) {
   return new Promise((resolve, reject) => {
@@ -44,12 +47,17 @@ function canvasToBlob(canvas) {
   return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
 }
 
-/** @returns {Promise<Blob>} a PNG blob ready to download. */
-export async function composeNewListingGraphic({ photoBlob, address, cityState }) {
+/**
+ * @param {{postType: keyof typeof POST_TYPES, photoBlob: Blob, address: string, cityState: string}} args
+ * @returns {Promise<Blob>} a PNG blob ready to download.
+ */
+export async function composeListingGraphic({ postType, photoBlob, address, cityState }) {
+  const { templateUrl, textColor } = POST_TYPES[postType] || POST_TYPES.newListing;
+
   await document.fonts.load(`${ADDRESS_FONT_SIZE}px "Playfair Display"`);
   await document.fonts.load(`${CITY_FONT_SIZE}px "Playfair Display"`);
 
-  const [template, photo] = await Promise.all([loadImage(TEMPLATE_URL), loadImage(URL.createObjectURL(photoBlob))]);
+  const [template, photo] = await Promise.all([loadImage(templateUrl), loadImage(URL.createObjectURL(photoBlob))]);
 
   const canvas = document.createElement("canvas");
   canvas.width = CANVAS_WIDTH;
@@ -62,7 +70,7 @@ export async function composeNewListingGraphic({ photoBlob, address, cityState }
   ctx.drawImage(photo, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, PHOTO_WIDTH, PHOTO_HEIGHT);
 
   ctx.textBaseline = "top";
-  ctx.fillStyle = TEXT_COLOR;
+  ctx.fillStyle = textColor;
 
   if (address) {
     const addressUpper = address.toUpperCase();

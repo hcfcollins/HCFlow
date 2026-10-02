@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Pencil, Mail, FileText, FolderOpen, ChevronDown, ChevronLeft } from "lucide-react";
+import { Pencil, Mail, FileText, FolderOpen, ChevronDown, ChevronLeft, Share2 } from "lucide-react";
 import TodoList from "./TodoList";
 import RadioGroup from "./RadioGroup";
 import CheckboxGroup from "./CheckboxGroup";
 import GenerateCompForm from "./GenerateCompForm";
 import CloseoutCalculator from "./CloseoutCalculator";
 import ConfirmDialog from "./ConfirmDialog";
+import { BoostPostPanel, ListingGraphicPanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys } from "../lib/transactions";
 import {
@@ -67,6 +68,12 @@ export default function DealDetail({
   const [showGenerateComp, setShowGenerateComp] = useState(false);
   const [showCloseoutCalculator, setShowCloseoutCalculator] = useState(false);
   const [showTerminateConfirm, setShowTerminateConfirm] = useState(false);
+  const [showSocialMenu, setShowSocialMenu] = useState(false);
+  const [showBoostPost, setShowBoostPost] = useState(false);
+  const [graphicPostType, setGraphicPostType] = useState(null);
+  // Social posts only make sense for a listing (not a buyer-side deal) that's at
+  // least reached Won — that's when its Dropbox Photos folder first exists.
+  const canPostSocial = !isBuySide && Boolean(transaction.dropbox_folder_path);
   const swipeStart = useRef(null);
   const swipeIntent = useRef(null);
   const showToast = useToast();
@@ -158,14 +165,74 @@ export default function DealDetail({
       onTouchEnd={handleSwipeTouchEnd}
     >
       <header className="detail-header">
-        <button type="button" className="detail-back-btn" onClick={onBack}>
-          <ChevronLeft size={18} /> Back
-        </button>
+        <div className="detail-header-top-row">
+          <button type="button" className="detail-back-btn" onClick={onBack}>
+            <ChevronLeft size={18} /> Back
+          </button>
+          {canPostSocial && (
+            <div className="detail-social-menu-wrap">
+              <button
+                type="button"
+                className="detail-social-btn"
+                onClick={() => setShowSocialMenu((v) => !v)}
+                aria-label="Social media post"
+                title="Social media post"
+              >
+                <Share2 size={18} />
+              </button>
+              {showSocialMenu && (
+                <div className="detail-social-menu">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGraphicPostType("newListing");
+                      setShowSocialMenu(false);
+                    }}
+                  >
+                    New Post
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBoostPost(true);
+                      setShowSocialMenu(false);
+                    }}
+                  >
+                    Boost Post
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGraphicPostType("underContract");
+                      setShowSocialMenu(false);
+                    }}
+                  >
+                    Under Contract Post
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGraphicPostType("sold");
+                      setShowSocialMenu(false);
+                    }}
+                  >
+                    Closed Post
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         <div>
           <div className="brand-eyebrow">{transaction.town || transaction.side}</div>
           <h1>{transaction.address}</h1>
         </div>
       </header>
+
+      {showBoostPost && <BoostPostPanel transaction={transaction} onClose={() => setShowBoostPost(false)} />}
+      {graphicPostType && (
+        <ListingGraphicPanel transaction={transaction} postType={graphicPostType} onClose={() => setGraphicPostType(null)} />
+      )}
 
       {transaction.terminated_at && (
         <div className="error-banner">

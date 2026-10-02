@@ -71,7 +71,47 @@ body {
 .main-header-right { display: flex; align-items: center; gap: 10px; }
 .main-header-right h1 { margin: 0; }
 .detail-header { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 20px; }
+.detail-header-top-row { display: flex; justify-content: space-between; align-items: center; width: 100%; }
 .detail-back-btn { display: inline-flex; align-items: center; gap: 2px; border: none; background: none; padding: 0; color: var(--color-navy); font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 14px; }
+.detail-social-menu-wrap { position: relative; }
+.detail-social-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: var(--color-border);
+  color: var(--color-navy);
+  border-radius: 50%;
+  padding: 0;
+}
+.detail-social-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  min-width: 170px;
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(var(--black-rgb), 0.15);
+  overflow: hidden;
+}
+.detail-social-menu button {
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 10px 14px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-navy);
+}
+.detail-social-menu button:hover { background: var(--color-border); }
+.detail-social-menu button + button { border-top: 1px solid var(--color-border); }
 .app-header-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .brand-eyebrow { font-size: 11px; color: var(--color-pink); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
 .brand-logo { height: 40px; width: auto; max-width: 100%; }
