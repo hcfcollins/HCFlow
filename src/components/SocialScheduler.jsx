@@ -287,7 +287,7 @@ function NewListingGraphicPanel({ transaction, onClose }) {
   );
 }
 
-export default function SocialScheduler({ transactions, onBack, onMarkPosted, onMarkClosingPosted, onReorder }) {
+export default function SocialScheduler({ transactions, onBack, onMarkPosted, onSetLastPosted, onMarkClosingPosted, onReorder }) {
   const [view, setView] = useState("queue");
   const [boostPostTx, setBoostPostTx] = useState(null);
   const [graphicTx, setGraphicTx] = useState(null);
@@ -355,6 +355,14 @@ export default function SocialScheduler({ transactions, onBack, onMarkPosted, on
                 <span className="tx-address">{tx.address}</span>
                 <span className="tx-sub"> — {daysSince(tx.social_last_posted_at)}</span>
               </div>
+              <label className="social-last-posted">
+                Last Posted
+                <input
+                  type="date"
+                  value={tx.social_last_posted_at ? tx.social_last_posted_at.slice(0, 10) : ""}
+                  onChange={(e) => onSetLastPosted(tx.id, e.target.value)}
+                />
+              </label>
               <div className="social-row-actions">
                 <button type="button" className="comps-minimize-btn" onClick={() => setBoostPostTx(tx)}>
                   Boost Post

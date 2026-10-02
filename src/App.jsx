@@ -198,6 +198,11 @@ export default function App() {
     loadTransactions({ silent: true });
   }
 
+  async function handleSetLastPosted(id, dateStr) {
+    await updateTransactionFields(id, { social_last_posted_at: dateStr ? new Date(dateStr) : null });
+    loadTransactions({ silent: true });
+  }
+
   async function handleMarkSocialClosingPosted(id) {
     await markSocialClosingPosted(id);
     loadTransactions({ silent: true });
@@ -311,6 +316,7 @@ export default function App() {
           transactions={txs}
           onBack={() => setShowSocialScheduler(false)}
           onMarkPosted={handleMarkSocialPosted}
+          onSetLastPosted={handleSetLastPosted}
           onMarkClosingPosted={handleMarkSocialClosingPosted}
           onReorder={handleReorderSocialQueue}
         />
