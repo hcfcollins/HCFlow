@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ImageOff } from "lucide-react";
 import { BoostPostPanel, ListingGraphicPanel } from "./SocialPostPanels";
 import { listListingPhotos, fetchListingFile } from "../lib/transactions";
 
@@ -31,27 +32,31 @@ function socialRecencyClass(dateStr) {
  * opening it. */
 function ListingThumbnail({ transactionId }) {
   const [url, setUrl] = useState(null);
-  const [failed, setFailed] = useState(false);
+  const [status, setStatus] = useState("loading"); // loading | ready | empty | error
 
   useEffect(() => {
     let cancelled = false;
     let blobUrl = null;
+    setStatus("loading");
+    setUrl(null);
 
     listListingPhotos(transactionId)
       .then(({ photos }) => {
         if (cancelled) return;
-        if (!photos.length) {
-          setFailed(true);
+        if (!photos?.length) {
+          setStatus("empty");
           return;
         }
         return fetchListingFile(transactionId, photos[0].path).then((blob) => {
           if (cancelled) return;
           blobUrl = URL.createObjectURL(blob);
           setUrl(blobUrl);
+          setStatus("ready");
         });
       })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
+      .catch((e) => {
+        console.error("Failed to load listing thumbnail:", e);
+        if (!cancelled) setStatus("error");
       });
 
     return () => {
@@ -60,8 +65,12 @@ function ListingThumbnail({ transactionId }) {
     };
   }, [transactionId]);
 
-  if (failed) return null;
-  return <div className={`social-thumb ${url ? "" : "social-thumb--loading"}`}>{url && <img src={url} alt="" />}</div>;
+  return (
+    <div className={`social-thumb ${status === "loading" ? "social-thumb--loading" : ""}`} title={status === "error" ? "Couldn't load a preview photo" : undefined}>
+      {status === "ready" && <img src={url} alt="" />}
+      {(status === "empty" || status === "error") && <ImageOff size={16} />}
+    </div>
+  );
 }
 
 function calendarLabel(dayOffset) {
@@ -250,9 +259,10 @@ export default function SocialScheduler({ transactions, onBack, onMarkPosted, on
                       <button type="button" className="comps-minimize-btn" onClick={() => setBoostPostTx(tx)}>
                         Boost Post
                       </button>
-                      <button type="button" className="comps-minimize-btn" onClick={() => onMarkPosted(tx.id)}>
+                      <label className="social-mark-posted">
+                        <input type="checkbox" checked={false} onChange={() => onMarkPosted(tx.id)} />
                         Mark Posted
-                      </button>
+                      </label>
                     </div>
                   </div>
                 ) : (
