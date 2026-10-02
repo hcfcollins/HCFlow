@@ -3,6 +3,7 @@ import { updateTransactionFields, upsertCommissionData, fetchAllAgents } from ".
 import { useToast } from "../lib/ToastContext";
 import { PROPERTY_STYLES } from "../lib/compFieldOptions";
 import { CLIENT_SOURCES } from "./UnderContractForm";
+import { formatDate } from "./DealDetail";
 
 const STAGE_OPTIONS = [
   { value: "comps", label: "Comp" },
@@ -31,7 +32,10 @@ const COLUMNS = [
   { key: "stage", label: "Stage", source: "tx", type: "select", options: STAGE_OPTIONS },
   { key: "property_style", label: "Property Style", source: "tx", type: "select", options: PROPERTY_STYLES },
   { key: "price", label: "Price", source: "tx", type: "number" },
-  { key: "next_date", label: "Next / Closing Date", source: "tx", type: "text" },
+  // Stored as a plain YYYY-MM-DD string (not a real date column — see the Next/
+  // Closing Date tooltip) but edited with a native date picker and displayed
+  // formatted, same as inspection/financing dates below.
+  { key: "next_date", label: "Next / Closing Date", source: "tx", type: "date", format: formatDate },
   { key: "sign_status", label: "Sign Status", source: "tx", type: "select", options: SIGN_STATUS_OPTIONS },
   { key: "seller_name", label: "Seller Name", source: "tx", type: "text" },
   { key: "buyer_name", label: "Buyer Name", source: "tx", type: "text" },
@@ -42,8 +46,8 @@ const COLUMNS = [
   { key: "referral_pct", label: "Referral %", source: "commission", type: "number" },
   { key: "hold_deposit", label: "Hold Deposit?", source: "commission", type: "select", options: YES_NO_OPTIONS },
   { key: "deposit_amount", label: "Deposit Amount", source: "commission", type: "number" },
-  { key: "inspection_date", label: "Inspection Date", source: "commission", type: "date" },
-  { key: "financing_date", label: "Financing Date", source: "commission", type: "date" },
+  { key: "inspection_date", label: "Inspection Date", source: "commission", type: "date", format: formatDate },
+  { key: "financing_date", label: "Financing Date", source: "commission", type: "date", format: formatDate },
   { key: "appraiser", label: "Appraiser", source: "commission", type: "text" },
   { key: "commission_pct", label: "Commission %", source: "closeout", readOnly: true },
   { key: "agent_split_pct", label: "Agent Split %", source: "closeout", readOnly: true },
@@ -69,13 +73,13 @@ function optionLabelFor(options, val) {
   return match ? match.label ?? match : val;
 }
 
-function EditableCell({ value, displayValue, type, options, readOnly, onSave }) {
+function EditableCell({ value, displayValue, type, options, format, readOnly, onSave }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? "");
 
   useEffect(() => setDraft(value ?? ""), [value]);
 
-  const shown = displayValue ?? (type === "select" ? optionLabelFor(options, value) : value);
+  const shown = displayValue ?? (format ? format(value) : type === "select" ? optionLabelFor(options, value) : value);
   const display = shown === null || shown === undefined || shown === "" ? "—" : String(shown);
 
   if (readOnly) {
@@ -122,6 +126,16 @@ function EditableCell({ value, displayValue, type, options, readOnly, onSave }) 
   );
 }
 
+function thisMonthStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabel(monthStr) {
+  const [y, m] = monthStr.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
 export default function SpreadsheetView({ transactions, onBack, onOpenDetail, onRefresh }) {
   const [agents, setAgents] = useState([]);
   const [search, setSearch] = useState("");
@@ -129,6 +143,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
   const [stageFilter, setStageFilter] = useState("");
   const [sortKey, setSortKey] = useState("address");
   const [sortDir, setSortDir] = useState("asc");
+  const [summaryMonth, setSummaryMonth] = useState(""); // "" = all time, else "YYYY-MM"
   const showToast = useToast();
 
   useEffect(() => {
@@ -162,6 +177,29 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
     });
     return copy;
   }, [filtered, sortKey, sortDir]);
+
+  // Independent of the table's own search/agent/stage filters above — this answers
+  // a specific financial question (what's the brokerage keeping / what's Fran owed
+  // for deals closing in X), not "what's currently visible in the table." Based on
+  // next_date (the closing date) falling in the selected month, not on stage, so a
+  // future month naturally only ever includes deals that haven't closed yet.
+  const summary = useMemo(() => {
+    let bankTotal = 0;
+    let franTotal = 0;
+    let count = 0;
+    for (const tx of transactions) {
+      const co = tx.closeouts;
+      if (!co || (co.bank_amount == null && co.fran_commission == null)) continue;
+      if (summaryMonth) {
+        const txMonth = tx.next_date && /^\d{4}-\d{2}/.test(tx.next_date) ? tx.next_date.slice(0, 7) : null;
+        if (txMonth !== summaryMonth) continue;
+      }
+      bankTotal += Number(co.bank_amount) || 0;
+      franTotal += Number(co.fran_commission) || 0;
+      count++;
+    }
+    return { bankTotal, franTotal, count };
+  }, [transactions, summaryMonth]);
 
   function handleSort(key) {
     if (sortKey === key) {
@@ -238,7 +276,12 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                 Agent{sortKey === "agent" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
               </th>
               {COLUMNS.map((col) => (
-                <th key={col.key} className="sv-th-sortable" onClick={() => handleSort(col.key)}>
+                <th
+                  key={col.key}
+                  className="sv-th-sortable"
+                  onClick={() => handleSort(col.key)}
+                  title={col.key === "next_date" ? "The deal's next key date — its closing date once Under Contract, used informally before that." : undefined}
+                >
                   {col.label}
                   {sortKey === col.key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
                 </th>
@@ -264,6 +307,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                       value={getValue(tx, col)}
                       type={col.type}
                       options={col.options}
+                      format={col.format}
                       readOnly={col.readOnly}
                       onSave={(v) => (col.source === "tx" ? handleSaveTx(tx, col.key, v) : handleSaveCommission(tx, col.key, v))}
                     />
@@ -280,6 +324,34 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
         </table>
       </div>
       {sorted.length === 0 && <p className="empty-state">No deals match these filters.</p>}
+
+      <div className="sv-summary">
+        <h2 className="comps-section-title">Commission Summary</h2>
+        <div className="sv-filters">
+          <button type="button" className="comps-minimize-btn" onClick={() => setSummaryMonth("")}>
+            All Time
+          </button>
+          <button type="button" className="comps-minimize-btn" onClick={() => setSummaryMonth(thisMonthStr())}>
+            This Month
+          </button>
+          <input type="month" value={summaryMonth} onChange={(e) => setSummaryMonth(e.target.value)} />
+        </div>
+        <div className="sv-summary-stats">
+          <div className="sv-summary-stat">
+            <span className="sv-summary-stat-value">${summary.bankTotal.toLocaleString()}</span>
+            <span className="sv-summary-stat-label">Brokerage Keeps</span>
+          </div>
+          <div className="sv-summary-stat">
+            <span className="sv-summary-stat-value">${summary.franTotal.toLocaleString()}</span>
+            <span className="sv-summary-stat-label">Fran's Commission</span>
+          </div>
+        </div>
+        <p className="field-help">
+          Across {summary.count} closed-out deal{summary.count === 1 ? "" : "s"}
+          {summaryMonth ? ` closing in ${monthLabel(summaryMonth)}` : " (all time)"}. Only counts deals that have
+          actually been run through the Close-Out Calculator — figures aren't estimated for deals that haven't yet.
+        </p>
+      </div>
     </div>
   );
 }

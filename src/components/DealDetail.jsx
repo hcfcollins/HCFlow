@@ -19,7 +19,7 @@ import {
 } from "../lib/compFieldOptions";
 
 /** Formats a "YYYY-MM-DD" date string as "Month Day, Year"; returns other formats unchanged. */
-function formatDate(dateStr) {
+export function formatDate(dateStr) {
   if (!dateStr) return null;
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr);
   if (!match) return dateStr;
