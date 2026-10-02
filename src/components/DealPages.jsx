@@ -1,6 +1,21 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Search, X, Signpost } from "lucide-react";
 import TransactionList from "./TransactionList";
+
+/** Starts collapsed only while a section is empty, then auto-opens the moment
+ * something first lands in it — `useState(length === 0)` alone only looks at the
+ * count on first render, so a section that started empty stayed collapsed forever
+ * even after a deal moved into it. Doesn't touch collapsed state on later manual
+ * toggles or further count changes, only on the empty-to-non-empty transition. */
+function useAutoCollapse(length) {
+  const [collapsed, setCollapsed] = useState(length === 0);
+  const prevLength = useRef(length);
+  useEffect(() => {
+    if (prevLength.current === 0 && length > 0) setCollapsed(false);
+    prevLength.current = length;
+  }, [length]);
+  return [collapsed, setCollapsed];
+}
 
 export const PAGES = [
   { key: "comps", label: "Comps / Limbo", match: (tx) => tx.stage === "comps" },
@@ -390,9 +405,9 @@ function ActiveListingsPage({
   const onMarketAll = transactions.filter((tx) => tx.stage === "market");
   const onMarketLand = onMarketAll.filter((tx) => tx.property_style === "Land");
   const onMarket = onMarketAll.filter((tx) => tx.property_style !== "Land");
-  const [privateCollapsed, setPrivateCollapsed] = useState(privateListings.length === 0);
-  const [onMarketCollapsed, setOnMarketCollapsed] = useState(onMarket.length === 0);
-  const [landCollapsed, setLandCollapsed] = useState(onMarketLand.length === 0);
+  const [privateCollapsed, setPrivateCollapsed] = useAutoCollapse(privateListings.length);
+  const [onMarketCollapsed, setOnMarketCollapsed] = useAutoCollapse(onMarket.length);
+  const [landCollapsed, setLandCollapsed] = useAutoCollapse(onMarketLand.length);
   const [activeFilter, setActiveFilter] = useState(null); // null | "signs" | "social"
 
   return (
@@ -615,8 +630,8 @@ function SocialRotationFilter({ transactions, onOpenDetail }) {
 function UnderContractPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onAddTodo, onToggleTodo, onOpenDetail }) {
   const sellers = transactions.filter((tx) => tx.side === "Sell");
   const buyers = transactions.filter((tx) => tx.side === "Buy");
-  const [sellersCollapsed, setSellersCollapsed] = useState(sellers.length === 0);
-  const [buyersCollapsed, setBuyersCollapsed] = useState(buyers.length === 0);
+  const [sellersCollapsed, setSellersCollapsed] = useAutoCollapse(sellers.length);
+  const [buyersCollapsed, setBuyersCollapsed] = useAutoCollapse(buyers.length);
 
   return (
     <div className="comps-page">
@@ -683,8 +698,8 @@ function CompsPage({
   const needToSend = transactions.filter((tx) => tx.stage === "comps" && tx.comps_status !== "Waiting to List");
   const waitingToList = transactions.filter((tx) => tx.stage === "comps" && tx.comps_status === "Waiting to List");
   const wonListings = transactions.filter((tx) => tx.stage === "won");
-  const [needCollapsed, setNeedCollapsed] = useState(needToSend.length === 0);
-  const [wonCollapsed, setWonCollapsed] = useState(wonListings.length === 0);
+  const [needCollapsed, setNeedCollapsed] = useAutoCollapse(needToSend.length);
+  const [wonCollapsed, setWonCollapsed] = useAutoCollapse(wonListings.length);
   const [waitingCollapsed, setWaitingCollapsed] = useState(false);
 
   return (
