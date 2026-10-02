@@ -864,6 +864,9 @@ button { cursor: pointer; }
 .sv-cell-input { width: 100%; min-width: 90px; padding: 2px 4px; border-radius: 4px; border: 1px solid var(--color-accent-blue); font-family: 'Montserrat', sans-serif; font-size: 12px; }
 .sv-cell-readonly { padding: 2px 4px; color: var(--color-text-muted); }
 .sv-row-actions { position: sticky; right: 0; background: var(--color-cream-bg); }
+.sv-table tbody tr { cursor: pointer; }
+.sv-row-selected { background: rgba(var(--pink-rgb), 0.1); }
+.sv-row-selected .sv-row-actions { background: rgba(var(--pink-rgb), 0.1); }
 .sv-summary { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--color-border); }
 .sv-summary .sv-filters { margin-bottom: 14px; }
 .sv-summary-stats { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }

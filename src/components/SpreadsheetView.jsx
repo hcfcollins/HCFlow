@@ -129,8 +129,9 @@ function EditableCell({ value, displayValue, type, options, format, readOnly, on
   );
 }
 
-function thisMonthStr() {
+function monthStrOffset(offset) {
   const d = new Date();
+  d.setMonth(d.getMonth() + offset);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
@@ -147,6 +148,8 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
   const [sortKey, setSortKey] = useState("address");
   const [sortDir, setSortDir] = useState("asc");
   const [summaryMonth, setSummaryMonth] = useState(""); // "" = all time, else "YYYY-MM"
+  const [pendingOnly, setPendingOnly] = useState(false); // "All Pending" — projected only, ignores summaryMonth
+  const [selectedRowId, setSelectedRowId] = useState(null);
   const showToast = useToast();
 
   useEffect(() => {
@@ -195,17 +198,24 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
     let projectedCount = 0;
 
     for (const tx of transactions) {
-      if (summaryMonth) {
-        const txMonth = tx.next_date && /^\d{4}-\d{2}/.test(tx.next_date) ? tx.next_date.slice(0, 7) : null;
-        if (txMonth !== summaryMonth) continue;
-      }
-
       const co = tx.closeouts;
-      if (co && co.bank_amount != null) {
-        bankActual += Number(co.bank_amount) || 0;
-        franActual += Number(co.fran_commission) || 0;
-        actualCount++;
-        continue;
+      const alreadyClosed = co && co.bank_amount != null;
+
+      // "All Pending" is specifically about what's NOT yet closed out — ignores
+      // the month filter entirely (no date limit) and skips actuals outright.
+      if (pendingOnly) {
+        if (alreadyClosed) continue;
+      } else {
+        if (summaryMonth) {
+          const txMonth = tx.next_date && /^\d{4}-\d{2}/.test(tx.next_date) ? tx.next_date.slice(0, 7) : null;
+          if (txMonth !== summaryMonth) continue;
+        }
+        if (alreadyClosed) {
+          bankActual += Number(co.bank_amount) || 0;
+          franActual += Number(co.fran_commission) || 0;
+          actualCount++;
+          continue;
+        }
       }
 
       // Not yet closed out — project using whatever's already on record. Every
@@ -243,7 +253,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
       bankTotal: bankActual + bankProjected,
       franTotal: franActual + franProjected,
     };
-  }, [transactions, summaryMonth]);
+  }, [transactions, summaryMonth, pendingOnly]);
 
   function handleSort(key) {
     if (sortKey === key) {
@@ -335,7 +345,11 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
           </thead>
           <tbody>
             {sorted.map((tx) => (
-              <tr key={tx.id}>
+              <tr
+                key={tx.id}
+                className={selectedRowId === tx.id ? "sv-row-selected" : ""}
+                onClick={() => setSelectedRowId(tx.id)}
+              >
                 <td>
                   <EditableCell
                     value={tx.agent_id}
@@ -372,13 +386,55 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
       <div className="sv-summary">
         <h2 className="comps-section-title">Commission Summary</h2>
         <div className="sv-filters">
-          <button type="button" className="comps-minimize-btn" onClick={() => setSummaryMonth("")}>
+          <button
+            type="button"
+            className="comps-minimize-btn"
+            onClick={() => {
+              setPendingOnly(false);
+              setSummaryMonth("");
+            }}
+          >
             All Time
           </button>
-          <button type="button" className="comps-minimize-btn" onClick={() => setSummaryMonth(thisMonthStr())}>
+          <button
+            type="button"
+            className="comps-minimize-btn"
+            onClick={() => {
+              setPendingOnly(false);
+              setSummaryMonth(monthStrOffset(0));
+            }}
+          >
             This Month
           </button>
-          <input type="month" value={summaryMonth} onChange={(e) => setSummaryMonth(e.target.value)} />
+          <button
+            type="button"
+            className="comps-minimize-btn"
+            onClick={() => {
+              setPendingOnly(false);
+              setSummaryMonth(monthStrOffset(1));
+            }}
+          >
+            Next Month
+          </button>
+          <button
+            type="button"
+            className="comps-minimize-btn"
+            onClick={() => {
+              setPendingOnly(true);
+              setSummaryMonth("");
+            }}
+          >
+            All Pending
+          </button>
+          <input
+            type="month"
+            value={summaryMonth}
+            disabled={pendingOnly}
+            onChange={(e) => {
+              setPendingOnly(false);
+              setSummaryMonth(e.target.value);
+            }}
+          />
         </div>
         <div className="sv-summary-stats">
           <div className="sv-summary-stat">
@@ -397,10 +453,18 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
           </div>
         </div>
         <p className="field-help">
-          {summary.actualCount} closed-out deal{summary.actualCount === 1 ? "" : "s"}
-          {summary.projectedCount > 0 && ` + ${summary.projectedCount} projected (price and commission % on record, not yet run through the Close-Out Calculator)`}
-          {summaryMonth ? ` closing in ${monthLabel(summaryMonth)}` : " (all time)"}. Projections use the same
-          formula as the real Close-Out Calculator and assume the default 60% agent split where that hasn't been set yet.
+          {pendingOnly ? (
+            <>{summary.projectedCount} pending deal{summary.projectedCount === 1 ? "" : "s"} not yet closed out, no date limit.</>
+          ) : (
+            <>
+              {summary.actualCount} closed-out deal{summary.actualCount === 1 ? "" : "s"}
+              {summary.projectedCount > 0 &&
+                ` + ${summary.projectedCount} projected (price and commission % on record, not yet run through the Close-Out Calculator)`}
+              {summaryMonth ? ` closing in ${monthLabel(summaryMonth)}` : " (all time)"}.
+            </>
+          )}{" "}
+          Projections use the same formula as the real Close-Out Calculator and assume the default 60% agent split
+          where that hasn't been set yet.
         </p>
       </div>
     </div>
