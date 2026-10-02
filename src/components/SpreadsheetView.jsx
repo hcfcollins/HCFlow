@@ -4,7 +4,7 @@ import { useToast } from "../lib/ToastContext";
 import { PROPERTY_STYLES } from "../lib/compFieldOptions";
 import { CLIENT_SOURCES } from "./UnderContractForm";
 import { formatDate } from "./DealDetail";
-import { TC_FEE_AMOUNTS } from "../lib/commissionCalc";
+import { TC_FEE_AMOUNTS, calculateCloseout, applyTcFee } from "../lib/commissionCalc";
 
 const STAGE_OPTIONS = [
   { value: "comps", label: "Comp" },
@@ -27,16 +27,17 @@ const YES_NO_OPTIONS = ["Yes", "No"];
 // Close-Out Calculator's "mark as closed" side effect).
 const COLUMNS = [
   { key: "address", label: "Address", source: "tx", type: "text" },
+  // Stored as a plain YYYY-MM-DD string (not a real date column — see the
+  // Closing Date tooltip) but edited with a native date picker and displayed
+  // formatted, same as inspection/financing dates below. Kept up near Address
+  // so what's coming up is visible without scrolling right.
+  { key: "next_date", label: "Closing Date", source: "tx", type: "date", format: formatDate },
   { key: "town", label: "Town", source: "tx", type: "text" },
   { key: "region", label: "Region", source: "tx", type: "select", options: REGION_OPTIONS },
   { key: "side", label: "Side", source: "tx", type: "select", options: SIDE_OPTIONS },
   { key: "stage", label: "Stage", source: "tx", type: "select", options: STAGE_OPTIONS },
   { key: "property_style", label: "Property Style", source: "tx", type: "select", options: PROPERTY_STYLES },
   { key: "price", label: "Price", source: "tx", type: "number" },
-  // Stored as a plain YYYY-MM-DD string (not a real date column — see the Next/
-  // Closing Date tooltip) but edited with a native date picker and displayed
-  // formatted, same as inspection/financing dates below.
-  { key: "next_date", label: "Next / Closing Date", source: "tx", type: "date", format: formatDate },
   { key: "sign_status", label: "Sign Status", source: "tx", type: "select", options: SIGN_STATUS_OPTIONS },
   { key: "seller_name", label: "Seller Name", source: "tx", type: "text" },
   { key: "buyer_name", label: "Buyer Name", source: "tx", type: "text" },
@@ -186,21 +187,62 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
   // next_date (the closing date) falling in the selected month, not on stage, so a
   // future month naturally only ever includes deals that haven't closed yet.
   const summary = useMemo(() => {
-    let bankTotal = 0;
-    let franTotal = 0;
-    let count = 0;
+    let bankActual = 0;
+    let franActual = 0;
+    let actualCount = 0;
+    let bankProjected = 0;
+    let franProjected = 0;
+    let projectedCount = 0;
+
     for (const tx of transactions) {
-      const co = tx.closeouts;
-      if (!co || (co.bank_amount == null && co.fran_commission == null)) continue;
       if (summaryMonth) {
         const txMonth = tx.next_date && /^\d{4}-\d{2}/.test(tx.next_date) ? tx.next_date.slice(0, 7) : null;
         if (txMonth !== summaryMonth) continue;
       }
-      bankTotal += Number(co.bank_amount) || 0;
-      franTotal += Number(co.fran_commission) || 0;
-      count++;
+
+      const co = tx.closeouts;
+      if (co && co.bank_amount != null) {
+        bankActual += Number(co.bank_amount) || 0;
+        franActual += Number(co.fran_commission) || 0;
+        actualCount++;
+        continue;
+      }
+
+      // Not yet closed out — project using whatever's already on record. Every
+      // deal that's reached Under Contract already has an early closeouts row
+      // (submitUnderContract creates it with price/commission_pct/lead_type/
+      // referral_pct, just without the final split amounts) — run that through
+      // the same calculateCloseout formula the real Close-Out Calculator uses,
+      // so this is an estimate, not a separate guess at the math.
+      const price = co?.price ?? tx.price;
+      const commissionPct = co?.commission_pct;
+      if (price == null || commissionPct == null) continue; // not enough on record yet to estimate
+      const leadType = co?.lead_type ?? tx.commission_data?.lead_type ?? "Organic";
+      const referralPct = Number(co?.referral_pct ?? tx.commission_data?.referral_pct ?? 0) || 0;
+      const grossCommission = Number(price) * (Number(commissionPct) / 100);
+      const commissionAfterReferral = grossCommission * (1 - referralPct / 100);
+      const result = calculateCloseout({
+        commissionAfterReferral,
+        agentName: tx.agent?.name,
+        side: tx.side,
+        leadType,
+        agentSplitPct: null, // not captured pre-closeout — same 60% default the real calculator falls back to
+      });
+      bankProjected += applyTcFee(result.bankAmount, tx.commission_data?.tc_fee_type);
+      franProjected += result.franCommission;
+      projectedCount++;
     }
-    return { bankTotal, franTotal, count };
+
+    return {
+      bankActual,
+      franActual,
+      actualCount,
+      bankProjected,
+      franProjected,
+      projectedCount,
+      bankTotal: bankActual + bankProjected,
+      franTotal: franActual + franProjected,
+    };
   }, [transactions, summaryMonth]);
 
   function handleSort(key) {
@@ -340,18 +382,25 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
         </div>
         <div className="sv-summary-stats">
           <div className="sv-summary-stat">
-            <span className="sv-summary-stat-value">${summary.bankTotal.toLocaleString()}</span>
+            <span className="sv-summary-stat-value">${Math.round(summary.bankTotal).toLocaleString()}</span>
             <span className="sv-summary-stat-label">Brokerage Keeps</span>
+            {summary.bankProjected > 0 && (
+              <span className="field-help">includes ${Math.round(summary.bankProjected).toLocaleString()} projected, not yet closed out</span>
+            )}
           </div>
           <div className="sv-summary-stat">
-            <span className="sv-summary-stat-value">${summary.franTotal.toLocaleString()}</span>
+            <span className="sv-summary-stat-value">${Math.round(summary.franTotal).toLocaleString()}</span>
             <span className="sv-summary-stat-label">Fran's Commission</span>
+            {summary.franProjected > 0 && (
+              <span className="field-help">includes ${Math.round(summary.franProjected).toLocaleString()} projected, not yet closed out</span>
+            )}
           </div>
         </div>
         <p className="field-help">
-          Across {summary.count} closed-out deal{summary.count === 1 ? "" : "s"}
-          {summaryMonth ? ` closing in ${monthLabel(summaryMonth)}` : " (all time)"}. Only counts deals that have
-          actually been run through the Close-Out Calculator — figures aren't estimated for deals that haven't yet.
+          {summary.actualCount} closed-out deal{summary.actualCount === 1 ? "" : "s"}
+          {summary.projectedCount > 0 && ` + ${summary.projectedCount} projected (price and commission % on record, not yet run through the Close-Out Calculator)`}
+          {summaryMonth ? ` closing in ${monthLabel(summaryMonth)}` : " (all time)"}. Projections use the same
+          formula as the real Close-Out Calculator and assume the default 60% agent split where that hasn't been set yet.
         </p>
       </div>
     </div>
