@@ -113,6 +113,17 @@ body {
 .detail-social-menu button:hover { background: var(--color-border); }
 .detail-social-menu button + button { border-top: 1px solid var(--color-border); }
 .app-header-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.app-header-actions button {
+  border: 1px solid var(--color-border-blue);
+  background: var(--color-white);
+  color: var(--color-navy);
+  padding: 7px 14px;
+  border-radius: 20px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+}
+.app-header-actions button:hover { background: var(--color-bg-slate); }
 .brand-eyebrow { font-size: 11px; color: var(--color-pink); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
 .brand-logo { height: 40px; width: auto; max-width: 100%; }
 h1 { font-family: 'Playfair Display', serif; font-size: 24px; margin: 4px 0 0; }
@@ -127,6 +138,7 @@ button { cursor: pointer; }
 .tx-list { display: flex; flex-direction: column; gap: 12px; }
 .tx-card { background: var(--color-white); border: 1px solid var(--color-border); border-radius: 14px; padding: 14px 16px; cursor: pointer; }
 .tx-card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+.tx-card-top-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .tx-address { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 16px; }
 .tx-sub { font-size: 12px; color: var(--color-text-muted); margin-top: 2px; }
 .tx-stage-pill { font-size: 11px; font-weight: 700; background: var(--color-border-blue); color: var(--color-navy); padding: 3px 9px; border-radius: 20px; }
@@ -640,6 +652,9 @@ button { cursor: pointer; }
   padding: 10px 14px;
 }
 .social-queue-row > div { min-width: 0; }
+.social-row--never { background: rgba(var(--danger-rgb), 0.1); border-color: var(--color-danger-text); }
+.social-row--stale { background: rgba(var(--blue-rgb), 0.12); border-color: var(--color-accent-blue); }
+.social-row--recent { background: rgba(var(--green-rgb), 0.1); border-color: var(--color-tag-residential); }
 .social-calendar { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
 .social-calendar-day { background: var(--color-bg-cream-alt); border: 1px solid var(--color-border-input); border-radius: 10px; padding: 10px 12px; transition: background 0.15s ease, border-color 0.15s ease; }
 .social-calendar-day--drop-target { background: rgba(var(--blue-rgb), 0.12); border-color: var(--color-accent-blue); }

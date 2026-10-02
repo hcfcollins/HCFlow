@@ -4,6 +4,7 @@ import { BoostPostPanel, ListingGraphicPanel } from "./SocialPostPanels";
 const CALENDAR_DAYS = 14;
 const LONG_PRESS_MS = 350;
 const MOVE_CANCEL_THRESHOLD = 10;
+const SOCIAL_RECENCY_DAYS = 14;
 
 function daysSince(dateStr) {
   if (!dateStr) return "Never";
@@ -12,6 +13,15 @@ function daysSince(dateStr) {
   if (days <= 0) return "Today";
   if (days === 1) return "Yesterday";
   return `${days} days ago`;
+}
+
+// Same red/blue/green priority language as the Active Listings Social Rotation
+// filter: red = never posted (most urgent), blue = due for rotation, green =
+// posted recently — leave it alone so the same listing doesn't get overexposed.
+function socialRecencyClass(dateStr) {
+  if (!dateStr) return "social-row--never";
+  const days = (Date.now() - new Date(dateStr).getTime()) / 86400000;
+  return days >= SOCIAL_RECENCY_DAYS ? "social-row--stale" : "social-row--recent";
 }
 
 function calendarLabel(dayOffset) {
@@ -141,7 +151,7 @@ export default function SocialScheduler({ transactions, onBack, onMarkPosted, on
       ) : view === "queue" ? (
         <ul className="detail-list">
           {rotation.map((tx) => (
-            <li key={tx.id} className="social-queue-row">
+            <li key={tx.id} className={`social-queue-row ${socialRecencyClass(tx.social_last_posted_at)}`}>
               <div>
                 <span className="tx-address">{tx.address}</span>
                 <span className="tx-sub"> — {daysSince(tx.social_last_posted_at)}</span>
@@ -176,7 +186,9 @@ export default function SocialScheduler({ transactions, onBack, onMarkPosted, on
                 <div className="timeframe-group-title">{calendarLabel(i)}</div>
                 {tx ? (
                   <div
-                    className={`social-calendar-card ${draggingIndex === i ? "social-calendar-card--dragging" : ""}`}
+                    className={`social-calendar-card ${socialRecencyClass(tx.social_last_posted_at)} ${
+                      draggingIndex === i ? "social-calendar-card--dragging" : ""
+                    }`}
                     draggable
                     onDragStart={() => {
                       dragIndex.current = i;

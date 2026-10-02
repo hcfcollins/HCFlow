@@ -589,24 +589,29 @@ function SignInventory({ transactions, onOpenDetail }) {
   );
 }
 
+const SOCIAL_RECENCY_DAYS = 14;
 const SOCIAL_GROUPS = [
   {
     key: "never",
     title: "Never Posted",
-    colorClass: "sign-inventory--need",
-    match: (tx) => !tx.social_last_posted_at,
+    colorClass: "sign-inventory--declined", // red — most urgent
+    // Private (Won, not yet On Market) listings can't be posted about publicly yet,
+    // so they don't belong in a "never posted" bucket meant to flag what to prioritize.
+    match: (tx) => tx.stage !== "won" && !tx.social_last_posted_at,
   },
   {
     key: "overdue",
-    title: "Posted 7+ Days Ago",
-    colorClass: "sign-inventory--declined",
-    match: (tx) => tx.social_last_posted_at && Date.now() - new Date(tx.social_last_posted_at).getTime() >= 7 * 86400000,
+    title: `Posted ${SOCIAL_RECENCY_DAYS}+ Days Ago`,
+    colorClass: "sign-inventory--need", // blue
+    match: (tx) =>
+      tx.social_last_posted_at && Date.now() - new Date(tx.social_last_posted_at).getTime() >= SOCIAL_RECENCY_DAYS * 86400000,
   },
   {
     key: "fresh",
-    title: "Posted This Week",
-    colorClass: "sign-inventory--installed",
-    match: (tx) => tx.social_last_posted_at && Date.now() - new Date(tx.social_last_posted_at).getTime() < 7 * 86400000,
+    title: "Posted Recently",
+    colorClass: "sign-inventory--installed", // green — leave it alone, don't overexpose
+    match: (tx) =>
+      tx.social_last_posted_at && Date.now() - new Date(tx.social_last_posted_at).getTime() < SOCIAL_RECENCY_DAYS * 86400000,
   },
 ];
 

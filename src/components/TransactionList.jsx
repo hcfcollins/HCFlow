@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Signpost, Percent, Lock, Mail } from "lucide-react";
+import { Signpost, Percent, Lock, Mail, Share2 } from "lucide-react";
 import TodoList from "./TodoList";
+import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 
 /** Today as YYYY-MM-DD in local time (not toISOString, which is UTC and can be
  * a day off near midnight) — todos.due_date is a plain date column, so a string
@@ -74,10 +75,18 @@ function TxCard({
 }) {
   const [lockboxOpen, setLockboxOpen] = useState(false);
   const [signNoteOpen, setSignNoteOpen] = useState(false);
+  const [showSocialMenu, setShowSocialMenu] = useState(false);
+  const [showBoostPost, setShowBoostPost] = useState(false);
+  const [graphicPostType, setGraphicPostType] = useState(null);
+  const [showOpenHouse, setShowOpenHouse] = useState(false);
   const isActiveListing = tx.stage === "won" || tx.stage === "market";
   const isBuySide = tx.side === "Buy";
   const signDeclined = tx.sign_status === "Seller Declined";
   const dueTodoCount = (tx.todos || []).filter((t) => !t.done && t.due_date && t.due_date <= todayStr()).length;
+  // Same gate as the deal detail screen's social post menu — a listing (not a
+  // buyer-side deal) that's at least reached Won, when its Dropbox Photos folder
+  // first exists.
+  const canPostSocial = !isBuySide && Boolean(tx.dropbox_folder_path);
 
   return (
     <div className={`tx-card ${tx.terminated_at ? "tx-card--terminated" : ""}`} onClick={() => onOpenDetail && onOpenDetail(tx)}>
@@ -98,18 +107,94 @@ function TxCard({
             {isBroker && tx.agent ? ` · ${tx.agent.name}` : ""}
           </div>
         </div>
-        <select
-          value={tx.stage}
-          onChange={(e) => onStageChange(tx, e.target.value)}
-          onClick={(e) => e.stopPropagation()}
-          className="tx-stage-select"
-        >
-          {stages.map((s) => (
-            <option key={s.key} value={s.key}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+        <div className="tx-card-top-right">
+          {canPostSocial && (
+            <div className="detail-social-menu-wrap" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                className="detail-social-btn"
+                onClick={() => setShowSocialMenu((v) => !v)}
+                aria-label="Social media post"
+                title="Social media post"
+              >
+                <Share2 size={16} />
+              </button>
+              {showSocialMenu && (
+                <div className="detail-social-menu">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGraphicPostType("newListing");
+                      setShowSocialMenu(false);
+                    }}
+                  >
+                    New Listing Post
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBoostPost(true);
+                      setShowSocialMenu(false);
+                    }}
+                  >
+                    Boost
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGraphicPostType("underContract");
+                      setShowSocialMenu(false);
+                    }}
+                  >
+                    Under Contract
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGraphicPostType("sold");
+                      setShowSocialMenu(false);
+                    }}
+                  >
+                    Closed
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowOpenHouse(true);
+                      setShowSocialMenu(false);
+                    }}
+                  >
+                    Open House
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          <select
+            value={tx.stage}
+            onChange={(e) => onStageChange(tx, e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            className="tx-stage-select"
+          >
+            {stages.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* stopPropagation here, not just on the card-top controls — these render as fixed
+          overlays, but they're still nested inside tx-card's onClick-to-open-detail DOM
+          subtree, so a backdrop-dismiss click would otherwise bubble up and open the
+          detail screen right as the panel closes. */}
+      <div onClick={(e) => e.stopPropagation()}>
+        {showBoostPost && <BoostPostPanel transaction={tx} onClose={() => setShowBoostPost(false)} />}
+        {graphicPostType && (
+          <ListingGraphicPanel transaction={tx} postType={graphicPostType} onClose={() => setGraphicPostType(null)} />
+        )}
+        {showOpenHouse && <OpenHousePanel transaction={tx} onClose={() => setShowOpenHouse(false)} />}
       </div>
 
       {isActiveListing && PROPERTY_STYLE_TAGS[tx.property_style] && (
