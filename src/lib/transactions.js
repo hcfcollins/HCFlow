@@ -359,6 +359,17 @@ export async function toggleTodo(id, done) {
   if (error) throw error;
 }
 
+/** Edits a to-do's text and/or due date (whatever's in patch, e.g. {text} or {due_date}). */
+export async function updateTodo(id, patch) {
+  const { error } = await supabase.from("todos").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteTodo(id) {
+  const { error } = await supabase.from("todos").delete().eq("id", id);
+  if (error) throw error;
+}
+
 /**
  * Handles the Under Contract form's submit (Build Spec §5): matches an existing
  * transaction by address or creates a new one, then records the commission-related

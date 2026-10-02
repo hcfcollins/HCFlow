@@ -27,6 +27,8 @@ export default function TransactionList({
   onCompsStatusChange,
   onAddTodo,
   onToggleTodo,
+  onEditTodo,
+  onDeleteTodo,
   onOpenDetail,
 }) {
   const isBroker = currentAgent.role === "broker";
@@ -48,6 +50,8 @@ export default function TransactionList({
           onCompsStatusChange={onCompsStatusChange}
           onAddTodo={onAddTodo}
           onToggleTodo={onToggleTodo}
+          onEditTodo={onEditTodo}
+          onDeleteTodo={onDeleteTodo}
           onOpenDetail={onOpenDetail}
         />
       ))}
@@ -64,6 +68,8 @@ function TxCard({
   onCompsStatusChange,
   onAddTodo,
   onToggleTodo,
+  onEditTodo,
+  onDeleteTodo,
   onOpenDetail,
 }) {
   const [lockboxOpen, setLockboxOpen] = useState(false);
@@ -209,6 +215,8 @@ function TxCard({
               todos={tx.todos}
               onAdd={(text, dueDate) => onAddTodo(tx.id, text, dueDate)}
               onToggle={(todo, done) => onToggleTodo(todo, done)}
+              onEdit={onEditTodo}
+              onDelete={onDeleteTodo}
             />
           </div>
         )

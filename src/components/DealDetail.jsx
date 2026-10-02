@@ -41,6 +41,8 @@ export default function DealDetail({
   onCompsStatusChange,
   onAddTodo,
   onToggleTodo,
+  onEditTodo,
+  onDeleteTodo,
   onLockboxChange,
   onRefresh,
   onRetryDropboxFolder,
@@ -386,6 +388,8 @@ export default function DealDetail({
             todos={transaction.todos}
             onAdd={(text, dueDate) => onAddTodo(transaction.id, text, dueDate)}
             onToggle={onToggleTodo}
+            onEdit={onEditTodo}
+            onDelete={onDeleteTodo}
           />
         </div>
       )}

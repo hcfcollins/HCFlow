@@ -8,6 +8,8 @@ import {
   updateTransactionLockbox,
   addTodo,
   toggleTodo,
+  updateTodo,
+  deleteTodo,
   seedWonListingTodos,
   createDropboxFolderForListing,
   terminateTransaction,
@@ -179,6 +181,16 @@ export default function App() {
     }
     await loadTransactions({ silent: true });
     if (sideEffectError) setError(sideEffectError);
+  }
+
+  async function handleEditTodo(id, patch) {
+    await updateTodo(id, patch);
+    loadTransactions({ silent: true });
+  }
+
+  async function handleDeleteTodo(id) {
+    await deleteTodo(id);
+    loadTransactions({ silent: true });
   }
 
   async function handleMarkSocialPosted(id) {
@@ -353,6 +365,8 @@ export default function App() {
           onCompsStatusChange={handleCompsStatusChange}
           onAddTodo={handleAddTodo}
           onToggleTodo={handleToggleTodo}
+          onEditTodo={handleEditTodo}
+          onDeleteTodo={handleDeleteTodo}
           onLockboxChange={handleLockboxChange}
           onRefresh={() => loadTransactions({ silent: true })}
           onRetryDropboxFolder={handleRetryDropboxFolder}
@@ -422,6 +436,8 @@ export default function App() {
           onCompsStatusChange={handleCompsStatusChange}
           onAddTodo={handleAddTodo}
           onToggleTodo={handleToggleTodo}
+          onEditTodo={handleEditTodo}
+          onDeleteTodo={handleDeleteTodo}
           onOpenDetail={setSelectedTransaction}
           pageIndex={pageIndex}
           onPageIndexChange={setPageIndex}

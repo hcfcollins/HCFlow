@@ -36,6 +36,8 @@ export default function DealPages({
   onCompsStatusChange,
   onAddTodo,
   onToggleTodo,
+  onEditTodo,
+  onDeleteTodo,
   onOpenDetail,
   pageIndex,
   onPageIndexChange,
@@ -143,6 +145,8 @@ export default function DealPages({
             onCompsStatusChange={onCompsStatusChange}
             onAddTodo={onAddTodo}
             onToggleTodo={onToggleTodo}
+            onEditTodo={onEditTodo}
+            onDeleteTodo={onDeleteTodo}
             onOpenDetail={onOpenDetail}
           />
         </div>
@@ -174,6 +178,8 @@ export default function DealPages({
                       onCompsStatusChange={onCompsStatusChange}
                       onAddTodo={onAddTodo}
                       onToggleTodo={onToggleTodo}
+                      onEditTodo={onEditTodo}
+                      onDeleteTodo={onDeleteTodo}
                       onOpenDetail={onOpenDetail}
                     />
                   ) : p.key === "contract" ? (
@@ -185,6 +191,8 @@ export default function DealPages({
                       onNotesChange={onNotesChange}
                       onAddTodo={onAddTodo}
                       onToggleTodo={onToggleTodo}
+                      onEditTodo={onEditTodo}
+                      onDeleteTodo={onDeleteTodo}
                       onOpenDetail={onOpenDetail}
                     />
                   ) : p.key === "active" ? (
@@ -196,6 +204,8 @@ export default function DealPages({
                       onNotesChange={onNotesChange}
                       onAddTodo={onAddTodo}
                       onToggleTodo={onToggleTodo}
+                      onEditTodo={onEditTodo}
+                      onDeleteTodo={onDeleteTodo}
                       onOpenDetail={onOpenDetail}
                     />
                   ) : (
@@ -208,6 +218,8 @@ export default function DealPages({
                       onCompsStatusChange={onCompsStatusChange}
                       onAddTodo={onAddTodo}
                       onToggleTodo={onToggleTodo}
+                      onEditTodo={onEditTodo}
+                      onDeleteTodo={onDeleteTodo}
                       onOpenDetail={onOpenDetail}
                     />
                   )}
@@ -272,7 +284,7 @@ function closedYear(tx) {
   return Number.isNaN(year) ? new Date().getFullYear() : year;
 }
 
-function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange, onAddTodo, onToggleTodo, onOpenDetail }) {
+function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange, onAddTodo, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail }) {
   const active = transactions.filter((tx) => !tx.terminated_at);
   const terminated = transactions.filter((tx) => tx.terminated_at);
   const currentYear = new Date().getFullYear();
@@ -346,6 +358,8 @@ function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesCha
             onCompsStatusChange={b.key === "comps" || b.key === "waiting" ? onCompsStatusChange : undefined}
             onAddTodo={onAddTodo}
             onToggleTodo={onToggleTodo}
+            onEditTodo={onEditTodo}
+            onDeleteTodo={onDeleteTodo}
             onOpenDetail={onOpenDetail}
           />
         </CollapsibleSection>
@@ -365,6 +379,8 @@ function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesCha
               onNotesChange={onNotesChange}
               onAddTodo={onAddTodo}
               onToggleTodo={onToggleTodo}
+              onEditTodo={onEditTodo}
+              onDeleteTodo={onDeleteTodo}
               onOpenDetail={onOpenDetail}
             />
           </div>
@@ -382,6 +398,8 @@ function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesCha
               onNotesChange={onNotesChange}
               onAddTodo={onAddTodo}
               onToggleTodo={onToggleTodo}
+              onEditTodo={onEditTodo}
+              onDeleteTodo={onDeleteTodo}
               onOpenDetail={onOpenDetail}
             />
           </div>
@@ -399,6 +417,8 @@ function ActiveListingsPage({
   onNotesChange,
   onAddTodo,
   onToggleTodo,
+  onEditTodo,
+  onDeleteTodo,
   onOpenDetail,
 }) {
   const privateListings = transactions.filter((tx) => tx.stage === "won");
@@ -455,6 +475,8 @@ function ActiveListingsPage({
                   onNotesChange={onNotesChange}
                   onAddTodo={onAddTodo}
                   onToggleTodo={onToggleTodo}
+                  onEditTodo={onEditTodo}
+                  onDeleteTodo={onDeleteTodo}
                   onOpenDetail={onOpenDetail}
                 />
               </>
@@ -479,6 +501,8 @@ function ActiveListingsPage({
                 onNotesChange={onNotesChange}
                 onAddTodo={onAddTodo}
                 onToggleTodo={onToggleTodo}
+                onEditTodo={onEditTodo}
+                onDeleteTodo={onDeleteTodo}
                 onOpenDetail={onOpenDetail}
               />
             )}
@@ -502,6 +526,8 @@ function ActiveListingsPage({
                 onNotesChange={onNotesChange}
                 onAddTodo={onAddTodo}
                 onToggleTodo={onToggleTodo}
+                onEditTodo={onEditTodo}
+                onDeleteTodo={onDeleteTodo}
                 onOpenDetail={onOpenDetail}
               />
             )}
@@ -627,7 +653,7 @@ function SocialRotationFilter({ transactions, onOpenDetail }) {
   );
 }
 
-function UnderContractPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onAddTodo, onToggleTodo, onOpenDetail }) {
+function UnderContractPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onAddTodo, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail }) {
   const sellers = transactions.filter((tx) => tx.side === "Sell");
   const buyers = transactions.filter((tx) => tx.side === "Buy");
   const [sellersCollapsed, setSellersCollapsed] = useAutoCollapse(sellers.length);
@@ -653,6 +679,8 @@ function UnderContractPage({ transactions, stages, currentAgent, onStageChange, 
             onNotesChange={onNotesChange}
             onAddTodo={onAddTodo}
             onToggleTodo={onToggleTodo}
+            onEditTodo={onEditTodo}
+            onDeleteTodo={onDeleteTodo}
             onOpenDetail={onOpenDetail}
           />
         )}
@@ -676,6 +704,8 @@ function UnderContractPage({ transactions, stages, currentAgent, onStageChange, 
             onNotesChange={onNotesChange}
             onAddTodo={onAddTodo}
             onToggleTodo={onToggleTodo}
+            onEditTodo={onEditTodo}
+            onDeleteTodo={onDeleteTodo}
             onOpenDetail={onOpenDetail}
           />
         )}
@@ -693,6 +723,8 @@ function CompsPage({
   onCompsStatusChange,
   onAddTodo,
   onToggleTodo,
+  onEditTodo,
+  onDeleteTodo,
   onOpenDetail,
 }) {
   const needToSend = transactions.filter((tx) => tx.stage === "comps" && tx.comps_status !== "Waiting to List");
@@ -744,6 +776,8 @@ function CompsPage({
             onNotesChange={onNotesChange}
             onAddTodo={onAddTodo}
             onToggleTodo={onToggleTodo}
+            onEditTodo={onEditTodo}
+            onDeleteTodo={onDeleteTodo}
             onOpenDetail={onOpenDetail}
           />
         )}

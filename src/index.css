@@ -434,6 +434,23 @@ button { cursor: pointer; }
 .todo-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .todo-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .todo-item.done { color: var(--color-text-muted); text-decoration: line-through; }
+.todo-text { cursor: pointer; }
+.todo-delete-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: var(--color-border);
+  color: var(--color-text-muted);
+  border-radius: 50%;
+  padding: 0;
+}
+.todo-item--editing { padding: 2px 0; }
+.todo-edit-input { width: 100%; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--color-accent-blue); font-family: 'Montserrat', sans-serif; font-size: 13px; }
 .todo-completed-date { margin-left: auto; font-size: 11px; text-decoration: none; color: var(--color-text-faint); white-space: nowrap; }
 .todo-due-badge {
   margin-left: auto;
