@@ -144,7 +144,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
   const [agents, setAgents] = useState([]);
   const [search, setSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState("");
-  const [stageFilter, setStageFilter] = useState("");
+  const [stageFilter, setStageFilter] = useState("contract"); // defaults to Under Contract — the deals actually being actively worked day to day
   const [sortKey, setSortKey] = useState("address");
   const [sortDir, setSortDir] = useState("asc");
   const [summaryMonth, setSummaryMonth] = useState(""); // "" = all time, else "YYYY-MM"

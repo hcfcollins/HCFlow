@@ -141,17 +141,19 @@ async function findPacketFile(accessToken: string, folderPath: string) {
   return matches[0] ?? null;
 }
 
-/** Best-effort: finds the first recognized MLS remarks/description heading in the
- * packet's text and returns the paragraph after it, trimmed to caption length. Falls
- * back to the top of the document if no heading is recognized — never throws, since
- * a bad extraction shouldn't block the rest of the Boost Post panel from working. */
+/** Best-effort: finds the first recognized MLS remarks/description heading — most
+ * importantly "Public Remarks" from the MLS Sheet page, checked first — anywhere
+ * in the packet's text (not just the first page or two; the MLS Sheet can land
+ * well into a multi-document packet) and returns the paragraph after it, trimmed
+ * to caption length. Falls back to the top of the document if no heading is
+ * recognized — never throws, since a bad extraction shouldn't block the rest of
+ * the Boost Post panel from working. */
 function extractDescriptionFromText(text: string): { description: string; source: "heading" | "fallback" } {
-  const searchArea = text.slice(0, 8000);
   for (const heading of DESCRIPTION_HEADINGS) {
     const headingRegex = new RegExp(`${heading}\\s*:?\\s*`, "i");
-    const match = headingRegex.exec(searchArea);
+    const match = headingRegex.exec(text);
     if (!match) continue;
-    const afterHeading = searchArea.slice(match.index + match[0].length);
+    const afterHeading = text.slice(match.index + match[0].length, match.index + match[0].length + 4000);
     // Stop at the next all-caps label-like line (another MLS field) or a blank line.
     const stopMatch = /\n\s*\n|\n[A-Z][A-Z \/]{3,}:?\s*\n/.exec(afterHeading);
     const paragraph = (stopMatch ? afterHeading.slice(0, stopMatch.index) : afterHeading).replace(/\s+/g, " ").trim();
@@ -159,7 +161,7 @@ function extractDescriptionFromText(text: string): { description: string; source
       return { description: truncateToCaption(paragraph), source: "heading" };
     }
   }
-  return { description: truncateToCaption(searchArea.replace(/\s+/g, " ").trim()), source: "fallback" };
+  return { description: truncateToCaption(text.slice(0, 8000).replace(/\s+/g, " ").trim()), source: "fallback" };
 }
 
 function truncateToCaption(text: string): string {
