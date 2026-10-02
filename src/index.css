@@ -641,7 +641,8 @@ button { cursor: pointer; }
 }
 .social-queue-row > div { min-width: 0; }
 .social-calendar { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
-.social-calendar-day { background: var(--color-bg-cream-alt); border: 1px solid var(--color-border-input); border-radius: 10px; padding: 10px 12px; }
+.social-calendar-day { background: var(--color-bg-cream-alt); border: 1px solid var(--color-border-input); border-radius: 10px; padding: 10px 12px; transition: background 0.15s ease, border-color 0.15s ease; }
+.social-calendar-day--drop-target { background: rgba(var(--blue-rgb), 0.12); border-color: var(--color-accent-blue); }
 .social-calendar-card {
   display: flex;
   align-items: center;
@@ -653,24 +654,25 @@ button { cursor: pointer; }
   margin-top: 4px;
   cursor: grab;
 }
+.social-calendar-card--dragging {
+  cursor: grabbing;
+  position: relative;
+  z-index: 100;
+  box-shadow: 0 12px 28px rgba(var(--black-rgb), 0.3);
+  touch-action: none;
+  transition: none;
+}
 .social-calendar-card .comps-minimize-btn { margin-left: auto; flex-shrink: 0; }
-.social-row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.social-last-posted {
-  display: flex;
+.social-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.social-mark-posted {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-.social-last-posted input {
-  padding: 3px 6px;
-  border-radius: 6px;
-  border: 1px solid var(--color-border-input);
-  font-family: 'Montserrat', sans-serif;
   font-size: 12px;
+  font-weight: 700;
+  color: var(--color-navy);
 }
+.social-mark-posted input { width: 22px; height: 22px; }
 .social-post-panel { max-width: 480px; max-height: 85vh; overflow-y: auto; }
 .social-photo-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 14px 0; }
 .social-photo-thumb {
@@ -682,6 +684,19 @@ button { cursor: pointer; }
 }
 .social-photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .social-photo-thumb--btn { padding: 0; cursor: pointer; }
+.social-photo-thumb-wrap { display: flex; flex-direction: column; gap: 4px; }
+.social-photo-thumb-wrap .social-photo-thumb { aspect-ratio: 1; }
+.social-photo-redo-btn {
+  border: 1px solid var(--color-border-input);
+  background: var(--color-white);
+  border-radius: 8px;
+  padding: 4px 0;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+.social-photo-redo-btn:disabled { opacity: 0.4; }
 .social-photo-thumb--loading {
   background: linear-gradient(90deg, var(--color-border) 25%, var(--color-shimmer) 37%, var(--color-border) 63%);
   background-size: 400px 100%;

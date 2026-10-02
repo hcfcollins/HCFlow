@@ -2,6 +2,8 @@ import { useRef, useState } from "react";
 import { BoostPostPanel, ListingGraphicPanel } from "./SocialPostPanels";
 
 const CALENDAR_DAYS = 14;
+const LONG_PRESS_MS = 350;
+const MOVE_CANCEL_THRESHOLD = 10;
 
 function daysSince(dateStr) {
   if (!dateStr) return "Never";
@@ -20,11 +22,15 @@ function calendarLabel(dayOffset) {
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
-export default function SocialScheduler({ transactions, onBack, onMarkPosted, onSetLastPosted, onMarkClosingPosted, onReorder }) {
+export default function SocialScheduler({ transactions, onBack, onMarkPosted, onMarkClosingPosted, onReorder }) {
   const [view, setView] = useState("queue");
   const [boostPostTx, setBoostPostTx] = useState(null);
   const [graphicTx, setGraphicTx] = useState(null);
-  const dragIndex = useRef(null);
+  const dragIndex = useRef(null); // desktop mouse drag (native HTML5 DnD)
+  const touchDrag = useRef({ index: null, startX: 0, startY: 0, timer: null, dragging: false }); // touch drag
+  const [draggingIndex, setDraggingIndex] = useState(null);
+  const [dragDelta, setDragDelta] = useState(null);
+  const [dropTargetIndex, setDropTargetIndex] = useState(null);
 
   const rotation = transactions
     .filter((tx) => !tx.terminated_at && (tx.stage === "won" || tx.stage === "market") && tx.social_queue_order != null)
@@ -34,13 +40,65 @@ export default function SocialScheduler({ transactions, onBack, onMarkPosted, on
     (tx) => (tx.stage === "contract" || tx.stage === "closed") && tx.social_went_live_at && !tx.social_closing_posted_at
   );
 
-  function handleDrop(targetIndex) {
-    if (dragIndex.current === null || dragIndex.current === targetIndex) return;
+  function handleDrop(targetIndex, sourceIndex = dragIndex.current) {
+    if (sourceIndex === null || sourceIndex === targetIndex) return;
     const reordered = [...rotation];
-    const [moved] = reordered.splice(dragIndex.current, 1);
+    const [moved] = reordered.splice(sourceIndex, 1);
     reordered.splice(targetIndex, 0, moved);
     dragIndex.current = null;
     onReorder(reordered.map((tx) => tx.id));
+  }
+
+  // Native HTML5 drag-and-drop (desktop mouse) has no touch equivalent, so
+  // press-and-hold-to-drag on phone/iPad is handled by hand below instead.
+  function handleCardTouchStart(e, index) {
+    const touch = e.touches[0];
+    touchDrag.current = {
+      index,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      dragging: false,
+      timer: setTimeout(() => {
+        touchDrag.current.dragging = true;
+        setDraggingIndex(index);
+        setDragDelta({ x: 0, y: 0 });
+      }, LONG_PRESS_MS),
+    };
+  }
+
+  function handleCardTouchMove(e) {
+    const drag = touchDrag.current;
+    if (drag.index === null) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - drag.startX;
+    const dy = touch.clientY - drag.startY;
+
+    if (!drag.dragging) {
+      // Moved before the long-press fired — this is a scroll, not a drag;
+      // cancel so the page scrolls normally.
+      if (Math.abs(dx) > MOVE_CANCEL_THRESHOLD || Math.abs(dy) > MOVE_CANCEL_THRESHOLD) {
+        clearTimeout(drag.timer);
+        touchDrag.current = { index: null, startX: 0, startY: 0, timer: null, dragging: false };
+      }
+      return;
+    }
+
+    e.preventDefault();
+    setDragDelta({ x: dx, y: dy });
+    const target = document.elementFromPoint(touch.clientX, touch.clientY)?.closest("[data-day-index]");
+    setDropTargetIndex(target ? Number(target.dataset.dayIndex) : null);
+  }
+
+  function handleCardTouchEnd() {
+    const drag = touchDrag.current;
+    if (drag.timer) clearTimeout(drag.timer);
+    if (drag.dragging && dropTargetIndex !== null && dropTargetIndex !== drag.index) {
+      handleDrop(dropTargetIndex, drag.index);
+    }
+    touchDrag.current = { index: null, startX: 0, startY: 0, timer: null, dragging: false };
+    setDraggingIndex(null);
+    setDragDelta(null);
+    setDropTargetIndex(null);
   }
 
   return (
@@ -88,14 +146,6 @@ export default function SocialScheduler({ transactions, onBack, onMarkPosted, on
                 <span className="tx-address">{tx.address}</span>
                 <span className="tx-sub"> — {daysSince(tx.social_last_posted_at)}</span>
               </div>
-              <label className="social-last-posted">
-                Last Posted
-                <input
-                  type="date"
-                  value={tx.social_last_posted_at ? tx.social_last_posted_at.slice(0, 10) : ""}
-                  onChange={(e) => onSetLastPosted(tx.id, e.target.value)}
-                />
-              </label>
               <div className="social-row-actions">
                 <button type="button" className="comps-minimize-btn" onClick={() => setBoostPostTx(tx)}>
                   Boost Post
@@ -103,9 +153,10 @@ export default function SocialScheduler({ transactions, onBack, onMarkPosted, on
                 <button type="button" className="comps-minimize-btn" onClick={() => setGraphicTx(tx)}>
                   New Listing Graphic
                 </button>
-                <button type="button" className="comps-minimize-btn" onClick={() => onMarkPosted(tx.id)}>
+                <label className="social-mark-posted">
+                  <input type="checkbox" checked={false} onChange={() => onMarkPosted(tx.id)} />
                   Mark Posted
-                </button>
+                </label>
               </div>
             </li>
           ))}
@@ -117,18 +168,27 @@ export default function SocialScheduler({ transactions, onBack, onMarkPosted, on
             return (
               <div
                 key={i}
-                className="social-calendar-day"
+                data-day-index={i}
+                className={`social-calendar-day ${dropTargetIndex === i && draggingIndex !== null ? "social-calendar-day--drop-target" : ""}`}
                 onDragOver={(e) => tx && e.preventDefault()}
                 onDrop={() => tx && handleDrop(i)}
               >
                 <div className="timeframe-group-title">{calendarLabel(i)}</div>
                 {tx ? (
                   <div
-                    className="social-calendar-card"
+                    className={`social-calendar-card ${draggingIndex === i ? "social-calendar-card--dragging" : ""}`}
                     draggable
                     onDragStart={() => {
                       dragIndex.current = i;
                     }}
+                    onTouchStart={(e) => handleCardTouchStart(e, i)}
+                    onTouchMove={handleCardTouchMove}
+                    onTouchEnd={handleCardTouchEnd}
+                    style={
+                      draggingIndex === i && dragDelta
+                        ? { transform: `translate(${dragDelta.x}px, ${dragDelta.y}px) rotate(-2deg) scale(1.05)` }
+                        : undefined
+                    }
                   >
                     <span className="tx-address">{tx.address}</span>
                     <span className="tx-sub">{daysSince(tx.social_last_posted_at)}</span>

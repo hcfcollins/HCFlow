@@ -202,12 +202,14 @@ export async function reorderSocialQueue(orderedIds) {
 
 /** Lists the image files in a listing's Dropbox "4) Photos" subfolder, via the
  * social-post-assets Edge Function. Returns [{name, path}]. */
+/** Returns { photos, source } — source is "Chosen Ones", "Compressed_MLS", or
+ * "4) Photos", whichever the Edge Function actually found photos in first. */
 export async function listListingPhotos(transactionId) {
   const { data, error } = await supabase.functions.invoke("social-post-assets", {
     body: { action: "listPhotos", transactionId },
   });
   if (error) throw error;
-  return data.photos;
+  return data;
 }
 
 /** Fetches one Dropbox file's raw bytes as a Blob — used both for picker

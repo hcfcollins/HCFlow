@@ -6,7 +6,7 @@ import CheckboxGroup from "./CheckboxGroup";
 import GenerateCompForm from "./GenerateCompForm";
 import CloseoutCalculator from "./CloseoutCalculator";
 import ConfirmDialog from "./ConfirmDialog";
-import { BoostPostPanel, ListingGraphicPanel } from "./SocialPostPanels";
+import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys } from "../lib/transactions";
 import {
@@ -71,6 +71,7 @@ export default function DealDetail({
   const [showSocialMenu, setShowSocialMenu] = useState(false);
   const [showBoostPost, setShowBoostPost] = useState(false);
   const [graphicPostType, setGraphicPostType] = useState(null);
+  const [showOpenHouse, setShowOpenHouse] = useState(false);
   // Social posts only make sense for a listing (not a buyer-side deal) that's at
   // least reached Won — that's when its Dropbox Photos folder first exists.
   const canPostSocial = !isBuySide && Boolean(transaction.dropbox_folder_path);
@@ -189,7 +190,7 @@ export default function DealDetail({
                       setShowSocialMenu(false);
                     }}
                   >
-                    New Post
+                    New Listing Post
                   </button>
                   <button
                     type="button"
@@ -198,7 +199,7 @@ export default function DealDetail({
                       setShowSocialMenu(false);
                     }}
                   >
-                    Boost Post
+                    Boost
                   </button>
                   <button
                     type="button"
@@ -207,7 +208,7 @@ export default function DealDetail({
                       setShowSocialMenu(false);
                     }}
                   >
-                    Under Contract Post
+                    Under Contract
                   </button>
                   <button
                     type="button"
@@ -216,7 +217,16 @@ export default function DealDetail({
                       setShowSocialMenu(false);
                     }}
                   >
-                    Closed Post
+                    Closed
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowOpenHouse(true);
+                      setShowSocialMenu(false);
+                    }}
+                  >
+                    Open House
                   </button>
                 </div>
               )}
@@ -233,6 +243,7 @@ export default function DealDetail({
       {graphicPostType && (
         <ListingGraphicPanel transaction={transaction} postType={graphicPostType} onClose={() => setGraphicPostType(null)} />
       )}
+      {showOpenHouse && <OpenHousePanel transaction={transaction} onClose={() => setShowOpenHouse(false)} />}
 
       {transaction.terminated_at && (
         <div className="error-banner">

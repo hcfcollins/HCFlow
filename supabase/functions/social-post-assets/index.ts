@@ -19,6 +19,12 @@ const dropboxPathRootHeader = JSON.stringify({ ".tag": "root", root: DROPBOX_TEA
 
 const PHOTOS_SUBFOLDER = "4) Photos";
 const SHOWING_DOCS_SUBFOLDER = "3) Showing Docs";
+// Checked in this order for social media source photos: agents drop their hand-picked
+// images in Chosen Ones; if that's missing/empty, fall back to the compressed MLS set;
+// if neither exists (older listings that predate this convention), fall back to
+// whatever's directly in 4) Photos.
+const CHOSEN_ONES_SUBFOLDER = "Chosen Ones";
+const COMPRESSED_MLS_SUBFOLDER = "Compressed_MLS";
 const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".heic"];
 
 // Common MLS export field labels — whichever appears first in the packet's text
@@ -93,11 +99,36 @@ async function listFolder(accessToken: string, folderPath: string) {
   }[];
 }
 
-async function listPhotos(accessToken: string, folderPath: string) {
-  const entries = await listFolder(accessToken, `${folderPath}/${PHOTOS_SUBFOLDER}`);
+/** list_folder on a path that might not exist yet — returns [] instead of throwing
+ * for a "not_found" path, since that's an expected/normal state here (an older
+ * listing, or one where the agent hasn't dropped photos into that subfolder yet),
+ * not a real error. */
+async function listFolderIfExists(accessToken: string, folderPath: string) {
+  try {
+    return await listFolder(accessToken, folderPath);
+  } catch (e) {
+    if (String(e).includes("not_found")) return [];
+    throw e;
+  }
+}
+
+function toPhotoList(entries: { name: string; path_display: string }[]) {
   return entries
     .filter((e) => IMAGE_EXTENSIONS.some((ext) => e.name.toLowerCase().endsWith(ext)))
     .map((e) => ({ name: e.name, path: e.path_display }));
+}
+
+async function listPhotos(accessToken: string, folderPath: string) {
+  const chosenOnes = toPhotoList(await listFolderIfExists(accessToken, `${folderPath}/${PHOTOS_SUBFOLDER}/${CHOSEN_ONES_SUBFOLDER}`));
+  if (chosenOnes.length > 0) return { photos: chosenOnes, source: "Chosen Ones" };
+
+  const compressedMls = toPhotoList(
+    await listFolderIfExists(accessToken, `${folderPath}/${PHOTOS_SUBFOLDER}/${COMPRESSED_MLS_SUBFOLDER}`)
+  );
+  if (compressedMls.length > 0) return { photos: compressedMls, source: "Compressed_MLS" };
+
+  const allPhotos = toPhotoList(await listFolderIfExists(accessToken, `${folderPath}/${PHOTOS_SUBFOLDER}`));
+  return { photos: allPhotos, source: "4) Photos" };
 }
 
 /** Finds the packet file (name contains "packet", case-insensitive) in Showing Docs —
@@ -169,8 +200,8 @@ Deno.serve(async (req) => {
     const folderPath = await getTransactionFolderPath(transactionId);
 
     if (action === "listPhotos") {
-      const photos = await listPhotos(accessToken, folderPath);
-      return jsonResponse({ photos });
+      const { photos, source } = await listPhotos(accessToken, folderPath);
+      return jsonResponse({ photos, source });
     }
 
     if (action === "fetchFile") {

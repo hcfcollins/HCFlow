@@ -210,6 +210,9 @@ Deno.serve(async (req) => {
     for (const name of LISTING_SUBFOLDERS) {
       await createDropboxFolder(accessToken, `${actualPath}/${name}`);
     }
+    // Where agents drop the hand-picked images for social media — checked first
+    // by the Social Scheduler's photo pickers before falling back to Compressed_MLS.
+    await createDropboxFolder(accessToken, `${actualPath}/4) Photos/Chosen Ones`);
     const sharedLink = await getOrCreateSharedLink(accessToken, actualPath);
 
     const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}`, {
