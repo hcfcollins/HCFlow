@@ -19,6 +19,7 @@ function dueBadge(dueDate) {
 export default function TodoList({ todos = [], onAdd, onToggle }) {
   const [text, setText] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [showDueDate, setShowDueDate] = useState(false);
 
   function handleAdd(e) {
     e.preventDefault();
@@ -26,6 +27,7 @@ export default function TodoList({ todos = [], onAdd, onToggle }) {
     onAdd(text.trim(), dueDate || undefined);
     setText("");
     setDueDate("");
+    setShowDueDate(false);
   }
 
   return (
@@ -47,15 +49,26 @@ export default function TodoList({ todos = [], onAdd, onToggle }) {
           onChange={(e) => setText(e.target.value)}
           placeholder="Add a to-do…"
         />
+        <button
+          type="button"
+          className={`todo-due-toggle ${dueDate ? "todo-due-toggle--active" : ""}`}
+          onClick={() => setShowDueDate((v) => !v)}
+          aria-label="Set a due date"
+          title="Set a due date"
+        >
+          📅
+        </button>
+        <button type="submit">Add</button>
+      </form>
+      {showDueDate && (
         <input
           type="date"
-          className="todo-add-date"
+          className="todo-add-date-row"
           value={dueDate}
           onChange={(e) => setDueDate(e.target.value)}
           aria-label="Due date (optional)"
         />
-        <button type="submit">Add</button>
-      </form>
+      )}
     </div>
   );
 }
