@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchAttorneys, submitUnderContract, resolveAttorneyId as resolveAttorneyIdRaw } from "../lib/transactions";
 import RadioGroup from "./RadioGroup";
 import AgentField from "./AgentField";
+import { loadDraft, useDraftPersistence } from "../lib/useDraftPersistence";
 
 export const CLIENT_SOURCES = [
   "Prior Client/Sphere",
@@ -30,44 +31,63 @@ function resolveAttorneyId(name, tbd, attorneys) {
 }
 
 export default function UnderContractForm({ currentAgent, initialData, onCancel, onSubmitted }) {
+  // Scoped per existing deal (so an interruption mid-fill reloads correctly next
+  // time for that specific deal) or to a shared "new" bucket for a blank entry
+  // not tied to an existing record. initialData's real values always win over a
+  // stray draft — the draft only fills in whatever isn't already known.
+  const draftKey = `under-contract:${initialData?.id || "new"}`;
+  const draft = useRef(loadDraft(draftKey)).current;
+
   const [attorneys, setAttorneys] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  const [region, setRegion] = useState(initialData?.region || "VT");
-  const [selectedAgentId, setSelectedAgentId] = useState(initialData?.agent_id || currentAgent.id);
-  const [selectedAgentName, setSelectedAgentName] = useState(initialData?.agent?.name || currentAgent.name);
-  const [side, setSide] = useState(initialData?.side || "Sell");
-  const [leadType, setLeadType] = useState(initialData?.commission_data?.lead_type || "Organic");
-  const [sellerName, setSellerName] = useState(initialData?.seller_name || "");
-  const [buyerName, setBuyerName] = useState(initialData?.buyer_name || "");
-  const [address, setAddress] = useState(initialData?.address || "");
-  const [propertyStyle, setPropertyStyle] = useState(initialData?.property_style || "Residential");
-  const [price, setPrice] = useState(initialData?.price != null ? String(initialData.price) : "");
-  const [buyerAttorney, setBuyerAttorney] = useState(initialData?.buyer_attorney?.name || "");
-  const [buyerAttorneyTbd, setBuyerAttorneyTbd] = useState(false);
-  const [sellerAttorney, setSellerAttorney] = useState(initialData?.seller_attorney?.name || "");
-  const [sellerAttorneyTbd, setSellerAttorneyTbd] = useState(false);
-  const [commissionPct, setCommissionPct] = useState("");
+  const [region, setRegion] = useState(initialData?.region || draft?.region || "VT");
+  const [selectedAgentId, setSelectedAgentId] = useState(initialData?.agent_id || draft?.selectedAgentId || currentAgent.id);
+  const [selectedAgentName, setSelectedAgentName] = useState(initialData?.agent?.name || draft?.selectedAgentName || currentAgent.name);
+  const [side, setSide] = useState(initialData?.side || draft?.side || "Sell");
+  const [leadType, setLeadType] = useState(initialData?.commission_data?.lead_type || draft?.leadType || "Organic");
+  const [sellerName, setSellerName] = useState(initialData?.seller_name || draft?.sellerName || "");
+  const [buyerName, setBuyerName] = useState(initialData?.buyer_name || draft?.buyerName || "");
+  const [address, setAddress] = useState(initialData?.address || draft?.address || "");
+  const [propertyStyle, setPropertyStyle] = useState(initialData?.property_style || draft?.propertyStyle || "Residential");
+  const [price, setPrice] = useState(initialData?.price != null ? String(initialData.price) : draft?.price || "");
+  const [buyerAttorney, setBuyerAttorney] = useState(initialData?.buyer_attorney?.name || draft?.buyerAttorney || "");
+  const [buyerAttorneyTbd, setBuyerAttorneyTbd] = useState(draft?.buyerAttorneyTbd || false);
+  const [sellerAttorney, setSellerAttorney] = useState(initialData?.seller_attorney?.name || draft?.sellerAttorney || "");
+  const [sellerAttorneyTbd, setSellerAttorneyTbd] = useState(draft?.sellerAttorneyTbd || false);
+  const [commissionPct, setCommissionPct] = useState(draft?.commissionPct || "");
   const [commissionAutoAdjusted, setCommissionAutoAdjusted] = useState(false);
-  const [closingDate, setClosingDate] = useState("");
-  const [inspectionDate, setInspectionDate] = useState("");
-  const [financingDate, setFinancingDate] = useState("");
-  const [appraiser, setAppraiser] = useState("TBD");
-  const [appraiserOther, setAppraiserOther] = useState("");
-  const [holdDeposit, setHoldDeposit] = useState("No");
-  const [depositAmount, setDepositAmount] = useState("");
-  const [secondDeposit, setSecondDeposit] = useState("No");
-  const [secondDepositAmount, setSecondDepositAmount] = useState("");
-  const [secondDepositDueDate, setSecondDepositDueDate] = useState("");
-  const [clientSource, setClientSource] = useState(initialData?.commission_data?.client_source || CLIENT_SOURCES[0]);
-  const [referralOwedTo, setReferralOwedTo] = useState(initialData?.commission_data?.referral_owed_to || "");
+  const [closingDate, setClosingDate] = useState(draft?.closingDate || "");
+  const [inspectionDate, setInspectionDate] = useState(draft?.inspectionDate || "");
+  const [financingDate, setFinancingDate] = useState(draft?.financingDate || "");
+  const [appraiser, setAppraiser] = useState(draft?.appraiser || "TBD");
+  const [appraiserOther, setAppraiserOther] = useState(draft?.appraiserOther || "");
+  const [holdDeposit, setHoldDeposit] = useState(draft?.holdDeposit || "No");
+  const [depositAmount, setDepositAmount] = useState(draft?.depositAmount || "");
+  const [secondDeposit, setSecondDeposit] = useState(draft?.secondDeposit || "No");
+  const [secondDepositAmount, setSecondDepositAmount] = useState(draft?.secondDepositAmount || "");
+  const [secondDepositDueDate, setSecondDepositDueDate] = useState(draft?.secondDepositDueDate || "");
+  const [clientSource, setClientSource] = useState(initialData?.commission_data?.client_source || draft?.clientSource || CLIENT_SOURCES[0]);
+  const [referralOwedTo, setReferralOwedTo] = useState(initialData?.commission_data?.referral_owed_to || draft?.referralOwedTo || "");
   const initialReferralPct = initialData?.commission_data?.referral_pct;
   const [referralPctChoice, setReferralPctChoice] = useState(
-    initialReferralPct == null ? "25" : ["25", "30"].includes(String(initialReferralPct)) ? String(initialReferralPct) : "Other"
+    initialReferralPct == null
+      ? draft?.referralPctChoice || "25"
+      : ["25", "30"].includes(String(initialReferralPct))
+      ? String(initialReferralPct)
+      : "Other"
   );
-  const [referralPct, setReferralPct] = useState(initialReferralPct != null ? String(initialReferralPct) : "25");
+  const [referralPct, setReferralPct] = useState(initialReferralPct != null ? String(initialReferralPct) : draft?.referralPct || "25");
   const [referralPctAutoAdjusted, setReferralPctAutoAdjusted] = useState(false);
+
+  const { clearDraft } = useDraftPersistence(draftKey, {
+    region, selectedAgentId, selectedAgentName, side, leadType, sellerName, buyerName, address,
+    propertyStyle, price, buyerAttorney, buyerAttorneyTbd, sellerAttorney, sellerAttorneyTbd,
+    commissionPct, closingDate, inspectionDate, financingDate, appraiser, appraiserOther,
+    holdDeposit, depositAmount, secondDeposit, secondDepositAmount, secondDepositDueDate,
+    clientSource, referralOwedTo, referralPctChoice, referralPct,
+  });
 
   useEffect(() => {
     fetchAttorneys().then(setAttorneys).catch((e) => setError(e.message));
@@ -142,6 +162,7 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
         referralPct: clientSource === "Referral" && referralPct ? Number(referralPct) : null,
       });
 
+      clearDraft();
       onSubmitted();
     } catch (e) {
       setError(e.message);
@@ -157,10 +178,21 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
           <div className="brand-eyebrow">{initialData ? "Moving to Under Contract" : "New Deal"}</div>
           <h1>Under Contract</h1>
         </div>
-        <button type="button" onClick={onCancel}>
+        <button
+          type="button"
+          onClick={() => {
+            clearDraft();
+            onCancel();
+          }}
+        >
           Cancel
         </button>
       </header>
+      {draft && (
+        <div className="view-as-banner">
+          Restored your unsaved draft from last time — nothing was lost.
+        </div>
+      )}
 
       {error && <div className="error-banner">{error}</div>}
 

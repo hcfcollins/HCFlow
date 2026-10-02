@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createComp } from "../lib/transactions";
 import RadioGroup from "./RadioGroup";
 import CheckboxGroup from "./CheckboxGroup";
 import EmailListInput from "./EmailListInput";
 import { CLIENT_SOURCES, correctPercentInput } from "./UnderContractForm";
+import { loadDraft, useDraftPersistence } from "../lib/useDraftPersistence";
 import {
   TIMEFRAMES,
   PROPERTY_STYLES as PROPERTY_TYPES,
@@ -14,29 +15,36 @@ import {
 } from "../lib/compFieldOptions";
 
 export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
-  const [address, setAddress] = useState("");
-  const [town, setTown] = useState("");
-  const [sellerName, setSellerName] = useState("");
-  const [sellerEmails, setSellerEmails] = useState([""]);
-  const [timeframe, setTimeframe] = useState(TIMEFRAMES[0]);
-  const [propertyStyle, setPropertyStyle] = useState(PROPERTY_TYPES[0]);
-  const [electrical, setElectrical] = useState("");
-  const [heatingSystem, setHeatingSystem] = useState([]);
-  const [heatingOther, setHeatingOther] = useState("");
-  const [basement, setBasement] = useState([]);
-  const [waterSource, setWaterSource] = useState("");
-  const [septic, setSeptic] = useState("");
-  const [recommendations, setRecommendations] = useState([]);
-  const [referralNote, setReferralNote] = useState("");
-  const [notes, setNotes] = useState("");
-  const [leadType, setLeadType] = useState("Organic");
-  const [clientSource, setClientSource] = useState(CLIENT_SOURCES[0]);
-  const [referralOwedTo, setReferralOwedTo] = useState("");
-  const [referralPctChoice, setReferralPctChoice] = useState("25");
-  const [referralPct, setReferralPct] = useState("25");
+  const draft = useRef(loadDraft("new-comp")).current;
+  const [address, setAddress] = useState(draft?.address || "");
+  const [town, setTown] = useState(draft?.town || "");
+  const [sellerName, setSellerName] = useState(draft?.sellerName || "");
+  const [sellerEmails, setSellerEmails] = useState(draft?.sellerEmails || [""]);
+  const [timeframe, setTimeframe] = useState(draft?.timeframe || TIMEFRAMES[0]);
+  const [propertyStyle, setPropertyStyle] = useState(draft?.propertyStyle || PROPERTY_TYPES[0]);
+  const [electrical, setElectrical] = useState(draft?.electrical || "");
+  const [heatingSystem, setHeatingSystem] = useState(draft?.heatingSystem || []);
+  const [heatingOther, setHeatingOther] = useState(draft?.heatingOther || "");
+  const [basement, setBasement] = useState(draft?.basement || []);
+  const [waterSource, setWaterSource] = useState(draft?.waterSource || "");
+  const [septic, setSeptic] = useState(draft?.septic || "");
+  const [recommendations, setRecommendations] = useState(draft?.recommendations || []);
+  const [referralNote, setReferralNote] = useState(draft?.referralNote || "");
+  const [notes, setNotes] = useState(draft?.notes || "");
+  const [leadType, setLeadType] = useState(draft?.leadType || "Organic");
+  const [clientSource, setClientSource] = useState(draft?.clientSource || CLIENT_SOURCES[0]);
+  const [referralOwedTo, setReferralOwedTo] = useState(draft?.referralOwedTo || "");
+  const [referralPctChoice, setReferralPctChoice] = useState(draft?.referralPctChoice || "25");
+  const [referralPct, setReferralPct] = useState(draft?.referralPct || "25");
   const [referralPctAutoAdjusted, setReferralPctAutoAdjusted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  const { clearDraft } = useDraftPersistence("new-comp", {
+    address, town, sellerName, sellerEmails, timeframe, propertyStyle, electrical,
+    heatingSystem, heatingOther, basement, waterSource, septic, recommendations,
+    referralNote, notes, leadType, clientSource, referralOwedTo, referralPctChoice, referralPct,
+  });
 
   function handleReferralPctBlur() {
     const corrected = correctPercentInput(referralPct);
@@ -81,6 +89,7 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
         referralOwedTo,
         referralPct,
       });
+      clearDraft();
       onSubmitted();
     } catch (e) {
       setError(e.message);
@@ -96,12 +105,23 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
           <div className="brand-eyebrow">New Deal</div>
           <h1>New Comp</h1>
         </div>
-        <button type="button" onClick={onCancel}>
+        <button
+          type="button"
+          onClick={() => {
+            clearDraft();
+            onCancel();
+          }}
+        >
           Cancel
         </button>
       </header>
 
       {error && <div className="error-banner">{error}</div>}
+      {draft && (
+        <div className="view-as-banner">
+          Restored your unsaved draft from last time — nothing was lost.
+        </div>
+      )}
 
       <label>
         Address

@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileText, Copy, Check } from "lucide-react";
 import RadioGroup from "./RadioGroup";
 import ConfirmDialog from "./ConfirmDialog";
 import { SkeletonList } from "./Skeleton";
 import { useToast } from "../lib/ToastContext";
+import { loadDraft, useDraftPersistence } from "../lib/useDraftPersistence";
 import { fetchAllAgents, addAgent, updateAgentFields, removeAgent, uploadAgentCoverSheet } from "../lib/transactions";
 
 /** Uses the app's actual current URL — never a guessed/hardcoded domain, so the
@@ -98,17 +99,24 @@ function predictAgentFields(fullName) {
 }
 
 function AddAgentForm({ onAdded }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState("agent");
-  const [dropboxListingPath, setDropboxListingPath] = useState("");
-  const [dropboxBuyerPath, setDropboxBuyerPath] = useState("");
-  const [emailTouched, setEmailTouched] = useState(false);
-  const [pathsTouched, setPathsTouched] = useState(false);
+  const draft = useRef(loadDraft("add-agent")).current;
+  const [name, setName] = useState(draft?.name || "");
+  const [email, setEmail] = useState(draft?.email || "");
+  const [role, setRole] = useState(draft?.role || "agent");
+  const [dropboxListingPath, setDropboxListingPath] = useState(draft?.dropboxListingPath || "");
+  const [dropboxBuyerPath, setDropboxBuyerPath] = useState(draft?.dropboxBuyerPath || "");
+  const [emailTouched, setEmailTouched] = useState(draft?.emailTouched || false);
+  const [pathsTouched, setPathsTouched] = useState(draft?.pathsTouched || false);
   const [coverFile, setCoverFile] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [onboardingPackage, setOnboardingPackage] = useState(null);
+
+  // coverFile (a File object) can't be persisted to localStorage, so it's excluded —
+  // re-picking a PDF after a restore is a minor ask compared to the rest of the form.
+  const { clearDraft } = useDraftPersistence("add-agent", {
+    name, email, role, dropboxListingPath, dropboxBuyerPath, emailTouched, pathsTouched,
+  });
 
   function handleNameChange(v) {
     setName(v);
@@ -145,6 +153,7 @@ function AddAgentForm({ onAdded }) {
       setEmailTouched(false);
       setPathsTouched(false);
       setCoverFile(null);
+      clearDraft();
       onAdded();
     } catch (e) {
       setError(e.message);
@@ -174,6 +183,11 @@ function AddAgentForm({ onAdded }) {
       <fieldset>
         <legend>Add Agent</legend>
         {error && <div className="error-banner">{error}</div>}
+        {draft && (
+          <div className="view-as-banner">
+            Restored your unsaved draft from last time — nothing was lost.
+          </div>
+        )}
         <label>
           Name
           <input value={name} onChange={(e) => handleNameChange(e.target.value)} required />
