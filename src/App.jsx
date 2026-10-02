@@ -153,7 +153,17 @@ export default function App() {
   }
 
   async function handleToggleTodo(todo, done) {
-    await toggleTodo(todo.id, done);
+    // toggleTodo itself was failing silently before this try/catch — any error here
+    // aborted the function before loadTransactions ever ran, so the checkbox just
+    // looked stuck/unresponsive with nothing visible explaining why. Now the real
+    // error (RLS, network, whatever it turns out to be) actually shows up.
+    try {
+      await toggleTodo(todo.id, done);
+    } catch (e) {
+      console.error("Failed to update the to-do:", e);
+      setError(`Couldn't save that to-do: ${e.message}`);
+      return;
+    }
     // The checkbox itself must always flip and the list must always refresh, even if
     // the Go Live rotation side effect fails (e.g. the social_* columns migration
     // hasn't been run yet) — otherwise one broken side effect makes every checkbox

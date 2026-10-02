@@ -454,8 +454,10 @@ button { cursor: pointer; }
 .todo-due-toggle { background: var(--color-border); color: var(--color-text-muted); padding: 6px 10px; font-size: 14px; }
 .todo-due-toggle--active { background: rgba(var(--pink-rgb), 0.12); }
 .todo-add-date-row {
+  display: block;
   margin-top: 6px;
-  width: 100%;
+  width: auto;
+  max-width: 170px;
   padding: 6px 8px;
   border-radius: 8px;
   border: 1px solid var(--color-border-input);
