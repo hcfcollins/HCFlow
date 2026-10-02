@@ -103,6 +103,25 @@ export default function App() {
         }
       }
     }
+    if (stage === "market") {
+      const tx = txs.find((t) => t.id === id);
+      // Moving to On Market IS going live — don't make someone separately remember
+      // to check the "Go Live" to-do too. Only acts once (guarded on not already
+      // being in rotation) so flipping the stage dropdown back and forth doesn't
+      // keep bumping it to the front of the queue.
+      if (tx && tx.social_queue_order == null) {
+        try {
+          const goLiveTodo = tx.todos?.find((t) => t.text === "Go Live");
+          if (goLiveTodo && !goLiveTodo.done) {
+            await toggleTodo(goLiveTodo.id, true);
+          }
+          await setSocialRotation(id, true);
+        } catch (e) {
+          console.error("Failed to auto-join the social rotation on going to market:", e);
+          sideEffectError = sideEffectError || `Moved to On Market, but couldn't join the social rotation: ${e.message}`;
+        }
+      }
+    }
     if (stage === "contract" || stage === "closed") {
       const tx = txs.find((t) => t.id === id);
       // Leaving the daily social rotation on its own doesn't erase social_went_live_at,

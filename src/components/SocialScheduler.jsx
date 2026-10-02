@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BoostPostPanel, ListingGraphicPanel } from "./SocialPostPanels";
+import { listListingPhotos, fetchListingFile } from "../lib/transactions";
 
 const CALENDAR_DAYS = 14;
 const LONG_PRESS_MS = 350;
@@ -22,6 +23,45 @@ function socialRecencyClass(dateStr) {
   if (!dateStr) return "social-row--never";
   const days = (Date.now() - new Date(dateStr).getTime()) / 86400000;
   return days >= SOCIAL_RECENCY_DAYS ? "social-row--stale" : "social-row--recent";
+}
+
+/** The top photo from whichever folder the Boost Post/graphic pickers would also
+ * use first (Chosen Ones, falling back to Compressed_MLS, falling back to the
+ * whole Photos folder) — just enough to recognize which listing this is without
+ * opening it. */
+function ListingThumbnail({ transactionId }) {
+  const [url, setUrl] = useState(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let blobUrl = null;
+
+    listListingPhotos(transactionId)
+      .then(({ photos }) => {
+        if (cancelled) return;
+        if (!photos.length) {
+          setFailed(true);
+          return;
+        }
+        return fetchListingFile(transactionId, photos[0].path).then((blob) => {
+          if (cancelled) return;
+          blobUrl = URL.createObjectURL(blob);
+          setUrl(blobUrl);
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+
+    return () => {
+      cancelled = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [transactionId]);
+
+  if (failed) return null;
+  return <div className={`social-thumb ${url ? "" : "social-thumb--loading"}`}>{url && <img src={url} alt="" />}</div>;
 }
 
 function calendarLabel(dayOffset) {
@@ -152,6 +192,7 @@ export default function SocialScheduler({ transactions, onBack, onMarkPosted, on
         <ul className="detail-list">
           {rotation.map((tx) => (
             <li key={tx.id} className={`social-queue-row ${socialRecencyClass(tx.social_last_posted_at)}`}>
+              <ListingThumbnail transactionId={tx.id} />
               <div>
                 <span className="tx-address">{tx.address}</span>
                 <span className="tx-sub"> — {daysSince(tx.social_last_posted_at)}</span>
@@ -202,6 +243,7 @@ export default function SocialScheduler({ transactions, onBack, onMarkPosted, on
                         : undefined
                     }
                   >
+                    <ListingThumbnail transactionId={tx.id} />
                     <span className="tx-address">{tx.address}</span>
                     <span className="tx-sub">{daysSince(tx.social_last_posted_at)}</span>
                     <div className="social-row-actions">
