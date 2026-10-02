@@ -4,6 +4,7 @@ import { useToast } from "../lib/ToastContext";
 import { PROPERTY_STYLES } from "../lib/compFieldOptions";
 import { CLIENT_SOURCES } from "./UnderContractForm";
 import { formatDate } from "./DealDetail";
+import { TC_FEE_AMOUNTS } from "../lib/commissionCalc";
 
 const STAGE_OPTIONS = [
   { value: "comps", label: "Comp" },
@@ -49,6 +50,7 @@ const COLUMNS = [
   { key: "inspection_date", label: "Inspection Date", source: "commission", type: "date", format: formatDate },
   { key: "financing_date", label: "Financing Date", source: "commission", type: "date", format: formatDate },
   { key: "appraiser", label: "Appraiser", source: "commission", type: "text" },
+  { key: "tc_fee_type", label: "TC Fee", source: "commission", type: "select", options: Object.keys(TC_FEE_AMOUNTS) },
   { key: "commission_pct", label: "Commission %", source: "closeout", readOnly: true },
   { key: "agent_split_pct", label: "Agent Split %", source: "closeout", readOnly: true },
   { key: "commission_after_referral", label: "Comm. After Referral", source: "closeout", readOnly: true },

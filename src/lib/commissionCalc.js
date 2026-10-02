@@ -1,3 +1,21 @@
+// Flat transaction-coordinator fee, picked by the agent (not auto-derived from
+// side/property_style — overlapping scenarios like a land deal with a buyer
+// client are a judgment call). Comes out of the brokerage's own bank_amount,
+// not the agent/Holly/Fran split — see applyTcFee below.
+export const TC_FEE_AMOUNTS = {
+  Land: 250,
+  Buyer: 300,
+  "Unrepresented Buyer Listing": 500,
+};
+
+/** bank_amount is 0 for owner deals (Fran/Holly personally) — there's no
+ * brokerage "bank" bucket to deduct from there, so this naturally floors at 0
+ * instead of going negative. */
+export function applyTcFee(bankAmount, tcFeeType) {
+  const fee = TC_FEE_AMOUNTS[tcFeeType] || 0;
+  return Math.max(0, round2(bankAmount - fee));
+}
+
 /**
  * Hall Collins commission close-out calculation.
  * See Build Spec §6 — this logic was verified against real historical closed-deal

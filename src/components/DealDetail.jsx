@@ -575,6 +575,14 @@ export default function DealDetail({
                     <div>${Number(transaction.closeouts.bank_amount).toLocaleString()}</div>
                   </div>
                 )}
+                {transaction.closeouts.tc_fee_type && (
+                  <div>
+                    <div className="detail-label">TC Fee</div>
+                    <div>
+                      {transaction.closeouts.tc_fee_type} (${Number(transaction.closeouts.tc_fee_amount ?? 0).toLocaleString()})
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}

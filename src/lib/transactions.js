@@ -385,7 +385,7 @@ export async function submitUnderContract(fields) {
     buyerAttorneyId, sellerAttorneyId, closingDate, leadType, commissionPct,
     inspectionDate, financingDate, appraiser, holdDeposit, depositAmount,
     secondDeposit, secondDepositAmount, secondDepositDueDate,
-    clientSource, referralOwedTo, referralPct,
+    clientSource, referralOwedTo, referralPct, tcFeeType,
   } = fields;
 
   const txPatch = {
@@ -433,6 +433,7 @@ export async function submitUnderContract(fields) {
     inspection_date: inspectionDate || null,
     financing_date: financingDate || null,
     appraiser,
+    tc_fee_type: tcFeeType,
   });
 
   const { error: closeoutError } = await supabase.from("closeouts").insert({

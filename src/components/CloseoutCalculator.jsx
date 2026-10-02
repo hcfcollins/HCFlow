@@ -1,7 +1,7 @@
 import { useState } from "react";
 import RadioGroup from "./RadioGroup";
 import { saveCloseout } from "../lib/transactions";
-import { calculateCloseout } from "../lib/commissionCalc";
+import { calculateCloseout, applyTcFee, TC_FEE_AMOUNTS } from "../lib/commissionCalc";
 import { useToast } from "../lib/ToastContext";
 
 const LEAD_TYPES = ["Organic", "Provided"];
@@ -21,6 +21,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const [agentSplitPct, setAgentSplitPct] = useState(saved.agent_split_pct ?? "");
   const [netOverride, setNetOverride] = useState(saved.net_override ?? false);
   const [netAmount, setNetAmount] = useState(saved.net_amount ?? "");
+  const [tcFeeType, setTcFeeType] = useState(saved.tc_fee_type ?? transaction.commission_data?.tc_fee_type ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -38,6 +39,10 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
     leadType,
     agentSplitPct: agentSplitPct !== "" ? Number(agentSplitPct) : null,
   });
+  // Comes out of the brokerage's own cut, not the agent/Holly/Fran split — a
+  // no-op for owner deals, where bankAmount is already 0.
+  const tcFeeAmount = TC_FEE_AMOUNTS[tcFeeType] || 0;
+  const finalBankAmount = applyTcFee(result.bankAmount, tcFeeType);
 
   async function handleSave() {
     setSaving(true);
@@ -55,7 +60,9 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         agent_commission: result.agentCommission,
         holly_commission: result.hollyCommission,
         fran_commission: result.franCommission,
-        bank_amount: result.bankAmount,
+        bank_amount: finalBankAmount,
+        tc_fee_type: tcFeeType || null,
+        tc_fee_amount: tcFeeType ? tcFeeAmount : null,
       });
       showToast("Close-out saved — deal marked Closed");
       onSaved();
@@ -123,6 +130,18 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         </fieldset>
       )}
 
+      <label>
+        Transaction Coordinator Fee <span className="field-help">(comes out of the brokerage's cut, below)</span>
+        <select value={tcFeeType} onChange={(e) => setTcFeeType(e.target.value)}>
+          <option value="">None</option>
+          {Object.entries(TC_FEE_AMOUNTS).map(([type, amount]) => (
+            <option key={type} value={type}>
+              {type} (${amount})
+            </option>
+          ))}
+        </select>
+      </label>
+
       <fieldset className="closeout-preview">
         <legend>Preview</legend>
         <div className="closeout-preview-row">
@@ -154,9 +173,15 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
               <span>Fran's Cut</span>
               <strong>{money(result.franCommission)}</strong>
             </div>
+            {tcFeeType && (
+              <div className="closeout-preview-row">
+                <span>Transaction Coordinator Fee ({tcFeeType})</span>
+                <strong>−{money(tcFeeAmount)}</strong>
+              </div>
+            )}
             <div className="closeout-preview-row">
               <span>Bank Amount</span>
-              <strong>{money(result.bankAmount)}</strong>
+              <strong>{money(finalBankAmount)}</strong>
             </div>
           </>
         )}

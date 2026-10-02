@@ -3,6 +3,7 @@ import { fetchAttorneys, submitUnderContract, resolveAttorneyId as resolveAttorn
 import RadioGroup from "./RadioGroup";
 import AgentField from "./AgentField";
 import { loadDraft, useDraftPersistence } from "../lib/useDraftPersistence";
+import { TC_FEE_AMOUNTS } from "../lib/commissionCalc";
 
 export const CLIENT_SOURCES = [
   "Prior Client/Sphere",
@@ -80,12 +81,13 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
   );
   const [referralPct, setReferralPct] = useState(initialReferralPct != null ? String(initialReferralPct) : draft?.referralPct || "25");
   const [referralPctAutoAdjusted, setReferralPctAutoAdjusted] = useState(false);
+  const [tcFeeType, setTcFeeType] = useState(initialData?.commission_data?.tc_fee_type || draft?.tcFeeType || "");
 
   const { clearDraft } = useDraftPersistence(draftKey, {
     region, selectedAgentId, selectedAgentName, side, leadType, sellerName, buyerName, address,
     propertyStyle, price, buyerAttorney, buyerAttorneyTbd, sellerAttorney, sellerAttorneyTbd,
     commissionPct, closingDate, inspectionDate, financingDate, appraiser, appraiserOther,
-    holdDeposit, depositAmount, secondDeposit, secondDepositAmount, secondDepositDueDate,
+    holdDeposit, depositAmount, secondDeposit, secondDepositAmount, secondDepositDueDate, tcFeeType,
     clientSource, referralOwedTo, referralPctChoice, referralPct,
   });
 
@@ -160,6 +162,7 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
         clientSource,
         referralOwedTo: clientSource === "Referral" ? referralOwedTo : null,
         referralPct: clientSource === "Referral" && referralPct ? Number(referralPct) : null,
+        tcFeeType: tcFeeType || null,
       });
 
       clearDraft();
@@ -412,6 +415,19 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
           </fieldset>
         </>
       )}
+
+      <label>
+        Transaction Coordinator Fee{" "}
+        <span className="field-help">(your judgment call — picks which flat fee applies, comes out of the brokerage's cut)</span>
+        <select value={tcFeeType} onChange={(e) => setTcFeeType(e.target.value)}>
+          <option value="">None</option>
+          {Object.entries(TC_FEE_AMOUNTS).map(([type, amount]) => (
+            <option key={type} value={type}>
+              {type} (${amount})
+            </option>
+          ))}
+        </select>
+      </label>
 
       <button type="submit" className="google-btn uc-submit" disabled={saving}>
         {saving ? "Saving…" : "Submit"}

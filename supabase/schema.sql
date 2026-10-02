@@ -153,6 +153,11 @@ create table commission_data (
   inspection_date date,
   financing_date date,
   appraiser text,
+  -- Flat fee the brokerage pays a transaction coordinator, picked by the agent
+  -- (not auto-derived — e.g. a land deal where the client is also the buyer is
+  -- a judgment call). Comes out of the brokerage's own cut (closeouts.bank_amount),
+  -- not the agent/Holly/Fran split. See TC_FEE_AMOUNTS in lib/commissionCalc.js.
+  tc_fee_type text check (tc_fee_type in ('Land', 'Buyer', 'Unrepresented Buyer Listing')),
   updated_at timestamptz not null default now()
 );
 
@@ -172,7 +177,9 @@ create table closeouts (
   agent_commission numeric,
   holly_commission numeric,
   fran_commission numeric,
-  bank_amount numeric,
+  bank_amount numeric, -- already net of tc_fee_amount below, if any
+  tc_fee_type text, -- frozen snapshot of commission_data.tc_fee_type at the time this was calculated
+  tc_fee_amount numeric, -- frozen dollar amount actually deducted, so it's on record even if TC_FEE_AMOUNTS changes later
   is_historical_import boolean default false, -- true for rows imported from the old Google Sheet
   calculated_at timestamptz not null default now()
 );
