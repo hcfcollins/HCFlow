@@ -46,13 +46,6 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-function contentTypeForPath(path: string): string {
-  const lower = path.toLowerCase();
-  if (lower.endsWith(".png")) return "image/png";
-  if (lower.endsWith(".heic")) return "image/heic";
-  return "image/jpeg";
-}
-
 async function getDropboxAccessToken(): Promise<string> {
   const res = await fetch("https://api.dropboxapi.com/oauth2/token", {
     method: "POST",
@@ -209,8 +202,14 @@ Deno.serve(async (req) => {
     if (action === "fetchFile") {
       if (!path) return jsonResponse({ error: "path required" }, 400);
       const bytes = await downloadFile(accessToken, path);
+      // The Supabase JS client's functions.invoke() only auto-parses a response as a
+      // Blob for "application/octet-stream" or "application/pdf" — any other content
+      // type (e.g. the real "image/jpeg") falls through to .text(), which corrupts
+      // the binary payload into mangled text. So we send octet-stream here and let
+      // the caller (fetchListingFile in src/lib/transactions.js) re-tag the Blob with
+      // the real image mime type it needs for <img>/canvas use.
       return new Response(bytes, {
-        headers: { ...CORS_HEADERS, "Content-Type": contentTypeForPath(path) },
+        headers: { ...CORS_HEADERS, "Content-Type": "application/octet-stream" },
       });
     }
 

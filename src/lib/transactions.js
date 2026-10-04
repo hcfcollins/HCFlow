@@ -212,15 +212,26 @@ export async function listListingPhotos(transactionId) {
   return data;
 }
 
+function imageContentTypeForPath(path) {
+  const lower = path.toLowerCase();
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".heic")) return "image/heic";
+  return "image/jpeg";
+}
+
 /** Fetches one Dropbox file's raw bytes as a Blob — used both for picker
  * thumbnails/previews (via URL.createObjectURL) and as the image source for
- * client-side canvas compositing (blob URLs are never cross-origin-tainted). */
+ * client-side canvas compositing (blob URLs are never cross-origin-tainted).
+ * The Edge Function sends the bytes back as "application/octet-stream" (the
+ * only content type the Supabase client auto-parses as a Blob rather than
+ * mangling through .text()), so the real image mime type has to be re-tagged
+ * here from the file extension before handing the Blob off to a caller. */
 export async function fetchListingFile(transactionId, path) {
   const { data, error } = await supabase.functions.invoke("social-post-assets", {
     body: { action: "fetchFile", transactionId, path },
   });
   if (error) throw error;
-  return data;
+  return new Blob([data], { type: imageContentTypeForPath(path) });
 }
 
 /** Best-effort caption draft pulled from the MLS description in the listing's
