@@ -12,7 +12,11 @@ import {
   ELECTRICAL_OPTIONS,
   HEATING_OPTIONS,
   BASEMENT_OPTIONS,
-  RECOMMENDATION_OPTIONS,
+  FUEL_TYPE_OPTIONS,
+  YES_NO_OPTIONS,
+  SOLAR_OPTIONS,
+  NOT_SPECIFIED,
+  recommendationOptionsFor,
 } from "../lib/compFieldOptions";
 
 const DEFAULT_LAND = { acres: "", roadFrontage: "None", parcelCharacter: "Standard lot", percStatus: "None done", devItems: {}, comps: [{}, {}, {}] };
@@ -51,6 +55,19 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
   const [basement, setBasement] = useState(transaction.basement || []);
   const [waterSource, setWaterSource] = useState(transaction.water_source || "");
   const [septic, setSeptic] = useState(transaction.septic || "");
+  const [beds, setBeds] = useState(transaction.beds ?? "");
+  const [baths, setBaths] = useState(transaction.baths ?? "");
+  const [garageSpaces, setGarageSpaces] = useState(transaction.garage_spaces ?? "");
+  const [lotAcres, setLotAcres] = useState(transaction.lot_acres ?? "");
+  const [yearBuilt, setYearBuilt] = useState(transaction.year_built ?? "");
+  const [featuresNotes, setFeaturesNotes] = useState(transaction.features_notes || "");
+  const [finishesNote, setFinishesNote] = useState(transaction.finishes_note || "");
+  const [fuelTypes, setFuelTypes] = useState(transaction.fuel_types || []);
+  const [privateSeptic, setPrivateSeptic] = useState(transaction.private_septic || NOT_SPECIFIED);
+  const [privateWell, setPrivateWell] = useState(transaction.private_well || NOT_SPECIFIED);
+  const [hasView, setHasView] = useState(transaction.has_view || NOT_SPECIFIED);
+  const [solar, setSolar] = useState(transaction.solar || NOT_SPECIFIED);
+  const [boundaryNotes, setBoundaryNotes] = useState(transaction.boundary_notes || "");
   const [recommendations, setRecommendations] = useState(transaction.recommendations || []);
 
   const isLand = propertyStyle === "Land";
@@ -144,6 +161,19 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
       basement,
       water_source: waterSource,
       septic,
+      beds: beds === "" ? null : Number(beds),
+      baths: baths === "" ? null : Number(baths),
+      garage_spaces: garageSpaces === "" ? null : Number(garageSpaces),
+      lot_acres: lotAcres === "" ? null : Number(lotAcres),
+      year_built: yearBuilt === "" ? null : Number(yearBuilt),
+      features_notes: featuresNotes || null,
+      finishes_note: finishesNote || null,
+      fuel_types: fuelTypes,
+      private_septic: privateSeptic === NOT_SPECIFIED ? null : privateSeptic,
+      private_well: privateWell === NOT_SPECIFIED ? null : privateWell,
+      has_view: hasView === NOT_SPECIFIED ? null : hasView,
+      solar: solar === NOT_SPECIFIED ? null : solar,
+      boundary_notes: boundaryNotes || null,
       recommendations,
     };
     // Used for PDF generation immediately, since the `transaction` prop won't reflect
@@ -236,8 +266,81 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
         </label>
         <div>
           <div className="detail-label">Recommendations</div>
-          <CheckboxGroup name="recommendations" values={recommendations} onChange={setRecommendations} options={RECOMMENDATION_OPTIONS} />
+          <CheckboxGroup name="recommendations" values={recommendations} onChange={setRecommendations} options={recommendationOptionsFor(propertyStyle)} />
         </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Subject Property Stats</legend>
+        <p className="field-help">Appears in the Subject Property Overview section of the generated CMA.</p>
+        <label>
+          Bedrooms
+          <input type="number" min="0" value={beds} onChange={(e) => setBeds(e.target.value)} />
+        </label>
+        <label>
+          Bathrooms
+          <input type="number" min="0" step="0.5" value={baths} onChange={(e) => setBaths(e.target.value)} />
+        </label>
+        <label>
+          Garage Spaces
+          <input type="number" min="0" value={garageSpaces} onChange={(e) => setGarageSpaces(e.target.value)} />
+        </label>
+        <label>
+          Lot Size (acres)
+          <input type="number" min="0" step="0.1" value={lotAcres} onChange={(e) => setLotAcres(e.target.value)} />
+        </label>
+        <label>
+          Year Built
+          <input type="number" min="1700" max="2100" value={yearBuilt} onChange={(e) => setYearBuilt(e.target.value)} />
+        </label>
+        <label>
+          Notable Features / Highlights
+          <textarea value={featuresNotes} onChange={(e) => setFeaturesNotes(e.target.value)} rows={2} />
+        </label>
+        <label>
+          Quality of Finishes
+          <textarea value={finishesNote} onChange={(e) => setFinishesNote(e.target.value)} rows={2} />
+        </label>
+        <div>
+          <div className="detail-label">Fuel Type(s)</div>
+          <CheckboxGroup name="fuelTypes" values={fuelTypes} onChange={setFuelTypes} options={FUEL_TYPE_OPTIONS} />
+        </div>
+        <label>
+          Private Septic
+          <select value={privateSeptic} onChange={(e) => setPrivateSeptic(e.target.value)}>
+            {YES_NO_OPTIONS.map((o) => (
+              <option key={o} value={o}>{o}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Private Well
+          <select value={privateWell} onChange={(e) => setPrivateWell(e.target.value)}>
+            {YES_NO_OPTIONS.map((o) => (
+              <option key={o} value={o}>{o}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          View
+          <select value={hasView} onChange={(e) => setHasView(e.target.value)}>
+            {YES_NO_OPTIONS.map((o) => (
+              <option key={o} value={o}>{o}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Solar
+          <select value={solar} onChange={(e) => setSolar(e.target.value)}>
+            {SOLAR_OPTIONS.map((o) => (
+              <option key={o} value={o}>{o}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Notes on Boundary Lines
+          <textarea value={boundaryNotes} onChange={(e) => setBoundaryNotes(e.target.value)} rows={2} />
+        </label>
       </fieldset>
 
       <fieldset>

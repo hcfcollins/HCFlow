@@ -109,11 +109,27 @@ function SubjectOverview({ transaction }) {
   push("Property Type", transaction.property_style);
   push("Seller(s)", transaction.seller_name);
   push("Rough Timeframe", transaction.timeframe);
+  push("Bedrooms", transaction.beds);
+  push("Bathrooms", transaction.baths);
+  push("Garage Spaces", transaction.garage_spaces);
+  push("Lot Size (acres)", transaction.lot_acres);
+  push("Year Built", transaction.year_built);
   push("Electrical", transaction.electrical);
   if (transaction.heating_system?.length) push("Heating System", transaction.heating_system.join(", "));
+  if (transaction.fuel_types?.length) push("Fuel Type(s)", transaction.fuel_types.join(", "));
   if (transaction.basement?.length) push("Basement", transaction.basement.join(", "));
   push("Water Source", transaction.water_source);
   push("Septic", transaction.septic);
+  push("Private Septic", transaction.private_septic);
+  push("Private Well", transaction.private_well);
+  push("View", transaction.has_view);
+  push("Solar", transaction.solar);
+
+  const textBlocks = [
+    ["Notable Features / Highlights", transaction.features_notes],
+    ["Quality of Finishes", transaction.finishes_note],
+    ["Notes on Boundary Lines", transaction.boundary_notes],
+  ].filter(([, val]) => val?.trim());
 
   return (
     <View>
@@ -130,6 +146,12 @@ function SubjectOverview({ transaction }) {
           ))}
         </View>
       )}
+      {textBlocks.map(([label, val]) => (
+        <View key={label} wrap={false} style={{ marginBottom: 6 }}>
+          <Text style={s.label}>{label}</Text>
+          <Text style={s.body}>{val.trim()}</Text>
+        </View>
+      ))}
     </View>
   );
 }

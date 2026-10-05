@@ -30,3 +30,17 @@ export const RECOMMENDATION_OPTIONS = [
   "Consider Evicting Tenants Before Listing",
   "Make Repairs to Major Systems",
 ];
+// The last 3 RECOMMENDATION_OPTIONS only make sense for income properties — ported
+// from the Streamlit CMA generator's "Multi-Family specific:" sub-section, which only
+// shows these when Property Type == "Multi Family".
+const MF_ONLY_RECOMMENDATIONS = ["Organize Leases & Tenant Documents", "Consider Evicting Tenants Before Listing", "Make Repairs to Major Systems"];
+export function recommendationOptionsFor(propertyStyle) {
+  return propertyStyle === "Multi Family" ? RECOMMENDATION_OPTIONS : RECOMMENDATION_OPTIONS.filter((o) => !MF_ONLY_RECOMMENDATIONS.includes(o));
+}
+
+// Subject Property stats fields, ported from the Streamlit CMA generator's Step 1
+// "Subject Property Details" expander.
+export const FUEL_TYPE_OPTIONS = ["Oil", "Propane", "Pellet", "Electric", "Mini Split", "Wood", "Other"];
+export const NOT_SPECIFIED = "— not specified —";
+export const YES_NO_OPTIONS = [NOT_SPECIFIED, "Yes", "No"];
+export const SOLAR_OPTIONS = [NOT_SPECIFIED, "No", "Yes — Owned", "Yes — Leased"];

@@ -76,6 +76,22 @@ create table transactions (
   septic text,
   recommendations text[], -- multi-select: standard seller recommendations checklist (Wait for Spring, Septic Inspection, etc.)
   referral_note text, -- internal note on where this client/lead came from, so a referral payment isn't missed at closing; never included in the generated comp PDF
+  -- Subject property stats, ported from the Streamlit CMA generator's Step 1 "Subject
+  -- Property Details" expander — ANR/comp auto-lookup fields were intentionally NOT
+  -- ported (removed from the CMA app itself; HC Flow doesn't replicate it either).
+  beds numeric,
+  baths numeric,
+  garage_spaces numeric,
+  lot_acres numeric,
+  year_built integer,
+  features_notes text, -- "Notable Features / Highlights"
+  finishes_note text, -- "Quality of Finishes"
+  fuel_types text[], -- multi-select: Oil, Propane, Pellet, Electric, Mini Split, Wood, Other
+  private_septic text check (private_septic in ('Yes', 'No')),
+  private_well text check (private_well in ('Yes', 'No')),
+  has_view text check (has_view in ('Yes', 'No')),
+  solar text check (solar in ('No', 'Yes — Owned', 'Yes — Leased')),
+  boundary_notes text, -- "Notes on Boundary Lines"
   linked_id uuid references transactions(id),
   social_queue_order integer, -- position in the social media daily rotation queue; null = not currently in rotation
   social_went_live_at timestamptz, -- set once, first time the "Go Live" to-do is checked; never cleared — marks eligibility for the one closing shoutout

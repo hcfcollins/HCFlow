@@ -11,7 +11,11 @@ import {
   ELECTRICAL_OPTIONS,
   HEATING_OPTIONS,
   BASEMENT_OPTIONS,
-  RECOMMENDATION_OPTIONS,
+  FUEL_TYPE_OPTIONS,
+  YES_NO_OPTIONS,
+  SOLAR_OPTIONS,
+  NOT_SPECIFIED,
+  recommendationOptionsFor,
 } from "../lib/compFieldOptions";
 
 export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
@@ -28,6 +32,19 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
   const [basement, setBasement] = useState(draft?.basement || []);
   const [waterSource, setWaterSource] = useState(draft?.waterSource || "");
   const [septic, setSeptic] = useState(draft?.septic || "");
+  const [beds, setBeds] = useState(draft?.beds || "");
+  const [baths, setBaths] = useState(draft?.baths || "");
+  const [garageSpaces, setGarageSpaces] = useState(draft?.garageSpaces || "");
+  const [lotAcres, setLotAcres] = useState(draft?.lotAcres || "");
+  const [yearBuilt, setYearBuilt] = useState(draft?.yearBuilt || "");
+  const [featuresNotes, setFeaturesNotes] = useState(draft?.featuresNotes || "");
+  const [finishesNote, setFinishesNote] = useState(draft?.finishesNote || "");
+  const [fuelTypes, setFuelTypes] = useState(draft?.fuelTypes || []);
+  const [privateSeptic, setPrivateSeptic] = useState(draft?.privateSeptic || NOT_SPECIFIED);
+  const [privateWell, setPrivateWell] = useState(draft?.privateWell || NOT_SPECIFIED);
+  const [hasView, setHasView] = useState(draft?.hasView || NOT_SPECIFIED);
+  const [solar, setSolar] = useState(draft?.solar || NOT_SPECIFIED);
+  const [boundaryNotes, setBoundaryNotes] = useState(draft?.boundaryNotes || "");
   const [recommendations, setRecommendations] = useState(draft?.recommendations || []);
   const [referralNote, setReferralNote] = useState(draft?.referralNote || "");
   const [notes, setNotes] = useState(draft?.notes || "");
@@ -44,6 +61,8 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
     address, town, sellerName, sellerEmails, timeframe, propertyStyle, electrical,
     heatingSystem, heatingOther, basement, waterSource, septic, recommendations,
     referralNote, notes, leadType, clientSource, referralOwedTo, referralPctChoice, referralPct,
+    beds, baths, garageSpaces, lotAcres, yearBuilt, featuresNotes, finishesNote,
+    fuelTypes, privateSeptic, privateWell, hasView, solar, boundaryNotes,
   });
 
   function handleReferralPctBlur() {
@@ -82,6 +101,19 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
         basement,
         waterSource,
         septic,
+        beds: beds || null,
+        baths: baths || null,
+        garageSpaces: garageSpaces || null,
+        lotAcres: lotAcres || null,
+        yearBuilt: yearBuilt || null,
+        featuresNotes: featuresNotes || null,
+        finishesNote: finishesNote || null,
+        fuelTypes,
+        privateSeptic: privateSeptic === NOT_SPECIFIED ? null : privateSeptic,
+        privateWell: privateWell === NOT_SPECIFIED ? null : privateWell,
+        hasView: hasView === NOT_SPECIFIED ? null : hasView,
+        solar: solar === NOT_SPECIFIED ? null : solar,
+        boundaryNotes: boundaryNotes || null,
         recommendations,
         referralNote: referralNote || null,
         leadType,
@@ -222,6 +254,78 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
       </fieldset>
 
       <fieldset>
+        <legend>Property Stats</legend>
+        <label>
+          Bedrooms
+          <input type="number" min="0" value={beds} onChange={(e) => setBeds(e.target.value)} />
+        </label>
+        <label>
+          Bathrooms
+          <input type="number" min="0" step="0.5" value={baths} onChange={(e) => setBaths(e.target.value)} />
+        </label>
+        <label>
+          Garage Spaces
+          <input type="number" min="0" value={garageSpaces} onChange={(e) => setGarageSpaces(e.target.value)} />
+        </label>
+        <label>
+          Lot Size (acres)
+          <input type="number" min="0" step="0.1" value={lotAcres} onChange={(e) => setLotAcres(e.target.value)} />
+        </label>
+        <label>
+          Year Built
+          <input type="number" min="1700" max="2100" value={yearBuilt} onChange={(e) => setYearBuilt(e.target.value)} />
+        </label>
+        <label>
+          Notable Features / Highlights
+          <textarea value={featuresNotes} onChange={(e) => setFeaturesNotes(e.target.value)} rows={2} />
+        </label>
+        <label>
+          Quality of Finishes
+          <textarea value={finishesNote} onChange={(e) => setFinishesNote(e.target.value)} rows={2} />
+        </label>
+        <fieldset>
+          <legend>Fuel Type(s)</legend>
+          <CheckboxGroup name="fuelTypes" values={fuelTypes} onChange={setFuelTypes} options={FUEL_TYPE_OPTIONS} />
+        </fieldset>
+        <label>
+          Private Septic
+          <select value={privateSeptic} onChange={(e) => setPrivateSeptic(e.target.value)}>
+            {YES_NO_OPTIONS.map((o) => (
+              <option key={o} value={o}>{o}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Private Well
+          <select value={privateWell} onChange={(e) => setPrivateWell(e.target.value)}>
+            {YES_NO_OPTIONS.map((o) => (
+              <option key={o} value={o}>{o}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          View
+          <select value={hasView} onChange={(e) => setHasView(e.target.value)}>
+            {YES_NO_OPTIONS.map((o) => (
+              <option key={o} value={o}>{o}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Solar
+          <select value={solar} onChange={(e) => setSolar(e.target.value)}>
+            {SOLAR_OPTIONS.map((o) => (
+              <option key={o} value={o}>{o}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Notes on Boundary Lines
+          <textarea value={boundaryNotes} onChange={(e) => setBoundaryNotes(e.target.value)} rows={2} />
+        </label>
+      </fieldset>
+
+      <fieldset>
         <legend>Electrical</legend>
         <RadioGroup name="electrical" value={electrical} onChange={setElectrical} options={ELECTRICAL_OPTIONS} />
       </fieldset>
@@ -252,7 +356,7 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
           name="recommendations"
           values={recommendations}
           onChange={setRecommendations}
-          options={RECOMMENDATION_OPTIONS}
+          options={recommendationOptionsFor(propertyStyle)}
         />
       </fieldset>
 
