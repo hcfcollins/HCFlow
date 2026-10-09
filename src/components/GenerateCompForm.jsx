@@ -4,6 +4,7 @@ import EmailListInput from "./EmailListInput";
 import CheckboxGroup from "./CheckboxGroup";
 import RadioGroup from "./RadioGroup";
 import { updateTransactionFields, uploadCompPdf, addActivityLog } from "../lib/transactions";
+import { focusNextOnEnter } from "../lib/formKeyNav";
 import { ROAD_FRONTAGE_OPTIONS, PARCEL_CHARACTER_OPTIONS, PERC_STATUS_OPTIONS, LAND_DEV_ITEMS } from "../lib/compPdf/landPricing";
 import { UTILITY_OPTIONS } from "../lib/compPdf/capRateMath";
 import {
@@ -205,7 +206,7 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
   }
 
   return (
-    <form className="uc-form generate-comp-form" onSubmit={handleSubmit}>
+    <form className="uc-form generate-comp-form" onSubmit={handleSubmit} onKeyDown={focusNextOnEnter}>
       <header className="app-header">
         <div>
           <div className="brand-eyebrow">{transaction.address}</div>

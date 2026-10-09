@@ -4,6 +4,7 @@ import RadioGroup from "./RadioGroup";
 import AgentField from "./AgentField";
 import { loadDraft, useDraftPersistence } from "../lib/useDraftPersistence";
 import { TC_FEE_AMOUNTS } from "../lib/commissionCalc";
+import { focusNextOnEnter } from "../lib/formKeyNav";
 
 export const CLIENT_SOURCES = [
   "Prior Client/Sphere",
@@ -175,7 +176,7 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
   }
 
   return (
-    <form className="uc-form" onSubmit={handleSubmit}>
+    <form className="uc-form" onSubmit={handleSubmit} onKeyDown={focusNextOnEnter}>
       <header className="app-header">
         <div>
           <div className="brand-eyebrow">{initialData ? "Moving to Under Contract" : "New Deal"}</div>

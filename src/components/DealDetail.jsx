@@ -9,6 +9,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys } from "../lib/transactions";
+import { focusNextOnEnter } from "../lib/formKeyNav";
 import {
   PROPERTY_STYLES,
   TIMEFRAMES,
@@ -885,7 +886,7 @@ function CompDetailsEditForm({ transaction, handleFieldSave, onDone }) {
   }
 
   return (
-    <div className="uc-form comp-edit-all">
+    <div className="uc-form comp-edit-all" onKeyDown={focusNextOnEnter}>
       <label>
         Seller Name(s)
         <input value={sellerName} onChange={(e) => setSellerName(e.target.value)} />

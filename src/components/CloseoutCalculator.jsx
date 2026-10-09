@@ -3,6 +3,7 @@ import RadioGroup from "./RadioGroup";
 import { saveCloseout } from "../lib/transactions";
 import { calculateCloseout, applyTcFee, TC_FEE_AMOUNTS } from "../lib/commissionCalc";
 import { useToast } from "../lib/ToastContext";
+import { focusNextOnEnter } from "../lib/formKeyNav";
 
 const LEAD_TYPES = ["Organic", "Provided"];
 
@@ -74,7 +75,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   }
 
   return (
-    <div className="uc-form closeout-calculator">
+    <div className="uc-form closeout-calculator" onKeyDown={focusNextOnEnter}>
       <header className="app-header">
         <div>
           <div className="brand-eyebrow">{transaction.address}</div>

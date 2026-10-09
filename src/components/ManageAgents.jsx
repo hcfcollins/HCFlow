@@ -6,6 +6,7 @@ import { SkeletonList } from "./Skeleton";
 import { useToast } from "../lib/ToastContext";
 import { loadDraft, useDraftPersistence } from "../lib/useDraftPersistence";
 import { fetchAllAgents, addAgent, updateAgentFields, removeAgent, uploadAgentCoverSheet } from "../lib/transactions";
+import { focusNextOnEnter } from "../lib/formKeyNav";
 
 /** Uses the app's actual current URL — never a guessed/hardcoded domain, so the
  * sign-in link is always correct even if the deployment domain ever changes. */
@@ -167,7 +168,7 @@ function AddAgentForm({ onAdded }) {
   }
 
   return (
-    <form className="uc-form" onSubmit={handleSubmit}>
+    <form className="uc-form" onSubmit={handleSubmit} onKeyDown={focusNextOnEnter}>
       <div className="onboarding-checklist">
         <strong>Before adding a new agent, in Dropbox:</strong>
         <ol>

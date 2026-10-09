@@ -5,6 +5,7 @@ import CheckboxGroup from "./CheckboxGroup";
 import EmailListInput from "./EmailListInput";
 import { CLIENT_SOURCES, correctPercentInput } from "./UnderContractForm";
 import { loadDraft, useDraftPersistence } from "../lib/useDraftPersistence";
+import { focusNextOnEnter } from "../lib/formKeyNav";
 import {
   TIMEFRAMES,
   PROPERTY_STYLES as PROPERTY_TYPES,
@@ -131,7 +132,7 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
   }
 
   return (
-    <form className="uc-form" onSubmit={handleSubmit}>
+    <form className="uc-form" onSubmit={handleSubmit} onKeyDown={focusNextOnEnter}>
       <header className="app-header">
         <div>
           <div className="brand-eyebrow">New Deal</div>
