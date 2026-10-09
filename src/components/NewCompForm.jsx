@@ -231,17 +231,16 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
               </span>
             )}
           </fieldset>
+          <label>
+            Referral / Lead Notes <span className="field-help">(internal — never appears on the generated comp)</span>
+            <input
+              value={referralNote}
+              onChange={(e) => setReferralNote(e.target.value)}
+              placeholder="Any extra context, e.g. how the referral came about"
+            />
+          </label>
         </>
       )}
-
-      <label>
-        Referral / Lead Notes <span className="field-help">(internal — never appears on the generated comp)</span>
-        <input
-          value={referralNote}
-          onChange={(e) => setReferralNote(e.target.value)}
-          placeholder="Any extra context, e.g. how the referral came about"
-        />
-      </label>
 
       <fieldset>
         <legend>Rough Timeframe</legend>
