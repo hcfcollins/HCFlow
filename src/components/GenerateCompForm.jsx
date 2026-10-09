@@ -288,7 +288,7 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
         </label>
         <label>
           Lot Size (acres)
-          <input type="number" min="0" step="0.01" value={lotAcres} onChange={(e) => setLotAcres(e.target.value)} />
+          <input type="number" min="0" step="any" value={lotAcres} onChange={(e) => setLotAcres(e.target.value)} />
         </label>
         <label>
           Year Built
@@ -369,7 +369,7 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
           <legend>Land Valuation</legend>
           <label>
             Lot Size (acres)
-            <input type="number" step="0.01" value={land.acres} onChange={(e) => updateLand({ acres: e.target.value })} />
+            <input type="number" step="any" value={land.acres} onChange={(e) => updateLand({ acres: e.target.value })} />
           </label>
           <div>
             <div className="detail-label">Road Frontage</div>
@@ -397,7 +397,7 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
             <div key={i} className="land-comp-row">
               <input placeholder="Address" value={c.address || ""} onChange={(e) => updateLandComp(i, { address: e.target.value })} />
               <input type="number" placeholder="Sale Price" value={c.salePrice || ""} onChange={(e) => updateLandComp(i, { salePrice: e.target.value })} />
-              <input type="number" step="0.01" placeholder="Acres" value={c.acres || ""} onChange={(e) => updateLandComp(i, { acres: e.target.value })} />
+              <input type="number" step="any" placeholder="Acres" value={c.acres || ""} onChange={(e) => updateLandComp(i, { acres: e.target.value })} />
               <input placeholder="Notes" value={c.notes || ""} onChange={(e) => updateLandComp(i, { notes: e.target.value })} />
             </div>
           ))}

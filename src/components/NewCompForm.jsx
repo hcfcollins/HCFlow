@@ -269,7 +269,7 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
         </label>
         <label>
           Lot Size (acres)
-          <input type="number" min="0" step="0.01" value={lotAcres} onChange={(e) => setLotAcres(e.target.value)} />
+          <input type="number" min="0" step="any" value={lotAcres} onChange={(e) => setLotAcres(e.target.value)} />
         </label>
         <label>
           Year Built
