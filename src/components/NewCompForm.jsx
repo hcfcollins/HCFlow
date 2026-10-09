@@ -82,12 +82,12 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
     setReferralPct(value === "Other" ? "" : value);
   }
 
-  async function handleSubmit(e) {
+  async function handleSubmit(e, goToGenerate = false) {
     e.preventDefault();
     setSaving(true);
     setError(null);
     try {
-      await createComp({
+      const tx = await createComp({
         agentId: currentAgent.id,
         address,
         town,
@@ -123,7 +123,7 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
         referralPct,
       });
       clearDraft();
-      onSubmitted();
+      onSubmitted(tx, { goToGenerate });
     } catch (e) {
       setError(e.message);
     } finally {
@@ -365,9 +365,14 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} placeholder="Notes from the appointment…" />
       </label>
 
-      <button type="submit" className="google-btn uc-submit" disabled={saving}>
-        {saving ? "Saving…" : "Add to Comps"}
-      </button>
+      <div className="comp-edit-all-actions">
+        <button type="submit" className="google-btn uc-submit" disabled={saving}>
+          {saving ? "Saving…" : "Add to Comps"}
+        </button>
+        <button type="button" className="uc-submit" disabled={saving} onClick={(e) => handleSubmit(e, true)}>
+          {saving ? "Saving…" : "Add & Build CMA PDF"}
+        </button>
+      </div>
     </form>
   );
 }

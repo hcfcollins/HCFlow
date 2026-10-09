@@ -884,6 +884,37 @@ button { cursor: pointer; }
 .sv-summary-stat-value { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 700; color: var(--color-navy); }
 .sv-summary-stat-label { font-size: 12px; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
 
+.tutorial-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+.tutorial-tab {
+  flex: 1;
+  border: 1px solid var(--color-border-blue);
+  background: var(--color-white);
+  color: var(--color-navy);
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 13px;
+}
+.tutorial-tab--active { background: var(--color-navy); color: var(--color-white); border-color: var(--color-navy); }
+
+.tutorial-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.tutorial-step { display: flex; gap: 14px; padding: 14px 2px; border-bottom: 1px solid var(--color-border-blue); }
+.tutorial-step:last-child { border-bottom: none; }
+.tutorial-step-marker {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-border-blue);
+  color: var(--color-navy);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tutorial-step-body h3 { margin: 2px 0 4px; font-size: 15px; color: var(--color-navy); }
+.tutorial-step-body p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--color-text-muted); }
+.tutorial-step-num { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: rgb(var(--pink-rgb)); }
+
 /* ===== Tablet (iPad and up) — widen the container and let card lists flow
    into columns instead of just stretching a single centered column. ===== */
 @media (min-width: 700px) {

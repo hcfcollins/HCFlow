@@ -70,7 +70,9 @@ export default function DealDetail({
   const [attorneys, setAttorneys] = useState([]);
   const [compDetailsCollapsed, setCompDetailsCollapsed] = useState(true);
   const [retryingDropbox, setRetryingDropbox] = useState(false);
-  const [showGenerateComp, setShowGenerateComp] = useState(false);
+  // Lets New Comp's "Add & Build CMA PDF" button drop an agent straight into this
+  // screen already open, instead of landing on the deal detail view first.
+  const [showGenerateComp, setShowGenerateComp] = useState(Boolean(transaction._openGenerateComp));
   const [showCloseoutCalculator, setShowCloseoutCalculator] = useState(false);
   const [showTerminateConfirm, setShowTerminateConfirm] = useState(false);
   const [showSocialMenu, setShowSocialMenu] = useState(false);

@@ -29,8 +29,9 @@ import Celebration from "./components/Celebration";
 import ManageAgents from "./components/ManageAgents";
 import SocialScheduler from "./components/SocialScheduler";
 import SpreadsheetView from "./components/SpreadsheetView";
+import TutorialGuide from "./components/TutorialGuide";
 import { SkeletonList } from "./components/Skeleton";
-import { LogOut } from "lucide-react";
+import { LogOut, HelpCircle } from "lucide-react";
 
 const STAGES = [
   { key: "comps", label: "Comp" },
@@ -56,6 +57,7 @@ export default function App() {
   const [showManageAgents, setShowManageAgents] = useState(false);
   const [showSocialScheduler, setShowSocialScheduler] = useState(false);
   const [showSpreadsheetView, setShowSpreadsheetView] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   const [viewAsAgent, setViewAsAgent] = useState(false);
 
   useEffect(() => {
@@ -315,6 +317,14 @@ export default function App() {
     );
   }
 
+  if (showTutorial) {
+    return (
+      <div className="app">
+        <TutorialGuide onBack={() => setShowTutorial(false)} />
+      </div>
+    );
+  }
+
   if (showManageAgents) {
     return (
       <div className="app">
@@ -359,9 +369,12 @@ export default function App() {
         <NewCompForm
           currentAgent={effectiveAgent}
           onCancel={() => setShowNewCompForm(false)}
-          onSubmitted={() => {
+          onSubmitted={(tx, { goToGenerate } = {}) => {
             setShowNewCompForm(false);
             loadTransactions();
+            if (goToGenerate && tx) {
+              setSelectedTransaction({ ...tx, _openGenerateComp: true });
+            }
           }}
         />
       </div>
@@ -414,6 +427,9 @@ export default function App() {
           <img src="/hall-collins-logo-full.png" alt="Hall Collins Real Estate Group" className="brand-logo" />
           <div className="main-header-right">
             <h1>Deal Flow</h1>
+            <button onClick={() => setShowTutorial(true)} aria-label="How It Works" title="How It Works">
+              <HelpCircle size={18} />
+            </button>
             <button onClick={signOut} aria-label="Sign out" title="Sign out">
               <LogOut size={18} />
             </button>
