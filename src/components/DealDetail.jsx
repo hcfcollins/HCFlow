@@ -946,7 +946,7 @@ function CompDetailsEditForm({ transaction, handleFieldSave, onDone }) {
         </label>
         <label>
           Lot Size (acres)
-          <input type="number" min="0" step="0.1" value={lotAcres} onChange={(e) => setLotAcres(e.target.value)} />
+          <input type="number" min="0" step="0.01" value={lotAcres} onChange={(e) => setLotAcres(e.target.value)} />
         </label>
         <label>
           Year Built

@@ -8,6 +8,7 @@ export const ELECTRICAL_OPTIONS = ["200 amp", "150 amp", "100 amp", "Fuses", "Kn
 export const HEATING_OPTIONS = [
   "Baseboard",
   "Hot Water",
+  "Forced Hot Air",
   "Oil",
   "Propane",
   "Electric",
