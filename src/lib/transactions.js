@@ -52,6 +52,79 @@ export async function reactivateTransaction(id) {
   if (error) throw error;
 }
 
+/** When a Contract-stage Sell-side listing's buyer falls through and the seller
+ * wants to relist: archives the "5) Under Contract" Dropbox subfolder (renamed
+ * with the fallen-through buyer's name + TERMINATED, via the relist-listing
+ * Edge Function) so their paperwork never mixes with the next buyer's,
+ * terminates this transaction row (keeping buyer #1's info frozen for the
+ * record, same as terminateTransaction above), then creates a fresh
+ * transaction row for the same listing — same address/Dropbox folder/property
+ * details, stage reset to On Market, buyer-specific fields cleared — linked
+ * back to the terminated row via linked_id so the history stays traceable.
+ * Dropbox is done first and must succeed before anything in the database
+ * changes, so a failure here never leaves a half-relisted deal behind. */
+export async function relistAfterTermination(transactionId, reason) {
+  const { data: oldTx, error: fetchError } = await supabase.from("transactions").select("*").eq("id", transactionId).single();
+  if (fetchError) throw fetchError;
+
+  const { error: folderError } = await supabase.functions.invoke("relist-listing", { body: { transactionId } });
+  if (folderError) throw folderError;
+
+  await terminateTransaction(transactionId, reason);
+
+  const newTx = await createTransaction({
+    address: oldTx.address,
+    town: oldTx.town,
+    region: oldTx.region,
+    side: "Sell",
+    stage: "market",
+    agent_id: oldTx.agent_id,
+    notes: oldTx.notes,
+    sign_status: oldTx.sign_status,
+    has_lockbox: oldTx.has_lockbox,
+    lockbox_code: oldTx.lockbox_code,
+    lockbox_note: oldTx.lockbox_note,
+    dropbox_folder_url: oldTx.dropbox_folder_url,
+    dropbox_folder_path: oldTx.dropbox_folder_path,
+    comp_analysis: oldTx.comp_analysis,
+    last_comp_url: oldTx.last_comp_url,
+    ba_comp: oldTx.ba_comp,
+    seller_attorney_id: oldTx.seller_attorney_id,
+    seller_name: oldTx.seller_name,
+    seller_emails: oldTx.seller_emails,
+    property_style: oldTx.property_style,
+    price: oldTx.price,
+    timeframe: oldTx.timeframe,
+    electrical: oldTx.electrical,
+    heating_system: oldTx.heating_system,
+    basement: oldTx.basement,
+    water_source: oldTx.water_source,
+    septic: oldTx.septic,
+    recommendations: oldTx.recommendations,
+    referral_note: oldTx.referral_note,
+    beds: oldTx.beds,
+    baths: oldTx.baths,
+    garage_spaces: oldTx.garage_spaces,
+    lot_acres: oldTx.lot_acres,
+    year_built: oldTx.year_built,
+    features_notes: oldTx.features_notes,
+    finishes_note: oldTx.finishes_note,
+    fuel_types: oldTx.fuel_types,
+    private_septic: oldTx.private_septic,
+    private_well: oldTx.private_well,
+    has_view: oldTx.has_view,
+    solar: oldTx.solar,
+    boundary_notes: oldTx.boundary_notes,
+    social_went_live_at: oldTx.social_went_live_at,
+    linked_id: transactionId,
+  });
+
+  await addActivityLog(transactionId, "Buyer fell through — relisted", `New deal created: ${newTx.address}`);
+  await addActivityLog(newTx.id, "Relisted after buyer fell through", "Carried forward from the terminated deal");
+
+  return newTx;
+}
+
 export async function updateTransactionNotes(id, notes) {
   const { error } = await supabase.from("transactions").update({ notes, updated_at: new Date() }).eq("id", id);
   if (error) throw error;

@@ -54,6 +54,7 @@ export default function DealDetail({
   onRetryDropboxFolder,
   onTerminate,
   onReactivate,
+  onRelist,
 }) {
   const isBroker = currentAgent.role === "broker";
   const isActiveListing = transaction.stage === "won" || transaction.stage === "market";
@@ -75,6 +76,9 @@ export default function DealDetail({
   const [showGenerateComp, setShowGenerateComp] = useState(Boolean(transaction._openGenerateComp));
   const [showCloseoutCalculator, setShowCloseoutCalculator] = useState(false);
   const [showTerminateConfirm, setShowTerminateConfirm] = useState(false);
+  const [showRelistConfirm, setShowRelistConfirm] = useState(false);
+  const [relisting, setRelisting] = useState(false);
+  const [relistError, setRelistError] = useState(null);
   const [showSocialMenu, setShowSocialMenu] = useState(false);
   const [showBoostPost, setShowBoostPost] = useState(false);
   const [graphicPostType, setGraphicPostType] = useState(null);
@@ -125,6 +129,20 @@ export default function DealDetail({
       lockboxCode,
       lockboxNote,
     });
+  }
+
+  async function handleRelistConfirm(reason) {
+    setShowRelistConfirm(false);
+    setRelisting(true);
+    setRelistError(null);
+    try {
+      await onRelist(transaction.id, reason);
+      showToast("Buyer fell through — listing relisted");
+    } catch (e) {
+      setRelistError(e.message);
+    } finally {
+      setRelisting(false);
+    }
   }
 
   async function handleFieldSave(patch) {
@@ -678,12 +696,44 @@ export default function DealDetail({
               list above once it's signed to enable this.
             </p>
           ) : (
-            <button type="button" className="comps-status-btn comps-status-btn--danger" onClick={() => setShowTerminateConfirm(true)}>
-              Terminate Deal
-            </button>
+            <>
+              {!isBuySide && transaction.stage === "contract" && (
+                <>
+                  {relistError && <div className="error-banner">{relistError}</div>}
+                  <button
+                    type="button"
+                    className="comps-status-btn comps-status-btn--danger"
+                    onClick={() => setShowRelistConfirm(true)}
+                    disabled={relisting}
+                  >
+                    {relisting ? "Relisting…" : "Buyer Fell Through — Relist"}
+                  </button>
+                  <p className="field-help">
+                    Archives this buyer's Under Contract paperwork and puts the listing back On Market as a fresh
+                    deal, linked back to this one for the record — use this instead of Terminate Deal if the seller
+                    is still selling, just this buyer fell through.
+                  </p>
+                </>
+              )}
+              <button type="button" className="comps-status-btn comps-status-btn--danger" onClick={() => setShowTerminateConfirm(true)}>
+                Terminate Deal
+              </button>
+            </>
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={showRelistConfirm}
+        title="Buyer fell through — relist this listing?"
+        message="This terminates this deal (keeping the buyer's info for the record) and creates a fresh active listing at the same address/Dropbox folder for the next buyer."
+        promptLabel="Reason (optional)"
+        promptPlaceholder="Why did this buyer fall through?"
+        confirmLabel="Relist"
+        danger
+        onConfirm={handleRelistConfirm}
+        onCancel={() => setShowRelistConfirm(false)}
+      />
 
       <ConfirmDialog
         open={showTerminateConfirm}

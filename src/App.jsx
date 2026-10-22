@@ -14,6 +14,7 @@ import {
   createDropboxFolderForListing,
   terminateTransaction,
   reactivateTransaction,
+  relistAfterTermination,
   setSocialRotation,
   markSocialPosted,
   markSocialClosingPosted,
@@ -239,6 +240,13 @@ export default function App() {
     loadTransactions({ silent: true });
   }
 
+  async function handleRelist(id, reason) {
+    const newTx = await relistAfterTermination(id, reason);
+    await loadTransactions({ silent: true });
+    setSelectedTransaction(newTx);
+    return newTx;
+  }
+
   // Plays the exit animation before actually clearing selectedTransaction, instead of
   // snapping the detail screen away instantly — 200ms matches .deal-detail-exit's CSS
   // transition duration. Shared by the Back button and DealDetail's swipe-left gesture,
@@ -404,6 +412,7 @@ export default function App() {
           onRetryDropboxFolder={handleRetryDropboxFolder}
           onTerminate={handleTerminate}
           onReactivate={handleReactivate}
+          onRelist={handleRelist}
         />
       </div>
     );
