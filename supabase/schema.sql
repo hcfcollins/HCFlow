@@ -205,6 +205,8 @@ create table closeouts (
   tc_fee_amount numeric, -- frozen dollar amount actually deducted, so it's on record even if TC_FEE_AMOUNTS changes later
   anticipated_commission numeric, -- what the agent/broker expects this to actually pay out, separate from the calculated figures
   anticipated_commission_note text, -- required whenever anticipated_commission is edited after its first save
+  deposit_retained boolean, -- confirmed at close-out: was the earnest money/deposit actually kept, not refunded
+  trust_to_checking_transferred boolean, -- confirmed at close-out: has the deposit actually moved from the trust account into checking yet
   is_historical_import boolean default false, -- true for rows imported from the old Google Sheet
   calculated_at timestamptz not null default now()
 );

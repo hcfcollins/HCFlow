@@ -59,6 +59,8 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const originalAnticipated = saved.anticipated_commission ?? "";
   const [anticipatedCommission, setAnticipatedCommission] = useState(originalAnticipated);
   const [anticipatedNote, setAnticipatedNote] = useState(saved.anticipated_commission_note ?? "");
+  const [depositRetained, setDepositRetained] = useState(saved.deposit_retained ?? false);
+  const [trustToCheckingTransferred, setTrustToCheckingTransferred] = useState(saved.trust_to_checking_transferred ?? false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [allAgents, setAllAgents] = useState([]);
@@ -120,6 +122,8 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         tc_fee_amount: tcFeeType ? tcFeeAmount : null,
         anticipated_commission: anticipatedCommission === "" ? null : Number(anticipatedCommission),
         anticipated_commission_note: anticipatedNote.trim() || null,
+        deposit_retained: depositRetained,
+        trust_to_checking_transferred: trustToCheckingTransferred,
       });
       showToast("Close-out saved — deal marked Closed");
       onSaved();
@@ -211,6 +215,32 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
             <input value={anticipatedNote} onChange={(e) => setAnticipatedNote(e.target.value)} placeholder="e.g. price dropped at inspection" />
           </label>
         )}
+      </fieldset>
+
+      <fieldset>
+        <legend>Deposit Reconciliation</legend>
+        {transaction.commission_data?.hold_deposit === "Yes" ? (
+          <p className="field-help">
+            Recorded at Under Contract: {money(transaction.commission_data.deposit_amount)} held
+            {transaction.commission_data?.second_deposit === "Yes" &&
+              `, plus a second deposit of ${money(transaction.commission_data.second_deposit_amount)}`}
+            .
+          </p>
+        ) : (
+          <p className="field-help">No deposit was recorded as held at Under Contract.</p>
+        )}
+        <label className="tbd-toggle">
+          <input type="checkbox" checked={depositRetained} onChange={(e) => setDepositRetained(e.target.checked)} />
+          Deposit retained (not refunded to buyer)
+        </label>
+        <label className="tbd-toggle">
+          <input
+            type="checkbox"
+            checked={trustToCheckingTransferred}
+            onChange={(e) => setTrustToCheckingTransferred(e.target.checked)}
+          />
+          Transferred from trust account into checking
+        </label>
       </fieldset>
 
       <fieldset className="closeout-preview">
