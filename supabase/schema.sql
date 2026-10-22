@@ -12,6 +12,7 @@ create table agents (
   is_active boolean not null default true,
   dropbox_listing_path text, -- this agent's Dropbox listing folder, read by the create-dropbox-folder Edge Function
   dropbox_buyer_path text, -- captured for a future buyer-side Dropbox automation; not read by any function yet
+  gusto_contractor_id text, -- this agent's contractor_uuid in Gusto, for the future auto-payroll push on close-out
   cover_sheet_url text, -- public Storage URL to this agent's personalized CMA cover PDF, if they have one (falls back to the generic cover)
   created_at timestamptz not null default now()
 );

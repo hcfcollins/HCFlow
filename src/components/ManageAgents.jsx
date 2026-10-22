@@ -284,6 +284,7 @@ function AgentRow({ agent, onChanged }) {
   const [email, setEmail] = useState(agent.email || "");
   const [dropboxListingPath, setDropboxListingPath] = useState(agent.dropbox_listing_path || "");
   const [dropboxBuyerPath, setDropboxBuyerPath] = useState(agent.dropbox_buyer_path || "");
+  const [gustoContractorId, setGustoContractorId] = useState(agent.gusto_contractor_id || "");
   const [coverFile, setCoverFile] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -294,6 +295,7 @@ function AgentRow({ agent, onChanged }) {
     email !== (agent.email || "") ||
     dropboxListingPath !== (agent.dropbox_listing_path || "") ||
     dropboxBuyerPath !== (agent.dropbox_buyer_path || "") ||
+    gustoContractorId !== (agent.gusto_contractor_id || "") ||
     coverFile !== null;
 
   async function handleSave() {
@@ -306,6 +308,7 @@ function AgentRow({ agent, onChanged }) {
         email: email || null,
         dropbox_listing_path: dropboxListingPath || null,
         dropbox_buyer_path: dropboxBuyerPath || null,
+        gusto_contractor_id: gustoContractorId || null,
         cover_sheet_url: coverSheetUrl,
       });
       setCoverFile(null);
@@ -371,6 +374,10 @@ function AgentRow({ agent, onChanged }) {
           <label>
             Dropbox Buyer Folder
             <input value={dropboxBuyerPath} onChange={(e) => setDropboxBuyerPath(e.target.value)} />
+          </label>
+          <label>
+            Gusto Contractor ID <span className="field-help">(their contractor_uuid in Gusto — used to route commission payments)</span>
+            <input value={gustoContractorId} onChange={(e) => setGustoContractorId(e.target.value)} />
           </label>
           <label>
             Cover Sheet PDF
