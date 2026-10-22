@@ -93,9 +93,14 @@ export default function TodoList({ todos = [], onAdd, onToggle, onEdit, onDelete
     setShowDueDate(false);
   }
 
+  // Open items first (front and center), completed ones pushed to the bottom —
+  // a stable sort, so within each group they keep whatever order they already
+  // had (creation order).
+  const sortedTodos = [...todos].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
+
   return (
     <div className="todo-list">
-      {todos.map((t) => (
+      {sortedTodos.map((t) => (
         <TodoRow key={t.id} todo={t} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} />
       ))}
       <form className="todo-add" onSubmit={handleAdd}>
