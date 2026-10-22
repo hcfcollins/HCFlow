@@ -8,6 +8,16 @@ import { loadDraft, useDraftPersistence } from "../lib/useDraftPersistence";
 import { fetchAllAgents, addAgent, updateAgentFields, removeAgent, uploadAgentCoverSheet } from "../lib/transactions";
 import { focusNextOnEnter } from "../lib/formKeyNav";
 
+// Gusto's OAuth client_id is a public identifier (like a Google OAuth client ID) —
+// safe to ship in frontend code; only the client secret (server-side only, set as
+// an Edge Function secret, never here) is sensitive. Matches the redirect URI
+// registered in Gusto's developer portal and the GUSTO_REDIRECT_URI secret read
+// by gusto-oauth-callback. Demo/sandbox host for now — swap to api.gusto.com once
+// this is verified working and Gusto's approved the app for production.
+const GUSTO_CLIENT_ID = "fNX-5bxmFjW5wM5v3tN-1EovZxtsZovIWGKPMHpLazw";
+const GUSTO_REDIRECT_URI = "https://hjcmatbbhhqehowemktg.supabase.co/functions/v1/gusto-oauth-callback";
+const GUSTO_AUTHORIZE_URL = `https://api.gusto-demo.com/oauth/authorize?client_id=${GUSTO_CLIENT_ID}&redirect_uri=${encodeURIComponent(GUSTO_REDIRECT_URI)}&response_type=code`;
+
 /** Uses the app's actual current URL — never a guessed/hardcoded domain, so the
  * sign-in link is always correct even if the deployment domain ever changes. */
 function buildOnboardingPackage({ name, email, dropboxListingPath }) {
@@ -63,6 +73,17 @@ export default function ManageAgents({ onBack }) {
       </header>
 
       {error && <div className="error-banner">{error}</div>}
+
+      <div className="detail-section">
+        <h2 className="comps-section-title">Payroll Integration</h2>
+        <p className="field-help">
+          Connects Hall Collins' Gusto account so close-outs can push contractor payments automatically. Set each
+          agent's Gusto Contractor ID below first.
+        </p>
+        <a className="cma-export-btn" href={GUSTO_AUTHORIZE_URL}>
+          Connect to Gusto
+        </a>
+      </div>
 
       <AddAgentForm onAdded={load} />
 
