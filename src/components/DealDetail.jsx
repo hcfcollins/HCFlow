@@ -585,16 +585,16 @@ export default function DealDetail({
                   </div>
                 )}
                 <div>
-                  <div className="detail-label">Holly's Cut</div>
+                  <div className="detail-label">Holly's Commission</div>
                   <div>${Number(transaction.closeouts.holly_commission ?? 0).toLocaleString()}</div>
                 </div>
                 <div>
-                  <div className="detail-label">Fran's Cut</div>
+                  <div className="detail-label">Fran's Commission</div>
                   <div>${Number(transaction.closeouts.fran_commission ?? 0).toLocaleString()}</div>
                 </div>
                 {transaction.closeouts.bank_amount != null && (
                   <div>
-                    <div className="detail-label">Bank Amount</div>
+                    <div className="detail-label">Brokerage Keeps</div>
                     <div>${Number(transaction.closeouts.bank_amount).toLocaleString()}</div>
                   </div>
                 )}

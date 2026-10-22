@@ -1,7 +1,7 @@
 import { useState } from "react";
 import RadioGroup from "./RadioGroup";
 import { saveCloseout } from "../lib/transactions";
-import { calculateCloseout, applyTcFee, TC_FEE_AMOUNTS } from "../lib/commissionCalc";
+import { calculateCloseout, applyTcFee, TC_FEE_AMOUNTS, round2 } from "../lib/commissionCalc";
 import { useToast } from "../lib/ToastContext";
 import { focusNextOnEnter } from "../lib/formKeyNav";
 
@@ -45,10 +45,13 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
     leadType,
     agentSplitPct: agentSplitPct !== "" ? Number(agentSplitPct) : null,
   });
-  // Comes out of the brokerage's own cut, not the agent/Holly/Fran split — a
-  // no-op for owner deals, where bankAmount is already 0.
+  // Comes out of the brokerage's own cut, not the agent/Holly/Fran split.
   const tcFeeAmount = TC_FEE_AMOUNTS[tcFeeType] || 0;
   const finalBankAmount = applyTcFee(result.bankAmount, tcFeeType);
+  // Summed from the actual displayed line items (not re-derived from the input
+  // formula) so it's a genuine check against the math below, not just a copy of
+  // commissionAfterReferral minus the TC fee.
+  const totalToDistribute = round2((result.agentCommission || 0) + result.hollyCommission + result.franCommission + finalBankAmount);
 
   async function handleSave() {
     if (anticipatedChanged && !anticipatedNote.trim()) {
@@ -181,11 +184,11 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
           </div>
         )}
         <div className="closeout-preview-row">
-          <span>Holly's Cut</span>
+          <span>Holly's Commission</span>
           <strong>{money(result.hollyCommission)}</strong>
         </div>
         <div className="closeout-preview-row">
-          <span>Fran's Cut</span>
+          <span>Fran's Commission</span>
           <strong>{money(result.franCommission)}</strong>
         </div>
         {tcFeeType && (
@@ -195,8 +198,12 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
           </div>
         )}
         <div className="closeout-preview-row">
-          <span>Bank Amount</span>
+          <span>Brokerage Keeps</span>
           <strong>{money(finalBankAmount)}</strong>
+        </div>
+        <div className="closeout-preview-row closeout-preview-row--total">
+          <span>Total to Distribute</span>
+          <strong>{money(totalToDistribute)}</strong>
         </div>
       </fieldset>
 

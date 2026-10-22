@@ -269,14 +269,21 @@ export default function DealPages({
 
 /** A collapsible bucket, minimized by default — used throughout the All page so a
  * full pipeline overview doesn't turn into one giant scroll. */
-function CollapsibleSection({ title, count, colorClass, children }) {
-  const [collapsed, setCollapsed] = useState(true);
+function CollapsibleSection({ title, count, colorClass, onTitleClick, children, startExpanded }) {
+  const [collapsed, setCollapsed] = useState(!startExpanded);
   if (count === 0) return null;
   return (
     <div className={`comps-section ${colorClass}`}>
       <div className="comps-section-header">
         <h2 className="comps-section-title">
-          {title} <span className="comps-section-count">{count}</span>
+          {onTitleClick ? (
+            <button type="button" className="comps-section-title-btn" onClick={onTitleClick}>
+              {title}
+            </button>
+          ) : (
+            title
+          )}{" "}
+          <span className="comps-section-count">{count}</span>
         </h2>
         <button type="button" className="comps-minimize-btn" onClick={() => setCollapsed((c) => !c)}>
           {collapsed ? "Show" : "Minimize"}
@@ -297,29 +304,66 @@ function CollapsibleSection({ title, count, colorClass, children }) {
  * each deal's card) — they only show, with their completion date, inside that
  * deal's own detail screen. */
 function AllTodosPage({ transactions, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail }) {
+  const [groupByProperty, setGroupByProperty] = useState(false);
   const pending = transactions.flatMap((tx) => (tx.todos || []).filter((t) => !t.done).map((t) => ({ ...t, tx })));
 
   const urgency = (t) => (t.due_date ? new Date(`${t.due_date}T00:00:00`).getTime() : Infinity);
   pending.sort((a, b) => urgency(a) - urgency(b));
 
+  function row(t, withPropertyTag) {
+    return (
+      <TodoRow
+        key={t.id}
+        todo={t}
+        onToggle={onToggleTodo}
+        onEdit={onEditTodo}
+        onDelete={onDeleteTodo}
+        propertyLabel={withPropertyTag ? t.tx.address : undefined}
+        onPropertyClick={() => onOpenDetail(t.tx)}
+      />
+    );
+  }
+
+  // Groups ordered by their own most-urgent item, same as the flat list — so a
+  // property with something overdue still surfaces first even when grouped.
+  let groups = null;
+  if (groupByProperty) {
+    const byTx = new Map();
+    for (const t of pending) {
+      if (!byTx.has(t.tx.id)) byTx.set(t.tx.id, { tx: t.tx, items: [] });
+      byTx.get(t.tx.id).items.push(t);
+    }
+    groups = [...byTx.values()].sort((a, b) => urgency(a.items[0]) - urgency(b.items[0]));
+  }
+
   return (
     <div className="all-todos-page">
+      <div className="tutorial-tabs">
+        <button type="button" className={!groupByProperty ? "tutorial-tab tutorial-tab--active" : "tutorial-tab"} onClick={() => setGroupByProperty(false)}>
+          Sort by Date
+        </button>
+        <button type="button" className={groupByProperty ? "tutorial-tab tutorial-tab--active" : "tutorial-tab"} onClick={() => setGroupByProperty(true)}>
+          Group by Property
+        </button>
+      </div>
+
       {pending.length === 0 ? (
         <p className="empty-state">No open to-dos across any deal.</p>
+      ) : groupByProperty ? (
+        groups.map(({ tx, items }) => (
+          <CollapsibleSection
+            key={tx.id}
+            title={tx.address}
+            count={items.length}
+            colorClass="comps-section--todo-group"
+            onTitleClick={() => onOpenDetail(tx)}
+            startExpanded
+          >
+            <div className="todo-list">{items.map((t) => row(t, false))}</div>
+          </CollapsibleSection>
+        ))
       ) : (
-        <div className="todo-list">
-          {pending.map((t) => (
-            <TodoRow
-              key={t.id}
-              todo={t}
-              onToggle={onToggleTodo}
-              onEdit={onEditTodo}
-              onDelete={onDeleteTodo}
-              propertyLabel={t.tx.address}
-              onPropertyClick={() => onOpenDetail(t.tx)}
-            />
-          ))}
-        </div>
+        <div className="todo-list">{pending.map((t) => row(t, true))}</div>
       )}
     </div>
   );

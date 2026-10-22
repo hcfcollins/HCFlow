@@ -58,7 +58,7 @@ const COLUMNS = [
   { key: "agent_commission", label: "Agent Commission", source: "closeout", readOnly: true },
   { key: "holly_commission", label: "Holly Commission", source: "closeout", readOnly: true },
   { key: "fran_commission", label: "Fran Commission", source: "closeout", readOnly: true },
-  { key: "bank_amount", label: "Bank Amount", source: "closeout", readOnly: true },
+  { key: "bank_amount", label: "Brokerage Keeps", source: "closeout", readOnly: true },
 ];
 
 function getValue(tx, col) {
