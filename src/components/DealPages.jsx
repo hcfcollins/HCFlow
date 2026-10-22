@@ -287,46 +287,40 @@ function CollapsibleSection({ title, count, colorClass, children }) {
   );
 }
 
-/** Every open to-do across every active deal, flattened into one list — each row
+/** Every OPEN to-do across every active deal, flattened into one list — each row
  * is tagged with its property address (tappable, jumps straight to that deal)
  * since so many to-dos share the same text ("Go Live", "Send Listing Agreement")
  * across different properties. Sorted by urgency (overdue/due-soonest first,
  * undated to-dos last) rather than grouped by property, since the point of a
  * combined view is triaging what needs attention today across the whole pipeline.
- * Completed items collapse into their own bucket at the bottom. */
+ * Completed to-dos are deliberately left out of every summary view (this one and
+ * each deal's card) — they only show, with their completion date, inside that
+ * deal's own detail screen. */
 function AllTodosPage({ transactions, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail }) {
-  const rows = transactions.flatMap((tx) => (tx.todos || []).map((t) => ({ ...t, tx })));
-  const pending = rows.filter((t) => !t.done);
-  const done = rows.filter((t) => t.done);
+  const pending = transactions.flatMap((tx) => (tx.todos || []).filter((t) => !t.done).map((t) => ({ ...t, tx })));
 
   const urgency = (t) => (t.due_date ? new Date(`${t.due_date}T00:00:00`).getTime() : Infinity);
   pending.sort((a, b) => urgency(a) - urgency(b));
-  done.sort((a, b) => new Date(b.completed_at || 0) - new Date(a.completed_at || 0));
-
-  function row(t) {
-    return (
-      <TodoRow
-        key={t.id}
-        todo={t}
-        onToggle={onToggleTodo}
-        onEdit={onEditTodo}
-        onDelete={onDeleteTodo}
-        propertyLabel={t.tx.address}
-        onPropertyClick={() => onOpenDetail(t.tx)}
-      />
-    );
-  }
 
   return (
     <div className="all-todos-page">
       {pending.length === 0 ? (
         <p className="empty-state">No open to-dos across any deal.</p>
       ) : (
-        <div className="todo-list">{pending.map(row)}</div>
+        <div className="todo-list">
+          {pending.map((t) => (
+            <TodoRow
+              key={t.id}
+              todo={t}
+              onToggle={onToggleTodo}
+              onEdit={onEditTodo}
+              onDelete={onDeleteTodo}
+              propertyLabel={t.tx.address}
+              onPropertyClick={() => onOpenDetail(t.tx)}
+            />
+          ))}
+        </div>
       )}
-      <CollapsibleSection title="Completed" count={done.length} colorClass="sign-inventory--installed">
-        <div className="todo-list">{done.map(row)}</div>
-      </CollapsibleSection>
     </div>
   );
 }

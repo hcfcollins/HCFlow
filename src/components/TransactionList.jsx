@@ -297,7 +297,7 @@ function TxCard({
         onAddTodo && (
           <div onClick={(e) => e.stopPropagation()}>
             <TodoList
-              todos={tx.todos}
+              todos={(tx.todos || []).filter((t) => !t.done)}
               onAdd={(text, dueDate) => onAddTodo(tx.id, text, dueDate)}
               onToggle={(todo, done) => onToggleTodo(todo, done)}
               onEdit={onEditTodo}

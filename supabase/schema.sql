@@ -196,6 +196,8 @@ create table closeouts (
   bank_amount numeric, -- already net of tc_fee_amount below, if any
   tc_fee_type text, -- frozen snapshot of commission_data.tc_fee_type at the time this was calculated
   tc_fee_amount numeric, -- frozen dollar amount actually deducted, so it's on record even if TC_FEE_AMOUNTS changes later
+  anticipated_commission numeric, -- what the agent/broker expects this to actually pay out, separate from the calculated figures
+  anticipated_commission_note text, -- required whenever anticipated_commission is edited after its first save
   is_historical_import boolean default false, -- true for rows imported from the old Google Sheet
   calculated_at timestamptz not null default now()
 );

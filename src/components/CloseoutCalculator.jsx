@@ -23,8 +23,13 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const [netOverride, setNetOverride] = useState(saved.net_override ?? false);
   const [netAmount, setNetAmount] = useState(saved.net_amount ?? "");
   const [tcFeeType, setTcFeeType] = useState(saved.tc_fee_type ?? transaction.commission_data?.tc_fee_type ?? "");
+  const originalAnticipated = saved.anticipated_commission ?? "";
+  const [anticipatedCommission, setAnticipatedCommission] = useState(originalAnticipated);
+  const [anticipatedNote, setAnticipatedNote] = useState(saved.anticipated_commission_note ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  const anticipatedChanged = String(anticipatedCommission) !== String(originalAnticipated);
 
   const priceNum = Number(price) || 0;
   const commissionPctNum = Number(commissionPct) || 0;
@@ -46,6 +51,10 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const finalBankAmount = applyTcFee(result.bankAmount, tcFeeType);
 
   async function handleSave() {
+    if (anticipatedChanged && !anticipatedNote.trim()) {
+      setError("You changed the Anticipated Commission amount — add a note explaining why before saving.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -64,6 +73,8 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         bank_amount: finalBankAmount,
         tc_fee_type: tcFeeType || null,
         tc_fee_amount: tcFeeType ? tcFeeAmount : null,
+        anticipated_commission: anticipatedCommission === "" ? null : Number(anticipatedCommission),
+        anticipated_commission_note: anticipatedNote.trim() || null,
       });
       showToast("Close-out saved — deal marked Closed");
       onSaved();
@@ -143,49 +154,50 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         </select>
       </label>
 
+      <fieldset>
+        <legend>Anticipated Commission</legend>
+        <label>
+          Anticipated Commission ($) <span className="field-help">(what you expect this to actually pay out — separate from the calculated figures below)</span>
+          <input type="number" value={anticipatedCommission} onChange={(e) => setAnticipatedCommission(e.target.value)} placeholder="e.g. 9500" />
+        </label>
+        {anticipatedChanged && (
+          <label>
+            Note <span className="field-help">(required — why did this change?)</span>
+            <input value={anticipatedNote} onChange={(e) => setAnticipatedNote(e.target.value)} placeholder="e.g. price dropped at inspection" />
+          </label>
+        )}
+      </fieldset>
+
       <fieldset className="closeout-preview">
         <legend>Preview</legend>
         <div className="closeout-preview-row">
           <span>Commission After Referral</span>
           <strong>{money(commissionAfterReferral)}</strong>
         </div>
-        {result.isOwnerDeal ? (
-          <>
-            <div className="closeout-preview-row">
-              <span>Holly's Cut</span>
-              <strong>{money(result.hollyCommission)}</strong>
-            </div>
-            <div className="closeout-preview-row">
-              <span>Fran's Cut</span>
-              <strong>{money(result.franCommission)}</strong>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="closeout-preview-row">
-              <span>Agent Commission</span>
-              <strong>{money(result.agentCommission)}</strong>
-            </div>
-            <div className="closeout-preview-row">
-              <span>Holly's Cut</span>
-              <strong>{money(result.hollyCommission)}</strong>
-            </div>
-            <div className="closeout-preview-row">
-              <span>Fran's Cut</span>
-              <strong>{money(result.franCommission)}</strong>
-            </div>
-            {tcFeeType && (
-              <div className="closeout-preview-row">
-                <span>Transaction Coordinator Fee ({tcFeeType})</span>
-                <strong>−{money(tcFeeAmount)}</strong>
-              </div>
-            )}
-            <div className="closeout-preview-row">
-              <span>Bank Amount</span>
-              <strong>{money(finalBankAmount)}</strong>
-            </div>
-          </>
+        {!result.isOwnerDeal && (
+          <div className="closeout-preview-row">
+            <span>Agent Commission</span>
+            <strong>{money(result.agentCommission)}</strong>
+          </div>
         )}
+        <div className="closeout-preview-row">
+          <span>Holly's Cut</span>
+          <strong>{money(result.hollyCommission)}</strong>
+        </div>
+        <div className="closeout-preview-row">
+          <span>Fran's Cut</span>
+          <strong>{money(result.franCommission)}</strong>
+        </div>
+        {tcFeeType && (
+          <div className="closeout-preview-row">
+            <span>Transaction Coordinator Fee ({tcFeeType})</span>
+            <strong>−{money(tcFeeAmount)}</strong>
+          </div>
+        )}
+        <div className="closeout-preview-row">
+          <span>Bank Amount</span>
+          <strong>{money(finalBankAmount)}</strong>
+        </div>
       </fieldset>
 
       <div className="comp-edit-all-actions">
