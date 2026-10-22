@@ -627,7 +627,34 @@ export async function submitUnderContract(fields) {
 
   await addActivityLog(tx.id, "Under Contract form submitted", address);
 
+  // Best-effort, non-blocking — a Xero hiccup must never stop the actual
+  // Under Contract submission from going through. Surfaced to the caller as
+  // tx._xeroWarning so the form can toast it rather than fail silently.
+  const deposits = [
+    holdDeposit === "Yes" && depositAmount
+      ? { label: "Earnest Money Deposit", amount: depositAmount, due_date: depositDueDate || null }
+      : null,
+    secondDeposit === "Yes" && secondDepositAmount
+      ? { label: "Second Earnest Money Deposit", amount: secondDepositAmount, due_date: secondDepositDueDate || null }
+      : null,
+  ].filter(Boolean);
+  if (deposits.length) {
+    try {
+      await pushDepositsToXero({ address, region, buyer_name: buyerName, closing_date: closingDate || null, deposits });
+    } catch (e) {
+      tx._xeroWarning = `Couldn't create the Xero deposit record${deposits.length > 1 ? "s" : ""}: ${e.message}`;
+    }
+  }
+
   return tx;
+}
+
+/** Creates a Xero Invoice (ACCREC, billed to the buyer, coded to the region's
+ * trust liability account) for each anticipated earnest money deposit — see
+ * xero-push-deposit for the full shape/reasoning. */
+export async function pushDepositsToXero(payload) {
+  const { error } = await supabase.functions.invoke("xero-push-deposit", { body: payload });
+  if (error) throw error;
 }
 
 // ---- Broker-only: commission data + close-outs ----

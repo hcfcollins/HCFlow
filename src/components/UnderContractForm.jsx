@@ -5,6 +5,7 @@ import AgentField from "./AgentField";
 import { loadDraft, useDraftPersistence } from "../lib/useDraftPersistence";
 import { TC_FEE_AMOUNTS } from "../lib/commissionCalc";
 import { focusNextOnEnter } from "../lib/formKeyNav";
+import { useToast } from "../lib/ToastContext";
 
 export const CLIENT_SOURCES = [
   "Prior Client/Sphere",
@@ -33,6 +34,7 @@ function resolveAttorneyId(name, tbd, attorneys) {
 }
 
 export default function UnderContractForm({ currentAgent, initialData, onCancel, onSubmitted }) {
+  const showToast = useToast();
   // Scoped per existing deal (so an interruption mid-fill reloads correctly next
   // time for that specific deal) or to a shared "new" bucket for a blank entry
   // not tied to an existing record. initialData's real values always win over a
@@ -140,7 +142,7 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
         resolveAttorneyId(sellerAttorney, sellerAttorneyTbd, attorneys),
       ]);
 
-      await submitUnderContract({
+      const submitted = await submitUnderContract({
         region,
         agentId: selectedAgentId,
         side,
@@ -170,6 +172,7 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
         townWaterSewer: side !== "Buy" ? townWaterSewer : null,
       });
 
+      if (submitted._xeroWarning) showToast(submitted._xeroWarning);
       clearDraft();
       onSubmitted();
     } catch (e) {
