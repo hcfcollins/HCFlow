@@ -151,6 +151,15 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
       property_style: transaction.property_style || null,
       vt_or_nh: transaction.region || null,
       tc_fee: tcFeeType ? tcFeeAmount : null,
+      // For the per-payee Xero Bills: who each one is actually owed to (so the
+      // Bill's Contact is the real payee, not the brokerage) and a ready-made
+      // Reference string matching the exact text used by the Gusto copy
+      // helper above, so the Bill and the Gusto payment read identically.
+      referral_owed_to: transaction.commission_data?.referral_owed_to || null,
+      tc_fee_payee_name: tcFeeType ? coordinatorAgent?.name || "Kerry Dawson" : null,
+      commission_reference: `Commission - ${transaction.address}`,
+      referral_reference: `Referral Fee - ${transaction.address}`,
+      tc_fee_reference: `Transaction Coordinator Fee - ${transaction.address}`,
     };
   }
 
