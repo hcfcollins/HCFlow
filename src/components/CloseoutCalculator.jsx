@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import RadioGroup from "./RadioGroup";
-import { saveCloseout, fetchAllAgents, pushCloseoutToSheet } from "../lib/transactions";
+import { saveCloseout, fetchAllAgents, pushCloseoutToSheet, pushCloseoutToXero } from "../lib/transactions";
 import { calculateCloseout, applyTcFee, TC_FEE_AMOUNTS, round2 } from "../lib/commissionCalc";
 import { useToast } from "../lib/ToastContext";
 import { focusNextOnEnter } from "../lib/formKeyNav";
@@ -196,11 +196,18 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
       // already marked Closed above, so a failure here (Zap not wired up yet,
       // Zapier down, whatever) is surfaced but must never look like the save
       // failed or block moving on.
+      const sheetPayload = buildSheetPayload();
       try {
-        await pushCloseoutToSheet(buildSheetPayload());
+        await pushCloseoutToSheet(sheetPayload);
         showToast("Sent to the Deal Tracker sheet");
       } catch (e) {
         showToast(`Saved, but couldn't send to the Deal Tracker sheet: ${e.message}`);
+      }
+      try {
+        await pushCloseoutToXero(sheetPayload);
+        showToast("Invoice and bills created in Xero");
+      } catch (e) {
+        showToast(`Saved, but couldn't push to Xero: ${e.message}`);
       }
       onSaved();
     } catch (e) {

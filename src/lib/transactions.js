@@ -660,6 +660,15 @@ export async function pushCloseoutToSheet(payload) {
   if (error) throw error;
 }
 
+/** Creates the Xero Sales Invoice + per-payee Bills directly (see
+ * xero-push-closeout) — separate call from pushCloseoutToSheet so either one
+ * failing never blocks the other; both are best-effort, non-blocking steps
+ * after the real close-out save. */
+export async function pushCloseoutToXero(payload) {
+  const { error } = await supabase.functions.invoke("xero-push-closeout", { body: payload });
+  if (error) throw error;
+}
+
 // ---- Agents & Attorneys ----
 
 /** Excludes role='coordinator' (e.g. the transaction coordinator) — she's in the
