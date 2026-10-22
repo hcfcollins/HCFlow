@@ -540,10 +540,10 @@ export async function submitUnderContract(fields) {
   const {
     region, agentId, side, sellerName, buyerName, address, propertyStyle, price,
     buyerAttorneyId, sellerAttorneyId, closingDate, leadType, commissionPct,
-    inspectionDate, financingDate, appraiser, holdDeposit, depositAmount,
+    inspectionDate, financingDate, appraiser, holdDeposit, depositAmount, depositDueDate,
     secondDeposit, secondDepositAmount, secondDepositDueDate,
     clientSource, referralOwedTo, referralPct, tcFeeType,
-    earnestMoneyDueDate, townWaterSewer,
+    townWaterSewer,
   } = fields;
 
   const txPatch = {
@@ -586,6 +586,7 @@ export async function submitUnderContract(fields) {
     referral_pct: referralPct,
     hold_deposit: holdDeposit,
     deposit_amount: depositAmount,
+    deposit_due_date: depositDueDate,
     second_deposit: secondDeposit,
     second_deposit_amount: secondDepositAmount,
     second_deposit_due_date: secondDepositDueDate,
@@ -593,7 +594,6 @@ export async function submitUnderContract(fields) {
     financing_date: financingDate || null,
     appraiser,
     tc_fee_type: tcFeeType,
-    earnest_money_due_date: earnestMoneyDueDate || null,
   });
 
   const { error: closeoutError } = await supabase.from("closeouts").insert({
@@ -611,7 +611,8 @@ export async function submitUnderContract(fields) {
   await syncContingencyTodo(tx.id, "Closing", closingDate || null);
   await syncContingencyTodo(tx.id, "Schedule Final Walkthrough", dateMinusDays(closingDate, 7));
   await syncContingencyTodo(tx.id, "Send Utilities", dateMinusDays(closingDate, 10));
-  await syncContingencyTodo(tx.id, "Earnest Money Due", earnestMoneyDueDate || null);
+  await syncContingencyTodo(tx.id, "Deposit Due", holdDeposit === "Yes" ? depositDueDate || null : null);
+  await syncContingencyTodo(tx.id, "Second Deposit Due", secondDeposit === "Yes" ? secondDepositDueDate || null : null);
 
   // Everything below is listing-side logistics — doesn't apply when Hall Collins
   // is only representing the buyer, since there's no seller-side deposit/utility

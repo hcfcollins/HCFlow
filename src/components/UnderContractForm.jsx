@@ -67,6 +67,7 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
   const [appraiserOther, setAppraiserOther] = useState(draft?.appraiserOther || "");
   const [holdDeposit, setHoldDeposit] = useState(draft?.holdDeposit || "No");
   const [depositAmount, setDepositAmount] = useState(draft?.depositAmount || "");
+  const [depositDueDate, setDepositDueDate] = useState(initialData?.commission_data?.deposit_due_date || draft?.depositDueDate || "");
   const [secondDeposit, setSecondDeposit] = useState(draft?.secondDeposit || "No");
   const [secondDepositAmount, setSecondDepositAmount] = useState(draft?.secondDepositAmount || "");
   const [secondDepositDueDate, setSecondDepositDueDate] = useState(draft?.secondDepositDueDate || "");
@@ -83,15 +84,14 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
   const [referralPct, setReferralPct] = useState(initialReferralPct != null ? String(initialReferralPct) : draft?.referralPct || "25");
   const [referralPctAutoAdjusted, setReferralPctAutoAdjusted] = useState(false);
   const [tcFeeType, setTcFeeType] = useState(initialData?.commission_data?.tc_fee_type || draft?.tcFeeType || "");
-  const [earnestMoneyDueDate, setEarnestMoneyDueDate] = useState(initialData?.commission_data?.earnest_money_due_date || draft?.earnestMoneyDueDate || "");
   const [townWaterSewer, setTownWaterSewer] = useState(initialData?.town_water_sewer ?? draft?.townWaterSewer ?? false);
 
   const { clearDraft } = useDraftPersistence(draftKey, {
     region, selectedAgentId, selectedAgentName, side, leadType, sellerName, buyerName, address,
     propertyStyle, price, buyerAttorney, buyerAttorneyTbd, sellerAttorney, sellerAttorneyTbd,
     commissionPct, closingDate, inspectionDate, financingDate, appraiser, appraiserOther,
-    holdDeposit, depositAmount, secondDeposit, secondDepositAmount, secondDepositDueDate, tcFeeType,
-    clientSource, referralOwedTo, referralPctChoice, referralPct, earnestMoneyDueDate, townWaterSewer,
+    holdDeposit, depositAmount, depositDueDate, secondDeposit, secondDepositAmount, secondDepositDueDate, tcFeeType,
+    clientSource, referralOwedTo, referralPctChoice, referralPct, townWaterSewer,
   });
 
   useEffect(() => {
@@ -159,6 +159,7 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
         appraiser: appraiser === "Other" ? appraiserOther : "TBD",
         holdDeposit,
         depositAmount: holdDeposit === "Yes" && depositAmount ? Number(depositAmount) : null,
+        depositDueDate: holdDeposit === "Yes" && depositDueDate ? depositDueDate : null,
         secondDeposit,
         secondDepositAmount: secondDeposit === "Yes" && secondDepositAmount ? Number(secondDepositAmount) : null,
         secondDepositDueDate: secondDeposit === "Yes" && secondDepositDueDate ? secondDepositDueDate : null,
@@ -166,7 +167,6 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
         referralOwedTo: clientSource === "Referral" ? referralOwedTo : null,
         referralPct: clientSource === "Referral" && referralPct ? Number(referralPct) : null,
         tcFeeType: tcFeeType || null,
-        earnestMoneyDueDate: earnestMoneyDueDate || null,
         townWaterSewer: side !== "Buy" ? townWaterSewer : null,
       });
 
@@ -319,10 +319,6 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
         Financing Date
         <input type="date" value={financingDate} onChange={(e) => setFinancingDate(e.target.value)} />
       </label>
-      <label>
-        Earnest Money Due Date
-        <input type="date" value={earnestMoneyDueDate} onChange={(e) => setEarnestMoneyDueDate(e.target.value)} />
-      </label>
       {side !== "Buy" && (
         <label className="tbd-toggle">
           <input type="checkbox" checked={townWaterSewer} onChange={(e) => setTownWaterSewer(e.target.checked)} />
@@ -346,12 +342,18 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
         <legend>Will we hold the deposit?</legend>
         <RadioGroup name="holdDeposit" value={holdDeposit} onChange={setHoldDeposit} options={["Yes", "No"]} />
         {holdDeposit === "Yes" && (
-          <input
-            type="number"
-            placeholder="Deposit amount"
-            value={depositAmount}
-            onChange={(e) => setDepositAmount(e.target.value)}
-          />
+          <>
+            <input
+              type="number"
+              placeholder="Deposit amount"
+              value={depositAmount}
+              onChange={(e) => setDepositAmount(e.target.value)}
+            />
+            <label className="uc-inline-label">
+              Deposit Due Date
+              <input type="date" value={depositDueDate} onChange={(e) => setDepositDueDate(e.target.value)} />
+            </label>
+          </>
         )}
       </fieldset>
 

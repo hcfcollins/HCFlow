@@ -169,12 +169,13 @@ create table commission_data (
   referral_pct numeric,
   hold_deposit text check (hold_deposit in ('No', 'Yes')),
   deposit_amount numeric,
+  deposit_due_date date, -- drives the "Deposit Due" to-do
   second_deposit text check (second_deposit in ('No', 'Yes')),
   second_deposit_amount numeric,
-  second_deposit_due_date date, -- when set, drives the second-deposit email reminder (not yet built)
+  second_deposit_due_date date, -- drives the "Second Deposit Due" to-do
   inspection_date date,
   financing_date date,
-  earnest_money_due_date date,
+  earnest_money_due_date date, -- unused — superseded by deposit_due_date/second_deposit_due_date, left in place since it's live on the real table
   appraiser text,
   -- Flat fee the brokerage pays a transaction coordinator, picked by the agent
   -- (not auto-derived — e.g. a land deal where the client is also the buyer is
