@@ -11,7 +11,7 @@ export async function fetchTransactions() {
     .select(
       `
       *,
-      agent:agents!transactions_agent_id_fkey(id, name, cover_sheet_url),
+      agent:agents!transactions_agent_id_fkey(id, name, cover_sheet_url, gusto_contractor_id),
       buyer_attorney:attorneys!transactions_buyer_attorney_id_fkey(id, name),
       seller_attorney:attorneys!transactions_seller_attorney_id_fkey(id, name),
       documents(*),

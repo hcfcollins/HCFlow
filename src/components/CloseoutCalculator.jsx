@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import RadioGroup from "./RadioGroup";
-import { saveCloseout } from "../lib/transactions";
+import { saveCloseout, fetchAllAgents } from "../lib/transactions";
 import { calculateCloseout, applyTcFee, TC_FEE_AMOUNTS, round2 } from "../lib/commissionCalc";
 import { useToast } from "../lib/ToastContext";
 import { focusNextOnEnter } from "../lib/formKeyNav";
@@ -10,6 +10,39 @@ const LEAD_TYPES = ["Organic", "Provided"];
 function money(n) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
   return `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** Gusto doesn't have a direct API for a single company yet (their embedded
+ * payroll program is partner-only right now) — this just gets the exact text
+ * for each payment onto the clipboard, ready to paste into Gusto's own manual
+ * contractor payment form, instead of Fran retyping/recalculating it there. */
+function GustoCopyRow({ payeeName, gustoContractorId, amount, memo, invoiceNumber }) {
+  const showToast = useToast();
+  if (!amount) return null;
+
+  async function handleCopy() {
+    const text = [`Amount: ${money(amount)}`, `Memo: ${memo}`, invoiceNumber ? `Invoice #: ${invoiceNumber}` : null]
+      .filter(Boolean)
+      .join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast(`Copied — paste into ${payeeName}'s Gusto payment`);
+    } catch {
+      showToast("Couldn't copy — your browser blocked clipboard access");
+    }
+  }
+
+  return (
+    <div className="closeout-preview-row">
+      <span>
+        {payeeName}
+        {!gustoContractorId && <span className="field-note"> (no Gusto Contractor ID on file)</span>}
+      </span>
+      <button type="button" className="comps-minimize-btn" onClick={handleCopy}>
+        Copy for Gusto
+      </button>
+    </div>
+  );
 }
 
 export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
@@ -28,6 +61,15 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const [anticipatedNote, setAnticipatedNote] = useState(saved.anticipated_commission_note ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [allAgents, setAllAgents] = useState([]);
+
+  useEffect(() => {
+    fetchAllAgents().then(setAllAgents).catch(() => {});
+  }, []);
+
+  const hollyAgent = allAgents.find((a) => a.name === "Holly Hall");
+  const franAgent = allAgents.find((a) => a.name === "Fran Collins");
+  const coordinatorAgent = allAgents.find((a) => a.role === "coordinator");
 
   const anticipatedChanged = String(anticipatedCommission) !== String(originalAnticipated);
 
@@ -205,6 +247,43 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
           <span>Total to Distribute</span>
           <strong>{money(totalToDistribute)}</strong>
         </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Gusto Payroll</legend>
+        <p className="field-help">
+          Direct push isn't possible yet (Gusto's API program is partner-only right now) — copy each payment's
+          amount, memo, and invoice number here, then paste into Gusto's contractor payment form manually.
+        </p>
+        {!result.isOwnerDeal && (
+          <GustoCopyRow
+            payeeName={transaction.agent?.name || "Agent"}
+            gustoContractorId={transaction.agent?.gusto_contractor_id}
+            amount={result.agentCommission}
+            memo={`Commission - ${transaction.address}`}
+          />
+        )}
+        <GustoCopyRow
+          payeeName="Holly Hall"
+          gustoContractorId={hollyAgent?.gusto_contractor_id}
+          amount={result.hollyCommission}
+          memo={`Commission - ${transaction.address}`}
+        />
+        <GustoCopyRow
+          payeeName="Fran Collins"
+          gustoContractorId={franAgent?.gusto_contractor_id}
+          amount={result.franCommission}
+          memo={`Commission - ${transaction.address}`}
+        />
+        {tcFeeType && (
+          <GustoCopyRow
+            payeeName={coordinatorAgent?.name || "Transaction Coordinator"}
+            gustoContractorId={coordinatorAgent?.gusto_contractor_id}
+            amount={tcFeeAmount}
+            memo={`Transaction Coordinator Fee - ${transaction.address}`}
+            invoiceNumber={`TC - ${transaction.address}`.slice(0, 25)}
+          />
+        )}
       </fieldset>
 
       <div className="comp-edit-all-actions">
