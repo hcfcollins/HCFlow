@@ -463,14 +463,14 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
         <textarea value={agentNotes} onChange={(e) => setAgentNotes(e.target.value)} rows={4} placeholder="General notes for this write-up…" />
       </fieldset>
 
-      <fieldset>
+      <fieldset className="comp-attachments">
         <legend>Attachments (optional)</legend>
         <label>
           Supplemental PDF <span className="field-help">(an existing comp PDF — its first 2 pages get replaced by our cover sheet)</span>
           <input type="file" accept="application/pdf" onChange={(e) => setSupplementalFile(e.target.files?.[0] || null)} />
         </label>
         <label>
-          Vermont ANR Map PDF <span className="field-help">(appended to the end as-is)</span>
+          ANR or Parcel Map PDF <span className="field-help">(appended to the end as-is)</span>
           <input type="file" accept="application/pdf" onChange={(e) => setAnrFile(e.target.files?.[0] || null)} />
         </label>
       </fieldset>

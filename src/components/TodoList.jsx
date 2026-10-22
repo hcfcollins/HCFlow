@@ -6,7 +6,7 @@ function formatCompletedDate(dateStr) {
   return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function dueBadge(dueDate) {
+export function dueBadge(dueDate) {
   if (!dueDate) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -20,7 +20,7 @@ function dueBadge(dueDate) {
 /** Tap the text to edit it in place (blur/Enter saves, Escape cancels) — separate
  * from the checkbox so toggling done and editing the text don't fight over the
  * same tap target the way they would if this were still one big <label>. */
-function TodoRow({ todo, onToggle, onEdit, onDelete }) {
+export function TodoRow({ todo, onToggle, onEdit, onDelete, propertyLabel, onPropertyClick }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(todo.text);
   const badge = !todo.done && dueBadge(todo.due_date);
@@ -56,6 +56,11 @@ function TodoRow({ todo, onToggle, onEdit, onDelete }) {
   return (
     <div className={`todo-item ${todo.done ? "done" : ""}`}>
       <input type="checkbox" checked={todo.done} onChange={(e) => onToggle(todo, e.target.checked)} />
+      {propertyLabel && (
+        <button type="button" className="todo-property-pill" onClick={onPropertyClick} title="Open this deal">
+          {propertyLabel}
+        </button>
+      )}
       <span className="todo-text" onClick={() => setEditing(true)}>
         {todo.text}
       </span>

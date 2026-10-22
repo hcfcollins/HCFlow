@@ -339,6 +339,37 @@ export async function seedWonListingTodos(transactionId) {
   if (error) throw error;
 }
 
+/** Keeps a contingency deadline to-do in sync with its date field on the Under
+ * Contract form (Financing/Inspection) — inserts it the first time a date is set,
+ * updates its due date if the agent corrects the date later, and removes it (if
+ * not already checked off) if the date gets cleared out entirely, e.g. a cash
+ * deal that no longer has a financing contingency. */
+async function syncContingencyTodo(transactionId, text, dueDate) {
+  const { data: existing, error: findError } = await supabase
+    .from("todos")
+    .select("id, done")
+    .eq("transaction_id", transactionId)
+    .eq("text", text)
+    .maybeSingle();
+  if (findError) throw findError;
+
+  if (!dueDate) {
+    if (existing && !existing.done) {
+      const { error } = await supabase.from("todos").delete().eq("id", existing.id);
+      if (error) throw error;
+    }
+    return;
+  }
+
+  if (existing) {
+    const { error } = await supabase.from("todos").update({ due_date: dueDate }).eq("id", existing.id);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from("todos").insert({ transaction_id: transactionId, text, due_date: dueDate });
+    if (error) throw error;
+  }
+}
+
 /** Creates the agent's Dropbox listing folder via the create-dropbox-folder Edge Function. */
 export async function createDropboxFolderForListing(transactionId) {
   const { data, error } = await supabase.functions.invoke("create-dropbox-folder", {
@@ -481,6 +512,9 @@ export async function submitUnderContract(fields) {
     referral_pct: referralPct,
   });
   if (closeoutError && closeoutError.code !== "23505") throw closeoutError;
+
+  await syncContingencyTodo(tx.id, "Financing Contingency Deadline", financingDate || null);
+  await syncContingencyTodo(tx.id, "Inspection Contingency Deadline", inspectionDate || null);
 
   await addActivityLog(tx.id, "Under Contract form submitted", address);
 

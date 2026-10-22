@@ -351,6 +351,10 @@ button { cursor: pointer; }
   background: var(--color-white);
 }
 .uc-form fieldset { border: 1px solid var(--color-border); border-radius: 12px; padding: 12px 14px; margin: 0; }
+/* Stacked <label> siblings (e.g. two file-upload fields) have no gap between them
+   by default — only each label's own text/input have the 6px flex gap — so the
+   native file-picker button of one field can visually crowd the next field's label. */
+.comp-attachments { display: flex; flex-direction: column; gap: 18px; }
 .uc-form legend { font-size: 12px; font-weight: 700; color: var(--color-pink); text-transform: uppercase; letter-spacing: 0.04em; padding: 0 4px; }
 .comp-edit-all-actions { display: flex; gap: 8px; align-items: center; }
 .comp-edit-all-actions button { flex: 1; margin-top: 0; }
@@ -502,6 +506,23 @@ button { cursor: pointer; }
   border-radius: 50%;
   padding: 0;
 }
+.todo-property-pill {
+  flex-shrink: 0;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: none;
+  background: var(--color-border-blue);
+  color: var(--color-navy);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 20px;
+}
+.all-todos-page .todo-list { margin-top: 0; }
+.all-todos-page .comps-section { margin-top: 18px; }
 .todo-item--editing { padding: 2px 0; }
 .todo-edit-input { width: 100%; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--color-accent-blue); font-family: 'Montserrat', sans-serif; font-size: 13px; }
 .todo-completed-date { margin-left: auto; font-size: 11px; text-decoration: none; color: var(--color-text-faint); white-space: nowrap; }
