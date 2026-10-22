@@ -8,7 +8,11 @@ create table agents (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
   email text unique,
-  role text not null default 'agent' check (role in ('agent', 'broker')),
+  -- 'coordinator' is for non-agent roster entries like the transaction coordinator
+  -- (Gusto payroll routing needs a place to store her contractor ID too, but she
+  -- never produces deals) — fetchAgents() excludes this role from the deal-agent
+  -- picker; fetchAllAgents() (Manage Agents) still lists everyone.
+  role text not null default 'agent' check (role in ('agent', 'broker', 'coordinator')),
   is_active boolean not null default true,
   dropbox_listing_path text, -- this agent's Dropbox listing folder, read by the create-dropbox-folder Edge Function
   dropbox_buyer_path text, -- captured for a future buyer-side Dropbox automation; not read by any function yet

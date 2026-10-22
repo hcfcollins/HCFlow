@@ -651,8 +651,11 @@ export async function saveCloseout(transactionId, closeoutFields) {
 
 // ---- Agents & Attorneys ----
 
+/** Excludes role='coordinator' (e.g. the transaction coordinator) — she's in the
+ * roster for Gusto routing purposes but never produces a deal, so she shouldn't
+ * be a selectable option here. */
 export async function fetchAgents() {
-  const { data, error } = await supabase.from("agents").select("*").eq("is_active", true).order("name");
+  const { data, error } = await supabase.from("agents").select("*").eq("is_active", true).neq("role", "coordinator").order("name");
   if (error) throw error;
   return data;
 }
