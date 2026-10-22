@@ -489,11 +489,14 @@ button { cursor: pointer; }
   vertical-align: middle;
 }
 .todo-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
-.todo-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.todo-item { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 6px; border-radius: 8px; }
 .todo-item.done { color: var(--color-text-muted); text-decoration: line-through; }
+.todo-item--today { background: var(--color-danger-bg); }
+.todo-item--overdue { background: var(--color-danger-bg); }
+.todo-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.todo-item-top-row { display: flex; align-items: center; gap: 8px; }
 .todo-text { cursor: pointer; }
 .todo-delete-btn {
-  margin-left: auto;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -507,11 +510,7 @@ button { cursor: pointer; }
   padding: 0;
 }
 .todo-property-pill {
-  flex-shrink: 0;
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  align-self: flex-start;
   border: none;
   background: var(--color-border-blue);
   color: var(--color-navy);
@@ -536,8 +535,8 @@ button { cursor: pointer; }
   border-radius: 10px;
   white-space: nowrap;
 }
-.todo-due-badge--overdue { background: var(--color-danger-bg); color: var(--color-danger-text); }
-.todo-due-badge--today { background: rgba(var(--pink-rgb), 0.12); color: var(--color-pink); }
+.todo-due-badge--overdue { background: var(--color-danger-text); color: var(--color-white); }
+.todo-due-badge--today { background: var(--color-danger-text); color: var(--color-white); }
 .todo-due-badge--upcoming { background: var(--color-border); color: var(--color-text-muted); }
 .todo-add { display: flex; gap: 6px; margin-top: 4px; }
 .todo-add input { flex: 1; min-width: 0; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--color-border-input); font-family: 'Montserrat', sans-serif; font-size: 13px; }

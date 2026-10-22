@@ -53,19 +53,25 @@ export function TodoRow({ todo, onToggle, onEdit, onDelete, propertyLabel, onPro
     );
   }
 
+  const urgentClass = badge?.className === "todo-due-badge--overdue" ? "todo-item--overdue" : badge?.className === "todo-due-badge--today" ? "todo-item--today" : "";
+
   return (
-    <div className={`todo-item ${todo.done ? "done" : ""}`}>
+    <div className={`todo-item ${todo.done ? "done" : ""} ${urgentClass}`}>
       <input type="checkbox" checked={todo.done} onChange={(e) => onToggle(todo, e.target.checked)} />
-      {propertyLabel && (
-        <button type="button" className="todo-property-pill" onClick={onPropertyClick} title="Open this deal">
-          {propertyLabel}
-        </button>
-      )}
-      <span className="todo-text" onClick={() => setEditing(true)}>
-        {todo.text}
-      </span>
-      {badge && <span className={`todo-due-badge ${badge.className}`}>{badge.label}</span>}
-      {todo.done && todo.completed_at && <span className="todo-completed-date">{formatCompletedDate(todo.completed_at)}</span>}
+      <div className="todo-item-main">
+        <div className="todo-item-top-row">
+          <span className="todo-text" onClick={() => setEditing(true)}>
+            {todo.text}
+          </span>
+          {badge && <span className={`todo-due-badge ${badge.className}`}>{badge.label}</span>}
+          {todo.done && todo.completed_at && <span className="todo-completed-date">{formatCompletedDate(todo.completed_at)}</span>}
+        </div>
+        {propertyLabel && (
+          <button type="button" className="todo-property-pill" onClick={onPropertyClick} title="Open this deal">
+            {propertyLabel}
+          </button>
+        )}
+      </div>
       <button type="button" className="todo-delete-btn" onClick={() => onDelete(todo.id)} aria-label="Delete to-do" title="Delete to-do">
         <X size={13} />
       </button>
