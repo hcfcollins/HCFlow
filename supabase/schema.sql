@@ -331,6 +331,25 @@ create policy "agent_assets_delete" on storage.objects for delete
   using (bucket_id = 'agent-assets' and is_broker());
 
 -- ============================================================
+-- 8b. GUSTO CONNECTION (OAuth tokens — service-role only, never client-readable)
+-- ============================================================
+-- Singleton row (id always 1) — this app only ever connects to one Gusto company
+-- (Hall Collins' own payroll account). Written by the gusto-oauth-callback Edge
+-- Function; read/refreshed by the future payroll-push Edge Function. RLS is
+-- enabled with NO policies at all, so only the service role (used exclusively by
+-- Edge Functions, never the browser) can touch this table — these are live API
+-- credentials, not ordinary app data.
+create table gusto_connection (
+  id int primary key default 1,
+  access_token text,
+  refresh_token text,
+  expires_at timestamptz,
+  updated_at timestamptz not null default now(),
+  constraint gusto_connection_singleton check (id = 1)
+);
+alter table gusto_connection enable row level security;
+
+-- ============================================================
 -- 9. NOTES FOR CLAUDE CODE / WHOEVER WIRES THIS UP
 -- ============================================================
 -- - Agents authenticate via Google Sign-In (Supabase Auth → Providers → Google).
