@@ -484,18 +484,16 @@ export default function DealDetail({
         </div>
       )}
 
-      {transaction.stage === "won" && (
-        <div className="detail-section">
-          <h2 className="comps-section-title">To-Do</h2>
-          <TodoList
-            todos={transaction.todos}
-            onAdd={(text, dueDate) => onAddTodo(transaction.id, text, dueDate)}
-            onToggle={onToggleTodo}
-            onEdit={onEditTodo}
-            onDelete={onDeleteTodo}
-          />
-        </div>
-      )}
+      <div className="detail-section">
+        <h2 className="comps-section-title">To-Do</h2>
+        <TodoList
+          todos={transaction.todos}
+          onAdd={(text, dueDate) => onAddTodo(transaction.id, text, dueDate)}
+          onToggle={onToggleTodo}
+          onEdit={onEditTodo}
+          onDelete={onDeleteTodo}
+        />
+      </div>
 
       <div className="detail-section">
         <h2 className="comps-section-title">Notes</h2>
