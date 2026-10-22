@@ -92,6 +92,7 @@ create table transactions (
   has_view text check (has_view in ('Yes', 'No')),
   solar text check (solar in ('No', 'Yes — Owned', 'Yes — Leased')),
   boundary_notes text, -- "Notes on Boundary Lines"
+  town_water_sewer boolean, -- set on Under Contract (listings only) — final water/sewer reading has to be ordered 2 weeks out instead of 1 when true
   linked_id uuid references transactions(id),
   social_queue_order integer, -- position in the social media daily rotation queue; null = not currently in rotation
   social_went_live_at timestamptz, -- set once, first time the "Go Live" to-do is checked; never cleared — marks eligibility for the one closing shoutout
@@ -168,12 +169,13 @@ create table commission_data (
   second_deposit_due_date date, -- when set, drives the second-deposit email reminder (not yet built)
   inspection_date date,
   financing_date date,
+  earnest_money_due_date date,
   appraiser text,
   -- Flat fee the brokerage pays a transaction coordinator, picked by the agent
   -- (not auto-derived — e.g. a land deal where the client is also the buyer is
   -- a judgment call). Comes out of the brokerage's own cut (closeouts.bank_amount),
   -- not the agent/Holly/Fran split. See TC_FEE_AMOUNTS in lib/commissionCalc.js.
-  tc_fee_type text check (tc_fee_type in ('Land', 'Buyer', 'Unrepresented Buyer Listing')),
+  tc_fee_type text check (tc_fee_type in ('Land', 'Buyer', 'Unrepresented Buyer Listing', 'Compliance')),
   updated_at timestamptz not null default now()
 );
 

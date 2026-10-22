@@ -83,13 +83,15 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
   const [referralPct, setReferralPct] = useState(initialReferralPct != null ? String(initialReferralPct) : draft?.referralPct || "25");
   const [referralPctAutoAdjusted, setReferralPctAutoAdjusted] = useState(false);
   const [tcFeeType, setTcFeeType] = useState(initialData?.commission_data?.tc_fee_type || draft?.tcFeeType || "");
+  const [earnestMoneyDueDate, setEarnestMoneyDueDate] = useState(initialData?.commission_data?.earnest_money_due_date || draft?.earnestMoneyDueDate || "");
+  const [townWaterSewer, setTownWaterSewer] = useState(initialData?.town_water_sewer ?? draft?.townWaterSewer ?? false);
 
   const { clearDraft } = useDraftPersistence(draftKey, {
     region, selectedAgentId, selectedAgentName, side, leadType, sellerName, buyerName, address,
     propertyStyle, price, buyerAttorney, buyerAttorneyTbd, sellerAttorney, sellerAttorneyTbd,
     commissionPct, closingDate, inspectionDate, financingDate, appraiser, appraiserOther,
     holdDeposit, depositAmount, secondDeposit, secondDepositAmount, secondDepositDueDate, tcFeeType,
-    clientSource, referralOwedTo, referralPctChoice, referralPct,
+    clientSource, referralOwedTo, referralPctChoice, referralPct, earnestMoneyDueDate, townWaterSewer,
   });
 
   useEffect(() => {
@@ -164,6 +166,8 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
         referralOwedTo: clientSource === "Referral" ? referralOwedTo : null,
         referralPct: clientSource === "Referral" && referralPct ? Number(referralPct) : null,
         tcFeeType: tcFeeType || null,
+        earnestMoneyDueDate: earnestMoneyDueDate || null,
+        townWaterSewer: side !== "Buy" ? townWaterSewer : null,
       });
 
       clearDraft();
@@ -315,6 +319,16 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
         Financing Date
         <input type="date" value={financingDate} onChange={(e) => setFinancingDate(e.target.value)} />
       </label>
+      <label>
+        Earnest Money Due Date
+        <input type="date" value={earnestMoneyDueDate} onChange={(e) => setEarnestMoneyDueDate(e.target.value)} />
+      </label>
+      {side !== "Buy" && (
+        <label className="tbd-toggle">
+          <input type="checkbox" checked={townWaterSewer} onChange={(e) => setTownWaterSewer(e.target.checked)} />
+          Town Water / Town Sewer <span className="field-help">(final reading needs to be ordered 2 weeks out instead of 1)</span>
+        </label>
+      )}
 
       <fieldset>
         <legend>Appraiser</legend>

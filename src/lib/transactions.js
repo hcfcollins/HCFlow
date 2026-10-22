@@ -115,6 +115,7 @@ export async function relistAfterTermination(transactionId, reason) {
     has_view: oldTx.has_view,
     solar: oldTx.solar,
     boundary_notes: oldTx.boundary_notes,
+    town_water_sewer: oldTx.town_water_sewer,
     social_went_live_at: oldTx.social_went_live_at,
     linked_id: transactionId,
   });
@@ -374,11 +375,16 @@ export async function createTransaction(fields) {
 }
 
 /** Finds an existing transaction by case-insensitive address match (used by the Under Contract form). */
+/** Excludes terminated rows — otherwise, once a listing has been relisted (see
+ * relistAfterTermination below), this address matches both the terminated
+ * original and its active replacement, and .maybeSingle() throws instead of
+ * picking one. There should only ever be one non-terminated row per address. */
 export async function findTransactionByAddress(address) {
   const { data, error } = await supabase
     .from("transactions")
     .select("*")
     .ilike("address", address.trim())
+    .is("terminated_at", null)
     .maybeSingle();
   if (error) throw error;
   return data;
@@ -410,6 +416,16 @@ export async function seedWonListingTodos(transactionId) {
     .from("todos")
     .insert(WON_LISTING_BASELINE_TODOS.map((text) => ({ transaction_id: transactionId, text })));
   if (error) throw error;
+}
+
+/** `date` (a "YYYY-MM-DD" string) minus `days` days, as another "YYYY-MM-DD"
+ * string — null in, null out, so callers can pass a possibly-unset date field
+ * straight through without a separate guard. */
+function dateMinusDays(date, days) {
+  if (!date) return null;
+  const d = new Date(`${date}T00:00:00`);
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
 }
 
 /** Keeps a contingency deadline to-do in sync with its date field on the Under
@@ -527,6 +543,7 @@ export async function submitUnderContract(fields) {
     inspectionDate, financingDate, appraiser, holdDeposit, depositAmount,
     secondDeposit, secondDepositAmount, secondDepositDueDate,
     clientSource, referralOwedTo, referralPct, tcFeeType,
+    earnestMoneyDueDate, townWaterSewer,
   } = fields;
 
   const txPatch = {
@@ -541,6 +558,7 @@ export async function submitUnderContract(fields) {
     seller_attorney_id: sellerAttorneyId,
     next_date: closingDate || null,
     stage: "contract",
+    town_water_sewer: townWaterSewer,
   };
 
   let tx = await findTransactionByAddress(address);
@@ -575,6 +593,7 @@ export async function submitUnderContract(fields) {
     financing_date: financingDate || null,
     appraiser,
     tc_fee_type: tcFeeType,
+    earnest_money_due_date: earnestMoneyDueDate || null,
   });
 
   const { error: closeoutError } = await supabase.from("closeouts").insert({
@@ -588,6 +607,22 @@ export async function submitUnderContract(fields) {
 
   await syncContingencyTodo(tx.id, "Financing Contingency Deadline", financingDate || null);
   await syncContingencyTodo(tx.id, "Inspection Contingency Deadline", inspectionDate || null);
+  await syncContingencyTodo(tx.id, "Financing Check-In", dateMinusDays(financingDate, 7));
+  await syncContingencyTodo(tx.id, "Closing", closingDate || null);
+  await syncContingencyTodo(tx.id, "Schedule Final Walkthrough", dateMinusDays(closingDate, 7));
+  await syncContingencyTodo(tx.id, "Send Utilities", dateMinusDays(closingDate, 10));
+  await syncContingencyTodo(tx.id, "Earnest Money Due", earnestMoneyDueDate || null);
+
+  // Everything below is listing-side logistics — doesn't apply when Hall Collins
+  // is only representing the buyer, since there's no seller-side deposit/utility
+  // reading to coordinate on someone else's listing.
+  if (side !== "Buy") {
+    await syncContingencyTodo(tx.id, "Send the Deposit", dateMinusDays(closingDate, 5));
+    // Town water/sewer final readings have to be ordered from the municipality,
+    // which takes longer to schedule than a private well/septic reading — 2
+    // weeks out instead of 1.
+    await syncContingencyTodo(tx.id, "Final Oil/Water/Sewer Reading", dateMinusDays(closingDate, townWaterSewer ? 14 : 7));
+  }
 
   await addActivityLog(tx.id, "Under Contract form submitted", address);
 
