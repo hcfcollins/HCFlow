@@ -649,6 +649,17 @@ export async function saveCloseout(transactionId, closeoutFields) {
   await updateTransactionStage(transactionId, "closed");
 }
 
+/** Sends a closed deal's fully pre-calculated numbers to the Deal Tracker Form
+ * Google Sheet (via the push-closeout-to-sheet Edge Function -> a Zapier
+ * webhook), which is what the existing "Create Xero Invoice and Bills" Zap
+ * reads from. Deliberately separate from saveCloseout — a failure here (the
+ * new Zap isn't wired up yet, Zapier's down, whatever) must never block the
+ * actual close-out from saving, so callers should catch this independently. */
+export async function pushCloseoutToSheet(payload) {
+  const { error } = await supabase.functions.invoke("push-closeout-to-sheet", { body: payload });
+  if (error) throw error;
+}
+
 // ---- Agents & Attorneys ----
 
 /** Excludes role='coordinator' (e.g. the transaction coordinator) — she's in the

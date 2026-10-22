@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import RadioGroup from "./RadioGroup";
-import { saveCloseout, fetchAllAgents } from "../lib/transactions";
+import { saveCloseout, fetchAllAgents, pushCloseoutToSheet } from "../lib/transactions";
 import { calculateCloseout, applyTcFee, TC_FEE_AMOUNTS, round2 } from "../lib/commissionCalc";
 import { useToast } from "../lib/ToastContext";
 import { focusNextOnEnter } from "../lib/formKeyNav";
@@ -97,6 +97,63 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   // commissionAfterReferral minus the TC fee.
   const totalToDistribute = round2((result.agentCommission || 0) + result.hollyCommission + result.franCommission + finalBankAmount);
 
+  // Maps this calculator's numbers onto the "Deal Tracker Form" sheet's actual
+  // columns (confirmed against the live Zap — see commit history), skipping
+  // "Check Received" (Fran sets that herself once the check clears — that's
+  // what fires the existing Xero automation) and the reminder-email trigger
+  // columns (33-36) and Email Address (37), which some other, untouched
+  // automation already owns. A few columns' exact meaning was a best guess
+  // confirmed with Fran only loosely — flagged below — fix these the moment
+  // real data shows them landing wrong:
+  //   - real_percentage: assumed to be the effective rate after referral
+  //     (commissionAfterReferral / price), not the raw entered commission %.
+  //   - brokerage_split_pct: assumed to be the agent's split % (blank for
+  //     owner deals, which don't use this concept the same way).
+  //   - brokerage_keeps: sent BEFORE the TC fee deduction, since TC Fee has
+  //     its own column — if the sheet expects it net of TC fee, swap to
+  //     finalBankAmount instead.
+  function buildSheetPayload() {
+    const realPercentage = priceNum > 0 ? round2((commissionAfterReferral / priceNum) * 100) : commissionPctNum;
+    const brokerageSplitPct = !result.isOwnerDeal && result.agentPct != null ? round2(result.agentPct * 100) : null;
+    const leftoverForTeam = round2(commissionAfterReferral - result.bankAmount);
+    const depositHeldAmount = transaction.commission_data?.hold_deposit === "Yes" ? transaction.commission_data.deposit_amount : null;
+
+    return {
+      closing_date: transaction.next_date || null,
+      address: transaction.address,
+      seller_attorney: transaction.seller_attorney?.name || null,
+      buyer_attorney: transaction.buyer_attorney?.name || null,
+      agent_name: transaction.agent?.name || null,
+      which_side: transaction.side,
+      lead_type: leadType,
+      price: priceNum,
+      commission_pct: commissionPctNum,
+      real_percentage: realPercentage,
+      total_commission_check: round2(grossCommission),
+      brokerage_split_pct: brokerageSplitPct,
+      referral_pct: referralPctNum,
+      referral_amount: round2(referralAmount),
+      commission_after_referral: round2(commissionAfterReferral),
+      brokerage_keeps: result.bankAmount,
+      leftover_for_team: leftoverForTeam,
+      holly_commission: result.hollyCommission,
+      fran_commission: result.franCommission,
+      agent_commission: result.agentCommission,
+      seller_name: transaction.seller_name || null,
+      buyer_name: transaction.buyer_name || null,
+      client_source: transaction.commission_data?.client_source || null,
+      timestamp: new Date().toISOString(),
+      notes: transaction.notes || null,
+      inspection_deadline: transaction.commission_data?.inspection_date || null,
+      financing_date: transaction.commission_data?.financing_date || null,
+      appraiser: transaction.commission_data?.appraiser || null,
+      deposit_held_amount: depositHeldAmount,
+      property_style: transaction.property_style || null,
+      vt_or_nh: transaction.region || null,
+      tc_fee: tcFeeType ? tcFeeAmount : null,
+    };
+  }
+
   async function handleSave() {
     if (anticipatedChanged && !anticipatedNote.trim()) {
       setError("You changed the Anticipated Commission amount — add a note explaining why before saving.");
@@ -126,6 +183,16 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         trust_to_checking_transferred: trustToCheckingTransferred,
       });
       showToast("Close-out saved — deal marked Closed");
+      // Best-effort — the closeout itself is already saved and the deal is
+      // already marked Closed above, so a failure here (Zap not wired up yet,
+      // Zapier down, whatever) is surfaced but must never look like the save
+      // failed or block moving on.
+      try {
+        await pushCloseoutToSheet(buildSheetPayload());
+        showToast("Sent to the Deal Tracker sheet");
+      } catch (e) {
+        showToast(`Saved, but couldn't send to the Deal Tracker sheet: ${e.message}`);
+      }
       onSaved();
     } catch (e) {
       setError(e.message);
