@@ -31,8 +31,9 @@ import ManageAgents from "./components/ManageAgents";
 import SocialScheduler from "./components/SocialScheduler";
 import SpreadsheetView from "./components/SpreadsheetView";
 import TutorialGuide from "./components/TutorialGuide";
+import MyEarnings from "./components/MyEarnings";
 import { SkeletonList } from "./components/Skeleton";
-import { LogOut, HelpCircle } from "lucide-react";
+import { LogOut, HelpCircle, DollarSign } from "lucide-react";
 
 const STAGES = [
   { key: "comps", label: "Comp" },
@@ -59,6 +60,7 @@ export default function App() {
   const [showSocialScheduler, setShowSocialScheduler] = useState(false);
   const [showSpreadsheetView, setShowSpreadsheetView] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showMyEarnings, setShowMyEarnings] = useState(false);
   const [viewAsAgent, setViewAsAgent] = useState(false);
 
   useEffect(() => {
@@ -333,6 +335,14 @@ export default function App() {
     );
   }
 
+  if (showMyEarnings) {
+    return (
+      <div className="app">
+        <MyEarnings onBack={() => setShowMyEarnings(false)} />
+      </div>
+    );
+  }
+
   if (showManageAgents) {
     return (
       <div className="app">
@@ -436,6 +446,9 @@ export default function App() {
           <img src="/hall-collins-logo-full.png" alt="Hall Collins Real Estate Group" className="brand-logo" />
           <div className="main-header-right">
             <h1>Deal Flow</h1>
+            <button onClick={() => setShowMyEarnings(true)} aria-label="My Earnings" title="My Earnings">
+              <DollarSign size={18} />
+            </button>
             <button onClick={() => setShowTutorial(true)} aria-label="How It Works" title="How It Works">
               <HelpCircle size={18} />
             </button>

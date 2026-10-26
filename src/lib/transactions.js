@@ -707,6 +707,15 @@ export async function pushCloseoutToXero(payload) {
   if (error) throw error;
 }
 
+/** The signed-in agent's own earnings only (see agent-earnings) — their own
+ * deals, their own earned/projected commission, never Holly/Fran's cut or
+ * what the brokerage keeps, even on their own deals. */
+export async function fetchMyEarnings() {
+  const { data, error } = await supabase.functions.invoke("agent-earnings", { body: {} });
+  if (error) throw error;
+  return data;
+}
+
 // ---- Agents & Attorneys ----
 
 /** Excludes role='coordinator' (e.g. the transaction coordinator) — she's in the
