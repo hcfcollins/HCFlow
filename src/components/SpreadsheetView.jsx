@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { updateTransactionFields, upsertCommissionData, fetchAllAgents } from "../lib/transactions";
+import { updateTransactionFields, upsertCommissionData, updateCloseoutFields, fetchAllAgents } from "../lib/transactions";
 import { useToast } from "../lib/ToastContext";
 import { PROPERTY_STYLES } from "../lib/compFieldOptions";
 import { CLIENT_SOURCES } from "./UnderContractForm";
@@ -22,16 +22,22 @@ const YES_NO_OPTIONS = ["Yes", "No"];
 // Each column pulls from one of three places on a transaction row:
 // "tx" (the transactions table directly, via updateTransactionFields),
 // "commission" (commission_data, via upsertCommissionData — upsert-safe even
-// when no row exists yet for an early-stage deal), or "closeout" (view-only —
-// see the plan's note on why editing these here would risk bypassing the real
-// Close-Out Calculator's "mark as closed" side effect).
+// when no row exists yet for an early-stage deal), or "closeout" (via
+// updateCloseoutFields — most closeout columns are still readOnly here, see
+// the plan's note on why editing the calculated ones would risk bypassing the
+// real Close-Out Calculator's "mark as closed" side effect; check_received is
+// a plain status flag, not a calculated figure, so it's the one exception).
+//
+// The first 3 columns (Closing Date, Check Received, Address) are frozen —
+// kept visible while scrolling right — see FROZEN_COLUMN_COUNT below. Keep
+// them first in this array if that ever needs to change.
 const COLUMNS = [
-  { key: "address", label: "Address", source: "tx", type: "text" },
   // Stored as a plain YYYY-MM-DD string (not a real date column — see the
-  // Closing Date tooltip) but edited with a native date picker and displayed
-  // formatted, same as inspection/financing dates below. Kept up near Address
-  // so what's coming up is visible without scrolling right.
+  // tooltip below) but edited with a native date picker and displayed
+  // formatted, same as inspection/financing dates further down.
   { key: "next_date", label: "Closing Date", source: "tx", type: "date", format: formatDate },
+  { key: "check_received", label: "Check Received", source: "closeout", type: "select", options: YES_NO_OPTIONS },
+  { key: "address", label: "Address", source: "tx", type: "text" },
   { key: "town", label: "Town", source: "tx", type: "text" },
   { key: "region", label: "Region", source: "tx", type: "select", options: REGION_OPTIONS },
   { key: "side", label: "Side", source: "tx", type: "select", options: SIDE_OPTIONS },
@@ -60,6 +66,10 @@ const COLUMNS = [
   { key: "fran_commission", label: "Fran Commission", source: "closeout", readOnly: true },
   { key: "bank_amount", label: "Brokerage Keeps", source: "closeout", readOnly: true },
 ];
+
+const FROZEN_COLUMN_COUNT = 3; // Closing Date, Check Received, Address
+const FROZEN_COLUMN_WIDTHS = [110, 120, 190]; // px, same order — drives both column width and sticky left-offset below
+const FROZEN_COLUMN_LEFTS = FROZEN_COLUMN_WIDTHS.map((_, i) => FROZEN_COLUMN_WIDTHS.slice(0, i).reduce((a, b) => a + b, 0));
 
 function getValue(tx, col) {
   if (col.source === "tx") return tx[col.key];
@@ -284,6 +294,22 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
     }
   }
 
+  async function handleSaveCloseout(tx, key, value) {
+    try {
+      await updateCloseoutFields(tx.id, { [key]: value });
+      onRefresh();
+      showToast("Saved");
+    } catch (e) {
+      showToast(`Couldn't save: ${e.message}`);
+    }
+  }
+
+  function handleSaveCell(tx, col, value) {
+    if (col.source === "tx") return handleSaveTx(tx, col.key, value);
+    if (col.source === "commission") return handleSaveCommission(tx, col.key, value);
+    return handleSaveCloseout(tx, col.key, value);
+  }
+
   return (
     <div className="deal-detail">
       <header className="app-header">
@@ -326,15 +352,26 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
         <table className="sv-table">
           <thead>
             <tr>
+              {COLUMNS.slice(0, FROZEN_COLUMN_COUNT).map((col, i) => (
+                <th
+                  key={col.key}
+                  className="sv-th-sortable sv-col-frozen"
+                  style={{ left: FROZEN_COLUMN_LEFTS[i], width: FROZEN_COLUMN_WIDTHS[i], minWidth: FROZEN_COLUMN_WIDTHS[i] }}
+                  onClick={() => handleSort(col.key)}
+                  title={col.key === "next_date" ? "The deal's next key date — its closing date once Under Contract, used informally before that." : undefined}
+                >
+                  {col.label}
+                  {sortKey === col.key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+                </th>
+              ))}
               <th className="sv-th-sortable" onClick={() => handleSort("agent")}>
                 Agent{sortKey === "agent" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
               </th>
-              {COLUMNS.map((col) => (
+              {COLUMNS.slice(FROZEN_COLUMN_COUNT).map((col) => (
                 <th
                   key={col.key}
                   className="sv-th-sortable"
                   onClick={() => handleSort(col.key)}
-                  title={col.key === "next_date" ? "The deal's next key date — its closing date once Under Contract, used informally before that." : undefined}
                 >
                   {col.label}
                   {sortKey === col.key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
@@ -350,6 +387,18 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                 className={selectedRowId === tx.id ? "sv-row-selected" : ""}
                 onClick={() => setSelectedRowId(tx.id)}
               >
+                {COLUMNS.slice(0, FROZEN_COLUMN_COUNT).map((col, i) => (
+                  <td key={col.key} className="sv-col-frozen" style={{ left: FROZEN_COLUMN_LEFTS[i] }}>
+                    <EditableCell
+                      value={getValue(tx, col)}
+                      type={col.type}
+                      options={col.options}
+                      format={col.format}
+                      readOnly={col.readOnly}
+                      onSave={(v) => handleSaveCell(tx, col, v)}
+                    />
+                  </td>
+                ))}
                 <td>
                   <EditableCell
                     value={tx.agent_id}
@@ -359,7 +408,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                     onSave={(v) => handleSaveTx(tx, "agent_id", v)}
                   />
                 </td>
-                {COLUMNS.map((col) => (
+                {COLUMNS.slice(FROZEN_COLUMN_COUNT).map((col) => (
                   <td key={col.key}>
                     <EditableCell
                       value={getValue(tx, col)}
@@ -367,7 +416,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                       options={col.options}
                       format={col.format}
                       readOnly={col.readOnly}
-                      onSave={(v) => (col.source === "tx" ? handleSaveTx(tx, col.key, v) : handleSaveCommission(tx, col.key, v))}
+                      onSave={(v) => handleSaveCell(tx, col, v)}
                     />
                   </td>
                 ))}

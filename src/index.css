@@ -65,6 +65,13 @@ body {
   color: var(--color-navy);
 }
 .app { max-width: 480px; margin: 0 auto; padding: 20px 18px 60px; }
+/* Spreadsheet View earns the whole screen on desktop instead of sitting
+   centered in the same narrow column every other mobile-first screen uses —
+   it's the one view built around a wide data grid. */
+.sv-app-wrap { max-width: none; }
+@media (min-width: 1000px) {
+  .sv-app-wrap { padding-left: 40px; padding-right: 40px; }
+}
 .app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .main-header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
 .main-header-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
@@ -880,7 +887,7 @@ button { cursor: pointer; }
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--color-text-muted);
-  z-index: 1;
+  z-index: 2;
 }
 .sv-th-sortable { cursor: pointer; user-select: none; }
 .sv-th-sortable:hover { color: var(--color-navy); }
@@ -898,8 +905,25 @@ button { cursor: pointer; }
 .sv-cell-readonly { padding: 2px 4px; color: var(--color-text-muted); }
 .sv-row-actions { position: sticky; right: 0; background: var(--color-cream-bg); }
 .sv-table tbody tr { cursor: pointer; }
+
+/* Zebra striping — explicit on both states (not just "leave odd transparent")
+   so the frozen columns below have a real color to match per row. */
+.sv-table tbody tr:nth-child(odd) { background: var(--color-white); }
+.sv-table tbody tr:nth-child(even) { background: var(--color-bg-slate); }
+
+/* Closing Date / Check Received / Address stay visible while scrolling right —
+   left offset is set inline per-column (see FROZEN_COLUMN_LEFTS in
+   SpreadsheetView.jsx), everything else here is shared. Frozen header cells
+   need to out-rank both the plain sticky-top headers and the frozen body
+   cells, since they're pinned on both axes at once (the top-left corner). */
+.sv-col-frozen { position: sticky; z-index: 1; overflow: hidden; text-overflow: ellipsis; }
+.sv-table thead th.sv-col-frozen { z-index: 3; }
+.sv-table tbody tr:nth-child(odd) td.sv-col-frozen { background: var(--color-white); }
+.sv-table tbody tr:nth-child(even) td.sv-col-frozen { background: var(--color-bg-slate); }
+
 .sv-row-selected { background: rgba(var(--pink-rgb), 0.1); }
-.sv-row-selected .sv-row-actions { background: rgba(var(--pink-rgb), 0.1); }
+.sv-row-selected .sv-row-actions,
+.sv-row-selected td.sv-col-frozen { background: rgba(var(--pink-rgb), 0.1); }
 .sv-summary { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--color-border); }
 .sv-summary .sv-filters { margin-bottom: 14px; }
 .sv-summary-stats { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }

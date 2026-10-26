@@ -357,7 +357,7 @@ export default function App() {
 
   if (showSpreadsheetView) {
     return (
-      <div className="app">
+      <div className="app sv-app-wrap">
         <SpreadsheetView
           transactions={txs}
           onBack={() => setShowSpreadsheetView(false)}

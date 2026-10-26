@@ -677,6 +677,16 @@ export async function saveCloseout(transactionId, closeoutFields) {
   await updateTransactionStage(transactionId, "closed");
 }
 
+/** Patches the closeouts row directly — e.g. Spreadsheet View's Check Received
+ * toggle — without saveCloseout's "mark the deal Closed" side effect. Safe as
+ * a plain upsert: every deal already has a closeouts row from Under Contract
+ * onward (submitUnderContract creates an early one with just price/commission
+ * basics), so this never needs to be a first-time insert in practice. */
+export async function updateCloseoutFields(transactionId, patch) {
+  const { error } = await supabase.from("closeouts").upsert({ transaction_id: transactionId, ...patch });
+  if (error) throw error;
+}
+
 /** Sends a closed deal's fully pre-calculated numbers to the Deal Tracker Form
  * Google Sheet (via the push-closeout-to-sheet Edge Function -> a Zapier
  * webhook), which is what the existing "Create Xero Invoice and Bills" Zap

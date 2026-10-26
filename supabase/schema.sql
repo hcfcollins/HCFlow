@@ -208,6 +208,7 @@ create table closeouts (
   anticipated_commission_note text, -- required whenever anticipated_commission is edited after its first save
   deposit_retained boolean, -- confirmed at close-out: was the earnest money/deposit actually kept, not refunded
   trust_to_checking_transferred boolean, -- confirmed at close-out: has the deposit actually moved from the trust account into checking yet
+  check_received text check (check_received in ('Yes', 'No')) default 'No', -- whether the commission check has actually been received/cashed — edited directly from Spreadsheet View, independent of the rest of the close-out math
   is_historical_import boolean default false, -- true for rows imported from the old Google Sheet
   calculated_at timestamptz not null default now()
 );
