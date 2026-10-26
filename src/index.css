@@ -920,6 +920,20 @@ button { cursor: pointer; }
 .sv-table thead th.sv-col-frozen { z-index: 3; }
 .sv-table tbody tr:nth-child(odd) td.sv-col-frozen { background: var(--color-white); }
 .sv-table tbody tr:nth-child(even) td.sv-col-frozen { background: var(--color-bg-slate); }
+.sv-row-quick-actions { display: flex; gap: 4px; margin-top: 3px; }
+.sv-row-quick-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--color-border);
+  background: var(--color-white);
+  color: var(--color-text-muted);
+  border-radius: 5px;
+  padding: 0;
+}
+.sv-row-quick-actions button:hover { background: var(--color-border); color: var(--color-navy); }
 
 .sv-row-selected { background: rgba(var(--pink-rgb), 0.1); }
 .sv-row-selected .sv-row-actions,

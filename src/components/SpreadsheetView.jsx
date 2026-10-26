@@ -1,10 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import { updateTransactionFields, upsertCommissionData, updateCloseoutFields, fetchAllAgents } from "../lib/transactions";
+import { DollarSign, Ban, RotateCcw } from "lucide-react";
+import {
+  updateTransactionFields,
+  upsertCommissionData,
+  updateCloseoutFields,
+  fetchAllAgents,
+  terminateTransaction,
+  reactivateTransaction,
+} from "../lib/transactions";
 import { useToast } from "../lib/ToastContext";
 import { PROPERTY_STYLES } from "../lib/compFieldOptions";
 import { CLIENT_SOURCES } from "./UnderContractForm";
 import { formatDate } from "./DealDetail";
 import { TC_FEE_AMOUNTS, calculateCloseout, applyTcFee } from "../lib/commissionCalc";
+import CloseoutCalculator from "./CloseoutCalculator";
+import ConfirmDialog from "./ConfirmDialog";
 
 const STAGE_OPTIONS = [
   { value: "comps", label: "Comp" },
@@ -160,6 +170,8 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
   const [summaryMonth, setSummaryMonth] = useState(""); // "" = all time, else "YYYY-MM"
   const [pendingOnly, setPendingOnly] = useState(false); // "All Pending" — projected only, ignores summaryMonth
   const [selectedRowId, setSelectedRowId] = useState(null);
+  const [closingOutTx, setClosingOutTx] = useState(null);
+  const [terminatingTx, setTerminatingTx] = useState(null);
   const showToast = useToast();
 
   useEffect(() => {
@@ -310,6 +322,29 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
     return handleSaveCloseout(tx, col.key, value);
   }
 
+  async function handleReactivate(tx) {
+    try {
+      await reactivateTransaction(tx.id);
+      onRefresh();
+      showToast("Deal reactivated");
+    } catch (e) {
+      showToast(`Couldn't reactivate: ${e.message}`);
+    }
+  }
+
+  if (closingOutTx) {
+    return (
+      <CloseoutCalculator
+        transaction={closingOutTx}
+        onCancel={() => setClosingOutTx(null)}
+        onSaved={() => {
+          setClosingOutTx(null);
+          onRefresh();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="deal-detail">
       <header className="app-header">
@@ -397,6 +432,22 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                       readOnly={col.readOnly}
                       onSave={(v) => handleSaveCell(tx, col, v)}
                     />
+                    {col.key === "check_received" && (
+                      <div className="sv-row-quick-actions" onClick={(e) => e.stopPropagation()}>
+                        <button type="button" title="Close-Out Calculator" onClick={() => setClosingOutTx(tx)}>
+                          <DollarSign size={12} />
+                        </button>
+                        {tx.terminated_at ? (
+                          <button type="button" title="Reactivate deal" onClick={() => handleReactivate(tx)}>
+                            <RotateCcw size={12} />
+                          </button>
+                        ) : (
+                          <button type="button" title="Terminate deal" onClick={() => setTerminatingTx(tx)}>
+                            <Ban size={12} />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                 ))}
                 <td>
@@ -516,6 +567,28 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
           where that hasn't been set yet.
         </p>
       </div>
+
+      <ConfirmDialog
+        open={!!terminatingTx}
+        title={`Terminate ${terminatingTx?.address || "this deal"}?`}
+        message="This can be undone later with Reactivate."
+        promptLabel="Reason (optional)"
+        promptPlaceholder="Why is this deal being terminated?"
+        confirmLabel="Terminate Deal"
+        danger
+        onConfirm={async (reason) => {
+          const tx = terminatingTx;
+          setTerminatingTx(null);
+          try {
+            await terminateTransaction(tx.id, reason || "");
+            onRefresh();
+            showToast("Deal terminated");
+          } catch (e) {
+            showToast(`Couldn't terminate: ${e.message}`);
+          }
+        }}
+        onCancel={() => setTerminatingTx(null)}
+      />
     </div>
   );
 }
