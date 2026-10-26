@@ -12,9 +12,20 @@ import { useToast } from "../lib/ToastContext";
 import { PROPERTY_STYLES } from "../lib/compFieldOptions";
 import { CLIENT_SOURCES } from "./UnderContractForm";
 import { formatDate } from "./DealDetail";
-import { TC_FEE_AMOUNTS, calculateCloseout, applyTcFee } from "../lib/commissionCalc";
+import { TC_FEE_AMOUNTS, calculateCloseout, applyTcFee, round2 } from "../lib/commissionCalc";
 import CloseoutCalculator from "./CloseoutCalculator";
 import ConfirmDialog from "./ConfirmDialog";
+
+// Just for the Closing Date column — kept separate from the shared formatDate
+// (used everywhere else in the app) since this request was specifically
+// scoped to this one column's display, not every date in the app.
+function formatDateShort(dateStr) {
+  if (!dateStr) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr);
+  if (!match) return dateStr;
+  const [, y, m, d] = match;
+  return `${m}/${d}/${y}`;
+}
 
 const STAGE_OPTIONS = [
   { value: "comps", label: "Comp" },
@@ -45,7 +56,7 @@ const COLUMNS = [
   // Stored as a plain YYYY-MM-DD string (not a real date column — see the
   // tooltip below) but edited with a native date picker and displayed
   // formatted, same as inspection/financing dates further down.
-  { key: "next_date", label: "Closing Date", source: "tx", type: "date", format: formatDate },
+  { key: "next_date", label: "Closing Date", source: "tx", type: "date", format: formatDateShort },
   { key: "check_received", label: "Check Received", source: "closeout", type: "select", options: YES_NO_OPTIONS },
   { key: "address", label: "Address", source: "tx", type: "text" },
   { key: "town", label: "Town", source: "tx", type: "text" },
@@ -87,6 +98,40 @@ function getValue(tx, col) {
   return tx.closeouts?.[col.key];
 }
 
+/** Estimates the closeout figures from whatever's already on record (price,
+ * commission %, lead type, referral %) using the same formula the real
+ * Close-Out Calculator uses — null if there's not enough on record yet to
+ * estimate. Shaped like a closeouts row so it can stand in for one wherever
+ * the real figures aren't saved yet (see EditableCell's projectedValue). */
+function estimateCloseout(tx) {
+  const co = tx.closeouts;
+  const price = co?.price ?? tx.price;
+  const commissionPct = co?.commission_pct;
+  if (price == null || commissionPct == null) return null;
+
+  const leadType = co?.lead_type ?? tx.commission_data?.lead_type ?? "Organic";
+  const referralPct = Number(co?.referral_pct ?? tx.commission_data?.referral_pct ?? 0) || 0;
+  const grossCommission = Number(price) * (Number(commissionPct) / 100);
+  const commissionAfterReferral = grossCommission * (1 - referralPct / 100);
+  const result = calculateCloseout({
+    commissionAfterReferral,
+    agentName: tx.agent?.name,
+    side: tx.side,
+    leadType,
+    agentSplitPct: co?.agent_split_pct != null ? Number(co.agent_split_pct) : null,
+  });
+
+  return {
+    commission_pct: commissionPct,
+    agent_split_pct: result.agentPct != null ? round2(result.agentPct * 100) : null,
+    commission_after_referral: round2(commissionAfterReferral),
+    agent_commission: result.agentCommission,
+    holly_commission: result.hollyCommission,
+    fran_commission: result.franCommission,
+    bank_amount: result.bankAmount,
+  };
+}
+
 /** Select columns can use either a plain string array (side, sign status, ...) or
  * {value, label} objects (stage, agent) — resolve whichever was used to its label
  * for the closed-cell display instead of showing the raw stored value. */
@@ -96,7 +141,7 @@ function optionLabelFor(options, val) {
   return match ? match.label ?? match : val;
 }
 
-function EditableCell({ value, displayValue, type, options, format, readOnly, onSave }) {
+function EditableCell({ value, displayValue, type, options, format, readOnly, onSave, projectedValue }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? "");
 
@@ -104,6 +149,17 @@ function EditableCell({ value, displayValue, type, options, format, readOnly, on
 
   const shown = displayValue ?? (format ? format(value) : type === "select" ? optionLabelFor(options, value) : value);
   const display = shown === null || shown === undefined || shown === "" ? "—" : String(shown);
+
+  // Not an actual saved figure — an estimate from the price/commission % on
+  // record, shown greyed out + italic until the deal is actually run through
+  // the Close-Out Calculator, so it's clearly "for planning purposes" only.
+  if ((value === null || value === undefined) && projectedValue != null) {
+    return (
+      <span className="sv-cell-projected" title="Projected — not yet closed out, not final">
+        {format ? format(projectedValue) : projectedValue}
+      </span>
+    );
+  }
 
   if (readOnly) {
     return <span className="sv-cell-readonly">{display}</span>;
@@ -390,7 +446,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
               {COLUMNS.slice(0, FROZEN_COLUMN_COUNT).map((col, i) => (
                 <th
                   key={col.key}
-                  className="sv-th-sortable sv-col-frozen"
+                  className={`sv-th-sortable sv-col-frozen${i === FROZEN_COLUMN_COUNT - 1 ? " sv-col-frozen-last" : ""}`}
                   style={{ left: FROZEN_COLUMN_LEFTS[i], width: FROZEN_COLUMN_WIDTHS[i], minWidth: FROZEN_COLUMN_WIDTHS[i] }}
                   onClick={() => handleSort(col.key)}
                   title={col.key === "next_date" ? "The deal's next key date — its closing date once Under Contract, used informally before that." : undefined}
@@ -416,14 +472,20 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
             </tr>
           </thead>
           <tbody>
-            {sorted.map((tx) => (
+            {sorted.map((tx) => {
+              const estimate = tx.terminated_at ? null : estimateCloseout(tx);
+              return (
               <tr
                 key={tx.id}
                 className={selectedRowId === tx.id ? "sv-row-selected" : ""}
                 onClick={() => setSelectedRowId(tx.id)}
               >
                 {COLUMNS.slice(0, FROZEN_COLUMN_COUNT).map((col, i) => (
-                  <td key={col.key} className="sv-col-frozen" style={{ left: FROZEN_COLUMN_LEFTS[i] }}>
+                  <td
+                    key={col.key}
+                    className={`sv-col-frozen${i === FROZEN_COLUMN_COUNT - 1 ? " sv-col-frozen-last" : ""}`}
+                    style={{ left: FROZEN_COLUMN_LEFTS[i] }}
+                  >
                     <EditableCell
                       value={getValue(tx, col)}
                       type={col.type}
@@ -468,6 +530,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                       format={col.format}
                       readOnly={col.readOnly}
                       onSave={(v) => handleSaveCell(tx, col, v)}
+                      projectedValue={col.source === "closeout" && col.key !== "check_received" && estimate ? estimate[col.key] : undefined}
                     />
                   </td>
                 ))}
@@ -477,7 +540,8 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                   </button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

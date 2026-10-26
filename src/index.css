@@ -913,6 +913,7 @@ button { cursor: pointer; }
 .sv-cell-btn:hover { background: var(--color-border); }
 .sv-cell-input { width: 100%; min-width: 90px; padding: 2px 4px; border-radius: 4px; border: 1px solid var(--color-accent-blue); font-family: 'Montserrat', sans-serif; font-size: 12px; }
 .sv-cell-readonly { padding: 2px 4px; color: var(--color-text-muted); }
+.sv-cell-projected { padding: 2px 4px; color: var(--color-text-muted); font-style: italic; cursor: help; }
 .sv-row-actions { position: sticky; right: 0; background: var(--color-cream-bg); }
 .sv-table tbody tr { cursor: pointer; }
 
@@ -927,6 +928,7 @@ button { cursor: pointer; }
    need to out-rank both the plain sticky-top headers and the frozen body
    cells, since they're pinned on both axes at once (the top-left corner). */
 .sv-col-frozen { position: sticky; z-index: 1; overflow: hidden; text-overflow: ellipsis; }
+.sv-col-frozen-last { border-right: 2px solid var(--color-navy); }
 .sv-table thead th.sv-col-frozen { z-index: 3; }
 .sv-table tbody tr:nth-child(odd) td.sv-col-frozen { background: var(--color-white); }
 .sv-table tbody tr:nth-child(even) td.sv-col-frozen { background: var(--color-bg-slate); }

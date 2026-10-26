@@ -7,7 +7,14 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "logo-mark.png"],
+      // icon-192/512.png are real, square, correctly-sized PNGs generated from
+      // logo-mark.png — the old config pointed both manifest sizes at
+      // logo-mark.png itself, which is actually 113x120 and non-square. A
+      // declared icon that doesn't match its real dimensions can silently fail
+      // Chrome's installability check (no error shown, the install prompt/
+      // "Install App" option just never appears), which is almost certainly
+      // why the app wasn't installable as a desktop PWA.
+      includeAssets: ["favicon.ico", "logo-mark.png", "icon-192.png", "icon-512.png"],
       manifest: {
         name: "Hall Collins Real Estate Group",
         short_name: "Hall Collins",
@@ -17,8 +24,9 @@ export default defineConfig({
         display: "standalone",
         start_url: "/",
         icons: [
-          { src: "logo-mark.png", sizes: "192x192", type: "image/png" },
-          { src: "logo-mark.png", sizes: "512x512", type: "image/png" },
+          { src: "icon-192.png", sizes: "192x192", type: "image/png" },
+          { src: "icon-512.png", sizes: "512x512", type: "image/png" },
+          { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
     }),
