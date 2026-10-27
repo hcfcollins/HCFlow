@@ -32,8 +32,9 @@ import SocialScheduler from "./components/SocialScheduler";
 import SpreadsheetView from "./components/SpreadsheetView";
 import TutorialGuide from "./components/TutorialGuide";
 import MyEarnings from "./components/MyEarnings";
+import AgentSpreadsheetView from "./components/AgentSpreadsheetView";
 import { SkeletonList } from "./components/Skeleton";
-import { LogOut, HelpCircle } from "lucide-react";
+import { LogOut, HelpCircle, Table } from "lucide-react";
 
 const STAGES = [
   { key: "comps", label: "Comp" },
@@ -61,6 +62,7 @@ export default function App() {
   const [showSpreadsheetView, setShowSpreadsheetView] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showMyEarnings, setShowMyEarnings] = useState(false);
+  const [showMySpreadsheet, setShowMySpreadsheet] = useState(false);
   const [viewAsAgent, setViewAsAgent] = useState(false);
 
   useEffect(() => {
@@ -343,6 +345,22 @@ export default function App() {
     );
   }
 
+  if (showMySpreadsheet) {
+    return (
+      <div className="app">
+        <AgentSpreadsheetView
+          transactions={txs.filter((tx) => tx.agent_id === agent.id)}
+          currentAgent={agent}
+          onBack={() => setShowMySpreadsheet(false)}
+          onOpenDetail={(tx) => {
+            setShowMySpreadsheet(false);
+            setSelectedTransaction(tx);
+          }}
+        />
+      </div>
+    );
+  }
+
   if (showManageAgents) {
     return (
       <div className="app">
@@ -446,6 +464,9 @@ export default function App() {
           <img src="/hall-collins-logo-full.png" alt="Hall Collins Real Estate Group" className="brand-logo" />
           <div className="main-header-right">
             <h1>Deal Flow</h1>
+            <button onClick={() => setShowMySpreadsheet(true)} aria-label="My Spreadsheet" title="My Spreadsheet">
+              <Table size={18} />
+            </button>
             <button onClick={() => setShowTutorial(true)} aria-label="How It Works" title="How It Works">
               <HelpCircle size={18} />
             </button>

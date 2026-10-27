@@ -1,11 +1,13 @@
 // Returns ONLY what the signed-in agent needs to see about their own
-// earnings — their own deals, with their own earned/projected commission —
-// and nothing about what Holly, Fran, or the brokerage keeps, even on their
-// own deals. closeouts/commission_data are broker-only under RLS (see
-// closeouts_select/commission_select in schema.sql), so a regular agent has
-// no client-side way to read this at all — this function uses the service
-// role to read the real numbers server-side, but only ever returns the one
-// field relevant to the caller, never the row.
+// deals (Under Contract / Closed only) — their own earned/projected
+// commission, plus the commission_data fields the agent-facing Spreadsheet
+// View's "missing info" check needs (appraiser, inspection/financing dates,
+// TC fee, client source) — and nothing about what Holly, Fran, or the
+// brokerage keeps, even on their own deals. closeouts/commission_data are
+// broker-only under RLS (see closeouts_select/commission_select in
+// schema.sql), so a regular agent has no client-side way to read any of this
+// at all — this function uses the service role to read the real rows
+// server-side, but only ever returns the fields relevant to the caller.
 //
 // Identity is verified server-side from the caller's own Supabase session
 // (via /auth/v1/user), never trusted from anything the client sends — so
@@ -97,7 +99,7 @@ Deno.serve(async (req) => {
       `${SUPABASE_URL}/rest/v1/transactions?agent_id=eq.${agent.id}&terminated_at=is.null&stage=in.(contract,closed)&select=` +
         encodeURIComponent(
           "id,address,stage,side,price,next_date," +
-            "commission_data(lead_type,referral_pct)," +
+            "commission_data(lead_type,client_source,referral_pct,appraiser,inspection_date,financing_date,tc_fee_type)," +
             "closeouts(price,commission_pct,referral_pct,lead_type,agent_split_pct,commission_after_referral,agent_commission,holly_commission,fran_commission)"
         ),
       { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` } }
@@ -113,23 +115,46 @@ Deno.serve(async (req) => {
 
     for (const tx of txs) {
       const co = tx.closeouts;
+      const cd = tx.commission_data;
       const alreadyClosed = co && co.commission_after_referral != null;
+      // Fields every deal gets, regardless of whether it's been closed out —
+      // the commission_data ones in particular are what the agent-facing
+      // spreadsheet's "missing info" check needs, and are otherwise
+      // unreadable to a regular agent (commission_select is broker-only).
+      const base = {
+        id: tx.id,
+        address: tx.address,
+        stage: tx.stage,
+        closing_date: tx.next_date,
+        appraiser: cd?.appraiser ?? null,
+        inspection_date: cd?.inspection_date ?? null,
+        financing_date: cd?.financing_date ?? null,
+        tc_fee_type: cd?.tc_fee_type ?? null,
+        client_source: cd?.client_source ?? null,
+      };
 
       if (alreadyClosed) {
         const amount = Number(co[earnedField]) || 0;
         actualEarned += amount;
-        deals.push({ address: tx.address, stage: tx.stage, closing_date: tx.next_date, amount, is_actual: true });
+        deals.push({
+          ...base,
+          amount,
+          is_actual: true,
+          commission_pct: co.commission_pct,
+          agent_split_pct: co.agent_split_pct,
+          commission_after_referral: co.commission_after_referral,
+        });
         continue;
       }
 
       const price = co?.price ?? tx.price;
       const commissionPct = co?.commission_pct;
       if (price == null || commissionPct == null) {
-        deals.push({ address: tx.address, stage: tx.stage, closing_date: tx.next_date, amount: null, is_actual: false });
+        deals.push({ ...base, amount: null, is_actual: false, commission_pct: null, agent_split_pct: null, commission_after_referral: null });
         continue;
       }
-      const leadType = co?.lead_type ?? tx.commission_data?.lead_type ?? "Organic";
-      const referralPct = Number(co?.referral_pct ?? tx.commission_data?.referral_pct ?? 0) || 0;
+      const leadType = co?.lead_type ?? cd?.lead_type ?? "Organic";
+      const referralPct = Number(co?.referral_pct ?? cd?.referral_pct ?? 0) || 0;
       const grossCommission = Number(price) * (Number(commissionPct) / 100);
       const commissionAfterReferral = grossCommission * (1 - referralPct / 100);
       const amount = earnedAmountFor(agent.name, {
@@ -139,7 +164,14 @@ Deno.serve(async (req) => {
         agentSplitPct: co?.agent_split_pct ?? null,
       });
       projectedEarned += amount;
-      deals.push({ address: tx.address, stage: tx.stage, closing_date: tx.next_date, amount, is_actual: false });
+      deals.push({
+        ...base,
+        amount,
+        is_actual: false,
+        commission_pct: commissionPct,
+        agent_split_pct: co?.agent_split_pct ?? null,
+        commission_after_referral: round2(commissionAfterReferral),
+      });
     }
 
     deals.sort((a, b) => (a.closing_date || "").localeCompare(b.closing_date || ""));

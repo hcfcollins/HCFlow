@@ -644,6 +644,7 @@ button { cursor: pointer; }
 }
 .my-earnings-row:last-child { border-bottom: none; }
 .my-earnings-amount { text-align: right; flex-shrink: 0; }
+.agent-missing-info { background: var(--color-bg-slate); border-left: 3px solid var(--color-pink); border-radius: 8px; padding: 12px 14px; margin-bottom: 18px; }
 
 .celebration {
   position: fixed;
