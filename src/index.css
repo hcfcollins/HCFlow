@@ -974,6 +974,13 @@ button { cursor: pointer; }
 }
 .sv-summary-stat-value { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 700; color: var(--color-navy); }
 .sv-summary-stat-label { font-size: 12px; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.sv-summary-stat-split { display: flex; gap: 14px; margin-top: 2px; }
+.sv-summary-stat-part { display: flex; flex-direction: column; gap: 2px; }
+.sv-summary-stat-part strong { font-family: 'Playfair Display', serif; font-size: 20px; color: var(--color-navy); }
+.sv-summary-range-label { margin: 2px 0 10px; }
+.sv-preset-active { background: var(--color-navy); color: var(--color-white); }
+.sv-terminated-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--color-navy); white-space: nowrap; }
+.sv-summary--terminated { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--color-border); }
 
 .tutorial-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
 .tutorial-tab {

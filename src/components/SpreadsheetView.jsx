@@ -4,7 +4,10 @@ import {
   updateTransactionFields,
   upsertCommissionData,
   updateCloseoutFields,
+  updateTransactionAttorneys,
   fetchAllAgents,
+  fetchAttorneys,
+  resolveAttorneyId,
   terminateTransaction,
   reactivateTransaction,
 } from "../lib/transactions";
@@ -59,6 +62,10 @@ const COLUMNS = [
   { key: "next_date", label: "Closing Date", source: "tx", type: "date", format: formatDateShort },
   { key: "check_received", label: "Check Received", source: "closeout", type: "select", options: YES_NO_OPTIONS },
   { key: "address", label: "Address", source: "tx", type: "text" },
+  // The two most-glanced-at commission figures lead the scrolling section
+  // (right after Agent) rather than sitting buried at the far right.
+  { key: "agent_commission", label: "Agent Commission", source: "closeout", readOnly: true },
+  { key: "bank_amount", label: "Brokerage Keeps", source: "closeout", readOnly: true },
   { key: "town", label: "Town", source: "tx", type: "text" },
   { key: "region", label: "Region", source: "tx", type: "select", options: REGION_OPTIONS },
   { key: "side", label: "Side", source: "tx", type: "select", options: SIDE_OPTIONS },
@@ -82,10 +89,8 @@ const COLUMNS = [
   { key: "commission_pct", label: "Commission %", source: "closeout", readOnly: true },
   { key: "agent_split_pct", label: "Agent Split %", source: "closeout", readOnly: true },
   { key: "commission_after_referral", label: "Comm. After Referral", source: "closeout", readOnly: true },
-  { key: "agent_commission", label: "Agent Commission", source: "closeout", readOnly: true },
   { key: "holly_commission", label: "Holly Commission", source: "closeout", readOnly: true },
   { key: "fran_commission", label: "Fran Commission", source: "closeout", readOnly: true },
-  { key: "bank_amount", label: "Brokerage Keeps", source: "closeout", readOnly: true },
 ];
 
 const FROZEN_COLUMN_COUNT = 3; // Closing Date, Check Received, Address
@@ -218,9 +223,11 @@ function monthLabel(monthStr) {
 
 export default function SpreadsheetView({ transactions, onBack, onOpenDetail, onRefresh }) {
   const [agents, setAgents] = useState([]);
+  const [attorneys, setAttorneys] = useState([]);
   const [search, setSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState("");
   const [stageFilter, setStageFilter] = useState("contract"); // defaults to Under Contract — the deals actually being actively worked day to day
+  const [showTerminated, setShowTerminated] = useState(false); // swaps the table to ONLY terminated deals, with its own summary below
   const [sortKey, setSortKey] = useState("address");
   const [sortDir, setSortDir] = useState("asc");
   const [summaryMonth, setSummaryMonth] = useState(""); // "" = all time, else "YYYY-MM"
@@ -232,6 +239,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
 
   useEffect(() => {
     fetchAllAgents().then(setAgents).catch(() => {});
+    fetchAttorneys().then(setAttorneys).catch(() => {});
   }, []);
 
   const agentOptions = agents.map((a) => ({ value: a.id, label: a.name }));
@@ -239,12 +247,38 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return transactions.filter((tx) => {
+      if (showTerminated) {
+        if (!tx.terminated_at) return false;
+      } else {
+        if (tx.terminated_at) return false;
+        if (stageFilter && tx.stage !== stageFilter) return false;
+      }
       if (agentFilter && tx.agent_id !== agentFilter) return false;
-      if (stageFilter && tx.stage !== stageFilter) return false;
       if (q && ![tx.address, tx.seller_name, tx.buyer_name].some((f) => f?.toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [transactions, search, agentFilter, stageFilter]);
+  }, [transactions, search, agentFilter, stageFilter, showTerminated]);
+
+  // Shown only in the Terminated view — what was at stake on the deals that
+  // fell through: actual commission if one was ever run (rare — most
+  // terminations happen before closing), otherwise the same estimate the
+  // table's projected-figure cells use.
+  const terminatedSummary = useMemo(() => {
+    if (!showTerminated) return null;
+    let totalPrice = 0;
+    let totalCommission = 0;
+    for (const tx of filtered) {
+      totalPrice += Number(tx.price) || 0;
+      const co = tx.closeouts;
+      if (co?.commission_after_referral != null) {
+        totalCommission += Number(co.commission_after_referral) || 0;
+      } else {
+        const est = estimateCloseout(tx);
+        if (est) totalCommission += Number(est.commission_after_referral) || 0;
+      }
+    }
+    return { count: filtered.length, totalPrice, totalCommission };
+  }, [filtered, showTerminated]);
 
   const sorted = useMemo(() => {
     const col = COLUMNS.find((c) => c.key === sortKey);
@@ -378,6 +412,22 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
     return handleSaveCloseout(tx, col.key, value);
   }
 
+  async function handleSaveAttorney(tx, side, name) {
+    try {
+      const id = await resolveAttorneyId(name || "", attorneys);
+      if (!attorneys.find((a) => a.id === id)) {
+        // A brand-new attorney just got created on the fly — refresh the list
+        // so the next lookup/autocomplete sees it too.
+        fetchAttorneys().then(setAttorneys).catch(() => {});
+      }
+      await updateTransactionAttorneys(tx.id, side === "seller" ? { sellerAttorneyId: id } : { buyerAttorneyId: id });
+      onRefresh();
+      showToast("Saved");
+    } catch (e) {
+      showToast(`Couldn't save: ${e.message}`);
+    }
+  }
+
   async function handleReactivate(tx) {
     try {
       await reactivateTransaction(tx.id);
@@ -429,15 +479,45 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
             </option>
           ))}
         </select>
-        <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
-          <option value="">All Stages</option>
-          {STAGE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+        {!showTerminated && (
+          <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
+            <option value="">All Stages</option>
+            {STAGE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        )}
+        <label className="sv-terminated-toggle">
+          <input type="checkbox" checked={showTerminated} onChange={(e) => setShowTerminated(e.target.checked)} />
+          Show Terminated
+        </label>
       </div>
+
+      {showTerminated && terminatedSummary && (
+        <div className="sv-summary sv-summary--terminated">
+          <h2 className="comps-section-title">Terminated Deals</h2>
+          <div className="sv-summary-stats">
+            <div className="sv-summary-stat">
+              <span className="sv-summary-stat-value">{terminatedSummary.count}</span>
+              <span className="sv-summary-stat-label">Terminated Deals</span>
+            </div>
+            <div className="sv-summary-stat">
+              <span className="sv-summary-stat-value">${Math.round(terminatedSummary.totalPrice).toLocaleString()}</span>
+              <span className="sv-summary-stat-label">Total Price</span>
+            </div>
+            <div className="sv-summary-stat">
+              <span className="sv-summary-stat-value">${Math.round(terminatedSummary.totalCommission).toLocaleString()}</span>
+              <span className="sv-summary-stat-label">Total Commission at Stake</span>
+            </div>
+          </div>
+          <p className="field-help">
+            Commission at stake is the actual figure if a close-out was ever run on the deal, otherwise an estimate
+            from the price/commission % on record — same as the projected figures in the table above.
+          </p>
+        </div>
+      )}
 
       <div className="sv-table-wrap">
         <table className="sv-table">
@@ -458,6 +538,8 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
               <th className="sv-th-sortable" onClick={() => handleSort("agent")}>
                 Agent{sortKey === "agent" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
               </th>
+              <th>Seller Attorney</th>
+              <th>Buyer Attorney</th>
               {COLUMNS.slice(FROZEN_COLUMN_COUNT).map((col) => (
                 <th
                   key={col.key}
@@ -494,22 +576,6 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                       readOnly={col.readOnly}
                       onSave={(v) => handleSaveCell(tx, col, v)}
                     />
-                    {col.key === "check_received" && (
-                      <div className="sv-row-quick-actions" onClick={(e) => e.stopPropagation()}>
-                        <button type="button" title="Close-Out Calculator" onClick={() => setClosingOutTx(tx)}>
-                          <DollarSign size={12} />
-                        </button>
-                        {tx.terminated_at ? (
-                          <button type="button" title="Reactivate deal" onClick={() => handleReactivate(tx)}>
-                            <RotateCcw size={12} />
-                          </button>
-                        ) : (
-                          <button type="button" title="Terminate deal" onClick={() => setTerminatingTx(tx)}>
-                            <Ban size={12} />
-                          </button>
-                        )}
-                      </div>
-                    )}
                   </td>
                 ))}
                 <td>
@@ -519,6 +585,18 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                     type="select"
                     options={agentOptions}
                     onSave={(v) => handleSaveTx(tx, "agent_id", v)}
+                  />
+                </td>
+                <td>
+                  <EditableCell
+                    value={tx.seller_attorney?.name || ""}
+                    onSave={(v) => handleSaveAttorney(tx, "seller", v)}
+                  />
+                </td>
+                <td>
+                  <EditableCell
+                    value={tx.buyer_attorney?.name || ""}
+                    onSave={(v) => handleSaveAttorney(tx, "buyer", v)}
                   />
                 </td>
                 {COLUMNS.slice(FROZEN_COLUMN_COUNT).map((col) => (
@@ -535,6 +613,20 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                   </td>
                 ))}
                 <td className="sv-row-actions">
+                  <div className="sv-row-quick-actions" onClick={(e) => e.stopPropagation()}>
+                    <button type="button" title="Close-Out Calculator" onClick={() => setClosingOutTx(tx)}>
+                      <DollarSign size={12} />
+                    </button>
+                    {tx.terminated_at ? (
+                      <button type="button" title="Reactivate deal" onClick={() => handleReactivate(tx)}>
+                        <RotateCcw size={12} />
+                      </button>
+                    ) : (
+                      <button type="button" title="Terminate deal" onClick={() => setTerminatingTx(tx)}>
+                        <Ban size={12} />
+                      </button>
+                    )}
+                  </div>
                   <button type="button" className="comps-minimize-btn" onClick={() => onOpenDetail(tx)}>
                     Open →
                   </button>
@@ -552,7 +644,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
         <div className="sv-filters">
           <button
             type="button"
-            className="comps-minimize-btn"
+            className={`comps-minimize-btn${!pendingOnly && summaryMonth === "" ? " sv-preset-active" : ""}`}
             onClick={() => {
               setPendingOnly(false);
               setSummaryMonth("");
@@ -562,7 +654,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
           </button>
           <button
             type="button"
-            className="comps-minimize-btn"
+            className={`comps-minimize-btn${!pendingOnly && summaryMonth === monthStrOffset(0) ? " sv-preset-active" : ""}`}
             onClick={() => {
               setPendingOnly(false);
               setSummaryMonth(monthStrOffset(0));
@@ -572,7 +664,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
           </button>
           <button
             type="button"
-            className="comps-minimize-btn"
+            className={`comps-minimize-btn${!pendingOnly && summaryMonth === monthStrOffset(1) ? " sv-preset-active" : ""}`}
             onClick={() => {
               setPendingOnly(false);
               setSummaryMonth(monthStrOffset(1));
@@ -582,7 +674,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
           </button>
           <button
             type="button"
-            className="comps-minimize-btn"
+            className={`comps-minimize-btn${pendingOnly ? " sv-preset-active" : ""}`}
             onClick={() => {
               setPendingOnly(true);
               setSummaryMonth("");
@@ -600,35 +692,48 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
             }}
           />
         </div>
+        <p className="field-help sv-summary-range-label">
+          {pendingOnly
+            ? "Every deal still under contract, not yet closed out — no date limit."
+            : summaryMonth
+            ? `Deals closing in ${monthLabel(summaryMonth)}.`
+            : "Every deal, any closing date — all time."}
+        </p>
         <div className="sv-summary-stats">
           <div className="sv-summary-stat">
-            <span className="sv-summary-stat-value">${Math.round(summary.bankTotal).toLocaleString()}</span>
             <span className="sv-summary-stat-label">Brokerage Keeps</span>
-            {summary.bankProjected > 0 && (
-              <span className="field-help">includes ${Math.round(summary.bankProjected).toLocaleString()} projected, not yet closed out</span>
-            )}
+            <div className="sv-summary-stat-split">
+              <div className="sv-summary-stat-part">
+                <strong>${Math.round(summary.bankActual).toLocaleString()}</strong>
+                <span className="field-help">closed</span>
+              </div>
+              <div className="sv-summary-stat-part">
+                <strong>${Math.round(summary.bankProjected).toLocaleString()}</strong>
+                <span className="field-help">projected</span>
+              </div>
+            </div>
           </div>
           <div className="sv-summary-stat">
-            <span className="sv-summary-stat-value">${Math.round(summary.franTotal).toLocaleString()}</span>
             <span className="sv-summary-stat-label">Fran's Commission</span>
-            {summary.franProjected > 0 && (
-              <span className="field-help">includes ${Math.round(summary.franProjected).toLocaleString()} projected, not yet closed out</span>
-            )}
+            <div className="sv-summary-stat-split">
+              <div className="sv-summary-stat-part">
+                <strong>${Math.round(summary.franActual).toLocaleString()}</strong>
+                <span className="field-help">closed</span>
+              </div>
+              <div className="sv-summary-stat-part">
+                <strong>${Math.round(summary.franProjected).toLocaleString()}</strong>
+                <span className="field-help">projected</span>
+              </div>
+            </div>
           </div>
         </div>
         <p className="field-help">
-          {pendingOnly ? (
-            <>{summary.projectedCount} pending deal{summary.projectedCount === 1 ? "" : "s"} not yet closed out, no date limit.</>
-          ) : (
-            <>
-              {summary.actualCount} closed-out deal{summary.actualCount === 1 ? "" : "s"}
-              {summary.projectedCount > 0 &&
-                ` + ${summary.projectedCount} projected (price and commission % on record, not yet run through the Close-Out Calculator)`}
-              {summaryMonth ? ` closing in ${monthLabel(summaryMonth)}` : " (all time)"}.
-            </>
-          )}{" "}
-          Projections use the same formula as the real Close-Out Calculator and assume the default 60% agent split
-          where that hasn't been set yet.
+          {summary.actualCount} closed deal{summary.actualCount === 1 ? "" : "s"}
+          {summary.projectedCount > 0 && `, ${summary.projectedCount} more still under contract`}. "Closed" is the
+          real figure from the Close-Out Calculator. "Projected" uses the exact same split rules — the 20%
+          brokerage floor, then the standard Organic/Provided/owner percentages — so it's not a guess, except for
+          one specific case: a Provided-lead deal with a negotiated agent split that hasn't been entered into the
+          Close-Out Calculator yet defaults to 60% here until it is.
         </p>
       </div>
 
