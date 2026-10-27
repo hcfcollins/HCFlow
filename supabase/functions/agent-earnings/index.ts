@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
     if (!agent) return jsonResponse({ error: "No agent record matches your sign-in email" }, 404);
 
     const txRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/transactions?agent_id=eq.${agent.id}&terminated_at=is.null&select=` +
+      `${SUPABASE_URL}/rest/v1/transactions?agent_id=eq.${agent.id}&terminated_at=is.null&stage=in.(contract,closed)&select=` +
         encodeURIComponent(
           "id,address,stage,side,price,next_date," +
             "commission_data(lead_type,referral_pct)," +

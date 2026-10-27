@@ -138,6 +138,20 @@ button { cursor: pointer; }
 .center-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; text-align: center; }
 .error-banner { background: var(--color-danger-bg); color: var(--color-danger-text); padding: 10px 14px; border-radius: 10px; margin-bottom: 14px; font-size: 13px; }
 .view-as-banner { background: var(--color-bg-slate); color: var(--color-navy); padding: 8px 14px; border-radius: 10px; margin-bottom: 14px; font-size: 12px; font-weight: 600; text-align: center; }
+.my-earnings-cta {
+  display: block;
+  width: 100%;
+  background: var(--color-success-text);
+  color: var(--color-white);
+  border: none;
+  border-radius: 12px;
+  padding: 13px;
+  margin-bottom: 14px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+}
+.my-earnings-cta:hover { opacity: 0.92; }
 .login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
 .login-card { text-align: center; background: var(--color-white); padding: 40px 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(var(--black-rgb), 0.06); }
 .login-logo { width: 220px; max-width: 100%; height: auto; margin-bottom: 8px; }

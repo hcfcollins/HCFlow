@@ -33,7 +33,7 @@ import SpreadsheetView from "./components/SpreadsheetView";
 import TutorialGuide from "./components/TutorialGuide";
 import MyEarnings from "./components/MyEarnings";
 import { SkeletonList } from "./components/Skeleton";
-import { LogOut, HelpCircle, DollarSign } from "lucide-react";
+import { LogOut, HelpCircle } from "lucide-react";
 
 const STAGES = [
   { key: "comps", label: "Comp" },
@@ -446,9 +446,6 @@ export default function App() {
           <img src="/hall-collins-logo-full.png" alt="Hall Collins Real Estate Group" className="brand-logo" />
           <div className="main-header-right">
             <h1>Deal Flow</h1>
-            <button onClick={() => setShowMyEarnings(true)} aria-label="My Earnings" title="My Earnings">
-              <DollarSign size={18} />
-            </button>
             <button onClick={() => setShowTutorial(true)} aria-label="How It Works" title="How It Works">
               <HelpCircle size={18} />
             </button>
@@ -460,16 +457,24 @@ export default function App() {
         {(isRealBroker || effectiveAgent.role === "broker") && (
           <div className="app-header-actions">
             {isRealBroker && (
-              <button onClick={() => setViewAsAgent((v) => !v)}>
+              <button onClick={() => setViewAsAgent((v) => !v)} title="Broker only — preview the app as a regular agent would see it">
                 {viewAsAgent ? "View as Broker" : "View as Agent"}
               </button>
             )}
-            {effectiveAgent.role === "broker" && <button onClick={() => setShowManageAgents(true)}>Manage Agents</button>}
             {effectiveAgent.role === "broker" && (
-              <button onClick={() => setShowSocialScheduler(true)}>Social Scheduler</button>
+              <button onClick={() => setShowManageAgents(true)} title="Broker only — add, edit, or deactivate agents">
+                Manage Agents
+              </button>
             )}
             {effectiveAgent.role === "broker" && (
-              <button onClick={() => setShowSpreadsheetView(true)}>Spreadsheet View</button>
+              <button onClick={() => setShowSocialScheduler(true)} title="Broker only — manage the daily social media rotation">
+                Social Scheduler
+              </button>
+            )}
+            {effectiveAgent.role === "broker" && (
+              <button onClick={() => setShowSpreadsheetView(true)} title="Broker only — every deal, every agent, full commission detail">
+                Spreadsheet View
+              </button>
             )}
           </div>
         )}
@@ -480,6 +485,10 @@ export default function App() {
       )}
 
       {error && <div className="error-banner">{error}</div>}
+
+      <button type="button" className="my-earnings-cta" onClick={() => setShowMyEarnings(true)}>
+        My Earnings
+      </button>
 
       {loadingTxs ? (
         <SkeletonList count={4} />
