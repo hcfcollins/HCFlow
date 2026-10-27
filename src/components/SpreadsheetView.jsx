@@ -155,7 +155,7 @@ function EditableCell({ value, displayValue, type, options, format, readOnly, on
   // the Close-Out Calculator, so it's clearly "for planning purposes" only.
   if ((value === null || value === undefined) && projectedValue != null) {
     return (
-      <span className="sv-cell-projected" title="Projected — not yet closed out, not final">
+      <span className="sv-cell-projected" title="Estimated, will be final once closed">
         {format ? format(projectedValue) : projectedValue}
       </span>
     );

@@ -928,7 +928,11 @@ button { cursor: pointer; }
    need to out-rank both the plain sticky-top headers and the frozen body
    cells, since they're pinned on both axes at once (the top-left corner). */
 .sv-col-frozen { position: sticky; z-index: 1; overflow: hidden; text-overflow: ellipsis; }
-.sv-col-frozen-last { border-right: 2px solid var(--color-navy); }
+/* box-shadow instead of border-right: border-collapse on the table can let an
+   adjacent cell's own border win at the shared edge, making a plain border
+   intermittently disappear as you scroll past different rows. A box-shadow
+   paints outside the normal border-resolution model, so it stays put. */
+.sv-col-frozen-last { box-shadow: 2px 0 0 0 var(--color-navy); }
 .sv-table thead th.sv-col-frozen { z-index: 3; }
 .sv-table tbody tr:nth-child(odd) td.sv-col-frozen { background: var(--color-white); }
 .sv-table tbody tr:nth-child(even) td.sv-col-frozen { background: var(--color-bg-slate); }
@@ -947,9 +951,13 @@ button { cursor: pointer; }
 }
 .sv-row-quick-actions button:hover { background: var(--color-border); color: var(--color-navy); }
 
-.sv-row-selected { background: rgba(var(--pink-rgb), 0.1); }
-.sv-row-selected .sv-row-actions,
-.sv-row-selected td.sv-col-frozen { background: rgba(var(--pink-rgb), 0.1); }
+/* Specificity has to at least match the zebra-stripe rules above (which also
+   target tbody tr / tbody tr td.sv-col-frozen) or a selected even/odd row's
+   own stripe color wins and the selection highlight never actually shows —
+   that was happening before this was written to match. */
+.sv-table tbody tr.sv-row-selected { background: rgba(var(--pink-rgb), 0.18); }
+.sv-table tbody tr.sv-row-selected .sv-row-actions,
+.sv-table tbody tr.sv-row-selected td.sv-col-frozen { background: rgba(var(--pink-rgb), 0.18); }
 .sv-summary { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--color-border); }
 .sv-summary .sv-filters { margin-bottom: 14px; }
 .sv-summary-stats { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
