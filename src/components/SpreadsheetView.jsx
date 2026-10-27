@@ -60,7 +60,6 @@ const COLUMNS = [
   // tooltip below) but edited with a native date picker and displayed
   // formatted, same as inspection/financing dates further down.
   { key: "next_date", label: "Closing Date", source: "tx", type: "date", format: formatDateShort },
-  { key: "check_received", label: "Check Received", source: "closeout", type: "select", options: YES_NO_OPTIONS },
   { key: "address", label: "Address", source: "tx", type: "text" },
   // The two most-glanced-at commission figures lead the scrolling section
   // (right after Agent) rather than sitting buried at the far right.
@@ -93,9 +92,28 @@ const COLUMNS = [
   { key: "fran_commission", label: "Fran Commission", source: "closeout", readOnly: true },
 ];
 
-const FROZEN_COLUMN_COUNT = 3; // Closing Date, Check Received, Address
-const FROZEN_COLUMN_WIDTHS = [110, 120, 190]; // px, same order — drives both column width and sticky left-offset below
-const FROZEN_COLUMN_LEFTS = FROZEN_COLUMN_WIDTHS.map((_, i) => FROZEN_COLUMN_WIDTHS.slice(0, i).reduce((a, b) => a + b, 0));
+// Closing Date and Address come straight from COLUMNS; Check Received (now a
+// computed status, not an editable field — see checkReceivedLabel) and the
+// Close Out/Terminate actions are hardcoded cells slotted in between them,
+// not generic COLUMNS entries, so they're tracked separately here rather
+// than through FROZEN_COLUMN_COUNT/widths alone.
+const FROZEN_COLUMN_COUNT = 2; // Closing Date, Address
+const FROZEN_WIDTHS = { nextDate: 86, checkReceived: 74, actions: 54, address: 170 };
+const FROZEN_LEFTS = {
+  nextDate: 0,
+  checkReceived: FROZEN_WIDTHS.nextDate,
+  actions: FROZEN_WIDTHS.nextDate + FROZEN_WIDTHS.checkReceived,
+  address: FROZEN_WIDTHS.nextDate + FROZEN_WIDTHS.checkReceived + FROZEN_WIDTHS.actions,
+};
+
+/** "No" unless the deal has actually been closed out (a real commission
+ * figure on record) or terminated — driven entirely by the Close Out/
+ * Terminate actions right next to it, not a separate manual toggle. */
+function checkReceivedLabel(tx) {
+  if (tx.terminated_at) return "Terminated";
+  if (tx.closeouts?.commission_after_referral != null) return "Yes";
+  return "No";
+}
 
 function getValue(tx, col) {
   if (col.source === "tx") return tx[col.key];
@@ -179,7 +197,7 @@ function EditableCell({ value, displayValue, type, options, format, readOnly, on
   if (!editing) {
     return (
       <button type="button" className="sv-cell-btn" onClick={() => setEditing(true)}>
-        {display}
+        {display === "—" ? <span className="sv-cell-missing">— add —</span> : display}
       </button>
     );
   }
@@ -523,18 +541,31 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
         <table className="sv-table">
           <thead>
             <tr>
-              {COLUMNS.slice(0, FROZEN_COLUMN_COUNT).map((col, i) => (
-                <th
-                  key={col.key}
-                  className={`sv-th-sortable sv-col-frozen${i === FROZEN_COLUMN_COUNT - 1 ? " sv-col-frozen-last" : ""}`}
-                  style={{ left: FROZEN_COLUMN_LEFTS[i], width: FROZEN_COLUMN_WIDTHS[i], minWidth: FROZEN_COLUMN_WIDTHS[i] }}
-                  onClick={() => handleSort(col.key)}
-                  title={col.key === "next_date" ? "The deal's next key date — its closing date once Under Contract, used informally before that." : undefined}
-                >
-                  {col.label}
-                  {sortKey === col.key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
-                </th>
-              ))}
+              <th
+                className="sv-th-sortable sv-col-frozen"
+                style={{ left: FROZEN_LEFTS.nextDate, width: FROZEN_WIDTHS.nextDate, minWidth: FROZEN_WIDTHS.nextDate }}
+                onClick={() => handleSort("next_date")}
+                title="The deal's next key date — its closing date once Under Contract, used informally before that."
+              >
+                Closing Date{sortKey === "next_date" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+              </th>
+              <th
+                className="sv-col-frozen"
+                style={{ left: FROZEN_LEFTS.checkReceived, width: FROZEN_WIDTHS.checkReceived, minWidth: FROZEN_WIDTHS.checkReceived }}
+              >
+                Check Received
+              </th>
+              <th
+                className="sv-col-frozen"
+                style={{ left: FROZEN_LEFTS.actions, width: FROZEN_WIDTHS.actions, minWidth: FROZEN_WIDTHS.actions }}
+              />
+              <th
+                className="sv-th-sortable sv-col-frozen sv-col-frozen-last"
+                style={{ left: FROZEN_LEFTS.address, width: FROZEN_WIDTHS.address, minWidth: FROZEN_WIDTHS.address }}
+                onClick={() => handleSort("address")}
+              >
+                Address{sortKey === "address" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+              </th>
               <th className="sv-th-sortable" onClick={() => handleSort("agent")}>
                 Agent{sortKey === "agent" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
               </th>
@@ -562,22 +593,40 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                 className={selectedRowId === tx.id ? "sv-row-selected" : ""}
                 onClick={() => setSelectedRowId(tx.id)}
               >
-                {COLUMNS.slice(0, FROZEN_COLUMN_COUNT).map((col, i) => (
-                  <td
-                    key={col.key}
-                    className={`sv-col-frozen${i === FROZEN_COLUMN_COUNT - 1 ? " sv-col-frozen-last" : ""}`}
-                    style={{ left: FROZEN_COLUMN_LEFTS[i] }}
-                  >
-                    <EditableCell
-                      value={getValue(tx, col)}
-                      type={col.type}
-                      options={col.options}
-                      format={col.format}
-                      readOnly={col.readOnly}
-                      onSave={(v) => handleSaveCell(tx, col, v)}
-                    />
-                  </td>
-                ))}
+                <td className="sv-col-frozen" style={{ left: FROZEN_LEFTS.nextDate }}>
+                  <EditableCell
+                    value={tx.next_date}
+                    type="date"
+                    format={formatDateShort}
+                    onSave={(v) => handleSaveTx(tx, "next_date", v)}
+                  />
+                </td>
+                <td className="sv-col-frozen" style={{ left: FROZEN_LEFTS.checkReceived }}>
+                  <span className={`sv-cell-readonly${tx.terminated_at ? " sv-check-received--terminated" : checkReceivedLabel(tx) === "Yes" ? " sv-check-received--yes" : ""}`}>
+                    {checkReceivedLabel(tx)}
+                  </span>
+                </td>
+                <td className="sv-col-frozen" style={{ left: FROZEN_LEFTS.actions }}>
+                  <div className="sv-row-quick-actions" onClick={(e) => e.stopPropagation()}>
+                    {tx.terminated_at ? (
+                      <button type="button" title="Reactivate deal" onClick={() => handleReactivate(tx)}>
+                        <RotateCcw size={12} />
+                      </button>
+                    ) : checkReceivedLabel(tx) === "Yes" ? null : (
+                      <>
+                        <button type="button" title="Close-Out Calculator" onClick={() => setClosingOutTx(tx)}>
+                          <DollarSign size={12} />
+                        </button>
+                        <button type="button" title="Terminate deal" onClick={() => setTerminatingTx(tx)}>
+                          <Ban size={12} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </td>
+                <td className="sv-col-frozen sv-col-frozen-last" style={{ left: FROZEN_LEFTS.address }}>
+                  <EditableCell value={tx.address} onSave={(v) => handleSaveTx(tx, "address", v)} />
+                </td>
                 <td>
                   <EditableCell
                     value={tx.agent_id}

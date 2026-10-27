@@ -37,7 +37,7 @@ function AgentCell({ value, type = "text", onSave }) {
   if (!editing) {
     return (
       <button type="button" className="sv-cell-btn" onClick={() => setEditing(true)}>
-        {value ? (type === "date" ? formatDateShort(value) : value) : <span className="field-help">— add —</span>}
+        {value ? (type === "date" ? formatDateShort(value) : value) : <span className="sv-cell-missing">— add —</span>}
       </button>
     );
   }
@@ -193,6 +193,7 @@ export default function AgentSpreadsheetView({ transactions, currentAgent, onBac
                   <th>Appraiser</th>
                   <th>Inspection Date</th>
                   <th>Financing Date</th>
+                  <th>Agent Split %</th>
                   <th>My Commission</th>
                   <th />
                 </tr>
@@ -229,6 +230,7 @@ export default function AgentSpreadsheetView({ transactions, currentAgent, onBac
                           onSave={(v) => tx && handleSaveCommissionField(tx, "financing_date", v)}
                         />
                       </td>
+                      <td>{d.agent_split_pct != null ? `${d.agent_split_pct}%` : <span className="field-help">—</span>}</td>
                       <td>
                         {d.amount == null ? (
                           <span className="field-help">Not enough on record yet</span>

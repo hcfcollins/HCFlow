@@ -23,10 +23,14 @@ export default defineConfig({
         background_color: "#F7F5F0",
         display: "standalone",
         start_url: "/",
+        // "any" only, deliberately — a maskable icon is expected to keep its
+        // content inside a ~80% safe zone since the OS crops it into various
+        // mask shapes, which would clip our logo now that it fills ~94% of
+        // the canvas. "any" is rendered as-is, no cropping risk, and is the
+        // one that actually matters for a desktop install.
         icons: [
           { src: "icon-192.png", sizes: "192x192", type: "image/png" },
           { src: "icon-512.png", sizes: "512x512", type: "image/png" },
-          { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
     }),
