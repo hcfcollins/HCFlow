@@ -12,6 +12,7 @@ import {
   deleteTodo,
   seedWonListingTodos,
   createDropboxFolderForListing,
+  createDropboxFolderForBuyer,
   terminateTransaction,
   reactivateTransaction,
   relistAfterTermination,
@@ -165,7 +166,12 @@ export default function App() {
 
   async function handleRetryDropboxFolder(id) {
     try {
-      await createDropboxFolderForListing(id);
+      const tx = txs.find((t) => t.id === id);
+      if (tx?.side === "Buy") {
+        await createDropboxFolderForBuyer(id);
+      } else {
+        await createDropboxFolderForListing(id);
+      }
     } catch (e) {
       console.error("Dropbox folder creation failed:", e);
       await loadTransactions({ silent: true });

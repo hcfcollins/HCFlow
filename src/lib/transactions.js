@@ -483,6 +483,28 @@ export async function createDropboxFolderForListing(transactionId) {
   return data;
 }
 
+/** Creates the agent's Dropbox buyer folder via the create-dropbox-buyer-folder
+ * Edge Function — the Buy-side counterpart to createDropboxFolderForListing. */
+export async function createDropboxFolderForBuyer(transactionId) {
+  const { data, error } = await supabase.functions.invoke("create-dropbox-buyer-folder", {
+    body: { transactionId },
+  });
+  if (error) {
+    if (error.context?.json) {
+      let detail;
+      try {
+        const body = await error.context.json();
+        detail = body?.error;
+      } catch {
+        // response body wasn't JSON — fall through to the generic error below
+      }
+      if (detail) throw new Error(detail);
+    }
+    throw error;
+  }
+  return data;
+}
+
 /** Uploads a generated comp PDF via the upload-comp-pdf Edge Function; routes to the
  * listing's Pitch Docs subfolder if Won, or the shared general comps repository otherwise. */
 export async function uploadCompPdf(transactionId, pdfBytes, fileName) {
@@ -643,6 +665,20 @@ export async function submitUnderContract(fields) {
       await pushDepositsToXero({ address, region, buyer_name: buyerName, closing_date: closingDate || null, deposits });
     } catch (e) {
       tx._xeroWarning = `Couldn't create the Xero deposit record${deposits.length > 1 ? "s" : ""}: ${e.message}`;
+    }
+  }
+
+  // A pure Buy-side deal never passes through the Won Listing step, so it
+  // never gets a Dropbox folder that way — this is its first and only chance.
+  // Sell/Split deals already have one from Won Listing by the time they get
+  // here, hence the dropbox_folder_url guard (also makes this safe to re-run).
+  if (side === "Buy" && !tx.dropbox_folder_url) {
+    try {
+      const folderResult = await createDropboxFolderForBuyer(tx.id);
+      tx.dropbox_folder_url = folderResult.folderUrl;
+      tx.dropbox_folder_path = folderResult.folderPath;
+    } catch (e) {
+      tx._dropboxWarning = `Couldn't create the Dropbox buyer folder: ${e.message}`;
     }
   }
 

@@ -625,7 +625,7 @@ export default function DealDetail({
               <FolderOpen size={14} /> Open Dropbox Folder
             </a>
           ) : (
-            transaction.stage === "won" && (
+            (transaction.stage === "won" || (transaction.side === "Buy" && transaction.stage === "contract")) && (
               <>
                 <p className="field-help">Dropbox folder not created yet.</p>
                 <button
