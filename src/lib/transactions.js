@@ -693,6 +693,30 @@ export async function pushDepositsToXero(payload) {
   if (error) throw error;
 }
 
+/** Sends the commission closeout email for an already-saved closeout — see
+ * send-closeout-email for the recipient/branching logic. testMode routes
+ * every email it would have sent to Fran's own address instead, with a
+ * banner naming who the real recipients would have been. */
+export async function sendCloseoutEmail(transactionId, testMode = false) {
+  const { data, error } = await supabase.functions.invoke("send-closeout-email", {
+    body: { transactionId, testMode },
+  });
+  if (error) {
+    if (error.context?.json) {
+      let detail;
+      try {
+        const body = await error.context.json();
+        detail = body?.error;
+      } catch {
+        // response body wasn't JSON — fall through to the generic error below
+      }
+      if (detail) throw new Error(detail);
+    }
+    throw error;
+  }
+  return data;
+}
+
 // ---- Broker-only: commission data + close-outs ----
 // RLS already blocks non-brokers from reading/writing these tables entirely,
 // so a non-broker calling these functions will simply get an empty/error result.

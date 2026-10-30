@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import RadioGroup from "./RadioGroup";
-import { saveCloseout, fetchAllAgents, pushCloseoutToSheet, pushCloseoutToXero } from "../lib/transactions";
+import { saveCloseout, fetchAllAgents, pushCloseoutToSheet, pushCloseoutToXero, sendCloseoutEmail } from "../lib/transactions";
 import { calculateCloseout, applyTcFee, TC_FEE_AMOUNTS, round2 } from "../lib/commissionCalc";
 import { useToast } from "../lib/ToastContext";
 import { focusNextOnEnter } from "../lib/formKeyNav";
@@ -65,6 +65,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [allAgents, setAllAgents] = useState([]);
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
 
   useEffect(() => {
     fetchAllAgents().then(setAllAgents).catch(() => {});
@@ -227,6 +228,21 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
       setSaving(false);
     }
   }
+
+  async function handleSendTestEmail() {
+    setSendingTestEmail(true);
+    try {
+      const result = await sendCloseoutEmail(transaction.id, true);
+      const recipients = result.sent.map((s) => [...s.to, ...s.cc].join(", ")).join(" / ");
+      showToast(`Test email${result.sent.length > 1 ? "s" : ""} sent to you — real recipients would be: ${recipients}`);
+    } catch (e) {
+      showToast(`Couldn't send test email: ${e.message}`);
+    } finally {
+      setSendingTestEmail(false);
+    }
+  }
+
+  const hasSavedCloseout = transaction.closeouts?.commission_after_referral != null;
 
   return (
     <div className="uc-form closeout-calculator" onKeyDown={focusNextOnEnter}>
@@ -418,6 +434,19 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
           />
         )}
       </fieldset>
+
+      {hasSavedCloseout && (
+        <fieldset>
+          <legend>Closeout Email</legend>
+          <p className="field-help">
+            Sends only to you (fran.collins@hallcollins.com), with a banner showing exactly who the real recipients
+            would be — nothing goes to the agent, Holly, or partners@hallcollins.com from this button.
+          </p>
+          <button type="button" className="comps-minimize-btn" onClick={handleSendTestEmail} disabled={sendingTestEmail}>
+            {sendingTestEmail ? "Sending…" : "Send Test Closeout Email"}
+          </button>
+        </fieldset>
+      )}
 
       <div className="comp-edit-all-actions">
         <button type="button" onClick={onCancel} disabled={saving}>
