@@ -336,31 +336,32 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         )}
       </fieldset>
 
-      <fieldset>
-        <legend>Deposit Reconciliation</legend>
-        {transaction.commission_data?.hold_deposit === "Yes" ? (
+      {/* Only Hall Collins' own listings hold the trust deposit — on a pure
+          Buy-side deal the other brokerage holds it, so this reconciliation
+          is irrelevant there. Also hidden when no deposit was ever recorded. */}
+      {transaction.side !== "Buy" && transaction.commission_data?.hold_deposit === "Yes" && (
+        <fieldset>
+          <legend>Deposit Reconciliation</legend>
           <p className="field-help">
             Recorded at Under Contract: {money(transaction.commission_data.deposit_amount)} held
             {transaction.commission_data?.second_deposit === "Yes" &&
               `, plus a second deposit of ${money(transaction.commission_data.second_deposit_amount)}`}
             .
           </p>
-        ) : (
-          <p className="field-help">No deposit was recorded as held at Under Contract.</p>
-        )}
-        <label className="tbd-toggle">
-          <input type="checkbox" checked={depositRetained} onChange={(e) => setDepositRetained(e.target.checked)} />
-          Deposit retained (not refunded to buyer)
-        </label>
-        <label className="tbd-toggle">
-          <input
-            type="checkbox"
-            checked={trustToCheckingTransferred}
-            onChange={(e) => setTrustToCheckingTransferred(e.target.checked)}
-          />
-          Transferred from trust account into checking
-        </label>
-      </fieldset>
+          <label className="tbd-toggle">
+            <input type="checkbox" checked={depositRetained} onChange={(e) => setDepositRetained(e.target.checked)} />
+            Deposit retained (not refunded to buyer)
+          </label>
+          <label className="tbd-toggle">
+            <input
+              type="checkbox"
+              checked={trustToCheckingTransferred}
+              onChange={(e) => setTrustToCheckingTransferred(e.target.checked)}
+            />
+            Transferred from trust account into checking
+          </label>
+        </fieldset>
+      )}
 
       <fieldset className="closeout-preview">
         <legend>Preview</legend>
