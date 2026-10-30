@@ -399,6 +399,7 @@ button { cursor: pointer; }
 .radio-group { display: flex; flex-wrap: wrap; gap: 14px; }
 .radio-group .radio-option { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 400; flex-direction: row; }
 .tbd-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 400; color: var(--color-text-muted); margin-top: 4px; flex-direction: row; }
+.closeout-external-toggle { background: var(--color-bg-slate); border-radius: 8px; padding: 10px 12px; font-size: 13px; color: var(--color-navy); margin-bottom: 16px; }
 .uc-agent-display { font-size: 13px; color: var(--color-text-muted); }
 .uc-agent-display strong { color: var(--color-navy); }
 .uc-inline-label { margin-top: 8px; }

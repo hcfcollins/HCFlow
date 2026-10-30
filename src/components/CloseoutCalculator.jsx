@@ -61,6 +61,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const [anticipatedNote, setAnticipatedNote] = useState(saved.anticipated_commission_note ?? "");
   const [depositRetained, setDepositRetained] = useState(saved.deposit_retained ?? false);
   const [trustToCheckingTransferred, setTrustToCheckingTransferred] = useState(saved.trust_to_checking_transferred ?? false);
+  const [alreadyClosedExternally, setAlreadyClosedExternally] = useState(saved.is_historical_import ?? false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [allAgents, setAllAgents] = useState([]);
@@ -190,24 +191,34 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         anticipated_commission_note: anticipatedNote.trim() || null,
         deposit_retained: depositRetained,
         trust_to_checking_transferred: trustToCheckingTransferred,
+        is_historical_import: alreadyClosedExternally,
       });
       showToast("Close-out saved — deal marked Closed");
-      // Best-effort — the closeout itself is already saved and the deal is
-      // already marked Closed above, so a failure here (Zap not wired up yet,
-      // Zapier down, whatever) is surfaced but must never look like the save
-      // failed or block moving on.
-      const sheetPayload = buildSheetPayload();
-      try {
-        await pushCloseoutToSheet(sheetPayload);
-        showToast("Sent to the Deal Tracker sheet");
-      } catch (e) {
-        showToast(`Saved, but couldn't send to the Deal Tracker sheet: ${e.message}`);
-      }
-      try {
-        await pushCloseoutToXero(sheetPayload);
-        showToast("Invoice and bills created in Xero");
-      } catch (e) {
-        showToast(`Saved, but couldn't push to Xero: ${e.message}`);
+
+      // A deal that already closed outside the app (e.g. handled manually before
+      // this feature existed) must not re-trigger the Sheet/Xero pushes — those
+      // would create a duplicate Google Sheet row and duplicate Xero invoice/bills
+      // for money that was already recorded and paid out elsewhere.
+      if (alreadyClosedExternally) {
+        showToast("Marked Closed — Google Sheet and Xero were not notified");
+      } else {
+        // Best-effort — the closeout itself is already saved and the deal is
+        // already marked Closed above, so a failure here (Zap not wired up yet,
+        // Zapier down, whatever) is surfaced but must never look like the save
+        // failed or block moving on.
+        const sheetPayload = buildSheetPayload();
+        try {
+          await pushCloseoutToSheet(sheetPayload);
+          showToast("Sent to the Deal Tracker sheet");
+        } catch (e) {
+          showToast(`Saved, but couldn't send to the Deal Tracker sheet: ${e.message}`);
+        }
+        try {
+          await pushCloseoutToXero(sheetPayload);
+          showToast("Invoice and bills created in Xero");
+        } catch (e) {
+          showToast(`Saved, but couldn't push to Xero: ${e.message}`);
+        }
       }
       onSaved();
     } catch (e) {
@@ -230,6 +241,15 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
       </header>
 
       {error && <div className="error-banner">{error}</div>}
+
+      <label className="tbd-toggle closeout-external-toggle">
+        <input
+          type="checkbox"
+          checked={alreadyClosedExternally}
+          onChange={(e) => setAlreadyClosedExternally(e.target.checked)}
+        />
+        This deal already closed outside the app — just mark it Closed, don't notify the Deal Tracker sheet or Xero
+      </label>
 
       <fieldset>
         <legend>Deal Basics</legend>
