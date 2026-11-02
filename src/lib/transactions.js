@@ -718,6 +718,30 @@ export async function sendCloseoutEmail(payload, testMode = false) {
   return data;
 }
 
+/** Grabs the most recently modified file in the listing's Dropbox "3) Showing
+ * Docs" subfolder and drops it into a new (unsent) Gmail draft, subject/body
+ * pre-filled — see email-showing-packet for the full logic. Returns
+ * { fileName, draftUrl } so the caller can open the draft for review. */
+export async function emailShowingPacket(transactionId) {
+  const { data, error } = await supabase.functions.invoke("email-showing-packet", {
+    body: { transactionId },
+  });
+  if (error) {
+    if (error.context?.json) {
+      let detail;
+      try {
+        const body = await error.context.json();
+        detail = body?.error;
+      } catch {
+        // response body wasn't JSON — fall through to the generic error below
+      }
+      if (detail) throw new Error(detail);
+    }
+    throw error;
+  }
+  return data;
+}
+
 // ---- Broker-only: commission data + close-outs ----
 // RLS already blocks non-brokers from reading/writing these tables entirely,
 // so a non-broker calling these functions will simply get an empty/error result.

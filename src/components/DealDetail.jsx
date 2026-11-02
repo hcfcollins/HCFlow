@@ -8,7 +8,7 @@ import CloseoutCalculator from "./CloseoutCalculator";
 import ConfirmDialog from "./ConfirmDialog";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
-import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys } from "../lib/transactions";
+import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket } from "../lib/transactions";
 import { focusNextOnEnter } from "../lib/formKeyNav";
 import {
   PROPERTY_STYLES,
@@ -71,6 +71,7 @@ export default function DealDetail({
   const [attorneys, setAttorneys] = useState([]);
   const [compDetailsCollapsed, setCompDetailsCollapsed] = useState(true);
   const [retryingDropbox, setRetryingDropbox] = useState(false);
+  const [emailingPacket, setEmailingPacket] = useState(false);
   // Lets New Comp's "Add & Build CMA PDF" button drop an agent straight into this
   // screen already open, instead of landing on the deal detail view first.
   const [showGenerateComp, setShowGenerateComp] = useState(Boolean(transaction._openGenerateComp));
@@ -156,6 +157,25 @@ export default function DealDetail({
     await updateTransactionAttorneys(transaction.id, side === "buyer" ? { buyerAttorneyId: id } : { sellerAttorneyId: id });
     onRefresh();
     showToast("Saved");
+  }
+
+  async function handleEmailShowingPacket() {
+    setEmailingPacket(true);
+    // Opened synchronously, right on the click, and redirected once the draft
+    // is ready — a window.open() called only after the await below (network
+    // round-trips to Dropbox and Gmail) is no longer a direct result of the
+    // user gesture and gets silently popup-blocked in most browsers.
+    const draftTab = window.open("", "_blank", "noopener,noreferrer");
+    try {
+      const result = await emailShowingPacket(transaction.id);
+      showToast(`Draft created with "${result.fileName}" attached`);
+      if (draftTab) draftTab.location.href = result.draftUrl;
+    } catch (e) {
+      if (draftTab) draftTab.close();
+      showToast(`Couldn't create the draft: ${e.message}`);
+    } finally {
+      setEmailingPacket(false);
+    }
   }
 
   if (showGenerateComp) {
@@ -621,9 +641,16 @@ export default function DealDetail({
           <h2 className="comps-section-title">Documents</h2>
           <p className="field-help">Files live in Dropbox — this list tracks status only.</p>
           {transaction.dropbox_folder_url ? (
-            <a href={transaction.dropbox_folder_url} target="_blank" rel="noreferrer" className="cma-export-btn">
-              <FolderOpen size={14} /> Open Dropbox Folder
-            </a>
+            <>
+              <a href={transaction.dropbox_folder_url} target="_blank" rel="noreferrer" className="cma-export-btn">
+                <FolderOpen size={14} /> Open Dropbox Folder
+              </a>
+              {transaction.side !== "Buy" && (
+                <button type="button" className="cma-export-btn" disabled={emailingPacket} onClick={handleEmailShowingPacket}>
+                  <Mail size={14} /> {emailingPacket ? "Creating draft…" : "Email Showing Packet"}
+                </button>
+              )}
+            </>
           ) : (
             (transaction.stage === "won" || (transaction.side === "Buy" && transaction.stage === "contract")) && (
               <>
