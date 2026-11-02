@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import {
   fetchMyEarnings,
@@ -51,6 +51,36 @@ function normalizeDateForSort(dateStr) {
 function money(n) {
   if (n === null || n === undefined) return "—";
   return `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+
+// Pure string manipulation, deliberately not Date-parsed — same reasoning as
+// Spreadsheet View's monthKeyFor: reading a parsed Date's month back out
+// means picking UTC or local time, and bare ISO dates vs. "M/D/YYYY" parse
+// as one or the other inconsistently, risking a date near a month boundary
+// landing in the wrong bucket. This just reads the digits directly.
+function monthKeyFor(dateStr) {
+  if (!dateStr) return null;
+  const iso = /^(\d{4})-(\d{1,2})-/.exec(dateStr);
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, "0")}`;
+  const us = /^(\d{1,2})\/\d{1,2}\/(\d{4})$/.exec(dateStr);
+  if (us) return `${us[2]}-${us[1].padStart(2, "0")}`;
+  return null;
+}
+
+function yearKeyFor(dateStr) {
+  const mk = monthKeyFor(dateStr);
+  return mk ? mk.slice(0, 4) : null;
+}
+
+function monthStrOffset(offset) {
+  const d = new Date();
+  d.setMonth(d.getMonth() + offset);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabel(monthStr) {
+  const [y, m] = monthStr.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
 const OWNER_NAMES = ["Fran Collins", "Holly Hall"];
@@ -121,6 +151,9 @@ export default function AgentSpreadsheetView({ transactions, currentAgent, onBac
   const [attorneys, setAttorneys] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [sortDir, setSortDir] = useState("asc"); // by closing date; soonest first by default
+  const [summaryMode, setSummaryMode] = useState("year"); // "year" | "thisMonth" | "nextMonth" | "custom"
+  const [summaryCustomMonth, setSummaryCustomMonth] = useState(""); // "YYYY-MM", used when summaryMode is "custom"
   const showToast = useToast();
 
   function load() {
@@ -151,7 +184,9 @@ export default function AgentSpreadsheetView({ transactions, currentAgent, onBac
       };
     })
     .filter(Boolean)
-    // Soonest closing date first; deals with no date yet sort to the end.
+    // Sorted by closing date, direction toggled by clicking the column
+    // header; deals with no date yet always sort to the end regardless of
+    // direction.
     .sort((a, b) => {
       const av = normalizeDateForSort(a.closing_date);
       const bv = normalizeDateForSort(b.closing_date);
@@ -160,7 +195,9 @@ export default function AgentSpreadsheetView({ transactions, currentAgent, onBac
       if (!bv) return -1;
       // normalizeDateForSort can return a number (timestamp) or a string
       // (unparseable fallback) — plain comparison operators handle both.
-      return av < bv ? -1 : av > bv ? 1 : 0;
+      if (av < bv) return sortDir === "asc" ? -1 : 1;
+      if (av > bv) return sortDir === "asc" ? 1 : -1;
+      return 0;
     });
 
   async function patchDeal(dealId, patch) {
@@ -190,6 +227,46 @@ export default function AgentSpreadsheetView({ transactions, currentAgent, onBac
   }
 
   const dealsMissingInfo = deals.filter((d) => d.stage === "contract" && missingFieldsFor(d).length > 0);
+
+  const summary = useMemo(() => {
+    const thisYear = String(new Date().getFullYear());
+    let actualTotal = 0;
+    let actualCount = 0;
+    let projectedTotal = 0;
+    let projectedCount = 0;
+
+    for (const d of deals) {
+      const matches =
+        summaryMode === "year"
+          ? yearKeyFor(d.closing_date) === thisYear
+          : summaryMode === "thisMonth"
+          ? monthKeyFor(d.closing_date) === monthStrOffset(0)
+          : summaryMode === "nextMonth"
+          ? monthKeyFor(d.closing_date) === monthStrOffset(1)
+          : summaryCustomMonth && monthKeyFor(d.closing_date) === summaryCustomMonth;
+      if (!matches || d.amount == null) continue;
+      if (d.is_actual) {
+        actualTotal += d.amount;
+        actualCount++;
+      } else {
+        projectedTotal += d.amount;
+        projectedCount++;
+      }
+    }
+
+    return { actualTotal, actualCount, projectedTotal, projectedCount, totalCount: actualCount + projectedCount };
+  }, [deals, summaryMode, summaryCustomMonth]);
+
+  const summaryRangeLabel =
+    summaryMode === "year"
+      ? `Deals closing in ${new Date().getFullYear()}.`
+      : summaryMode === "thisMonth"
+      ? `Deals closing in ${monthLabel(monthStrOffset(0))}.`
+      : summaryMode === "nextMonth"
+      ? `Deals closing in ${monthLabel(monthStrOffset(1))}.`
+      : summaryCustomMonth
+      ? `Deals closing in ${monthLabel(summaryCustomMonth)}.`
+      : "Pick a month above.";
 
   return (
     <div className="deal-detail">
@@ -239,7 +316,9 @@ export default function AgentSpreadsheetView({ transactions, currentAgent, onBac
             <table className="sv-table">
               <thead>
                 <tr>
-                  <th>Closing Date</th>
+                  <th className="sv-th-sortable" onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}>
+                    Closing Date{sortDir === "asc" ? " ▲" : " ▼"}
+                  </th>
                   <th>Address</th>
                   <th>Stage</th>
                   <th>Price</th>
@@ -307,6 +386,67 @@ export default function AgentSpreadsheetView({ transactions, currentAgent, onBac
             </table>
           </div>
           {deals.length === 0 && <p className="empty-state">No deals Under Contract or Closed yet.</p>}
+
+          <div className="sv-summary">
+            <h2 className="comps-section-title">Commission Summary</h2>
+            <div className="sv-filters">
+              <button
+                type="button"
+                className={`comps-minimize-btn${summaryMode === "year" ? " sv-preset-active" : ""}`}
+                onClick={() => setSummaryMode("year")}
+              >
+                This Year
+              </button>
+              <button
+                type="button"
+                className={`comps-minimize-btn${summaryMode === "thisMonth" ? " sv-preset-active" : ""}`}
+                onClick={() => setSummaryMode("thisMonth")}
+              >
+                This Month
+              </button>
+              <button
+                type="button"
+                className={`comps-minimize-btn${summaryMode === "nextMonth" ? " sv-preset-active" : ""}`}
+                onClick={() => setSummaryMode("nextMonth")}
+              >
+                Next Month
+              </button>
+              <input
+                type="month"
+                value={summaryCustomMonth}
+                onChange={(e) => {
+                  setSummaryCustomMonth(e.target.value);
+                  setSummaryMode("custom");
+                }}
+              />
+            </div>
+            <p className="field-help sv-summary-range-label">{summaryRangeLabel}</p>
+            <div className="sv-summary-stats">
+              <div className="sv-summary-stat">
+                <span className="sv-summary-stat-value">{summary.totalCount}</span>
+                <span className="sv-summary-stat-label">Transactions</span>
+              </div>
+              <div className="sv-summary-stat">
+                <span className="sv-summary-stat-label">My Commission</span>
+                <div className="sv-summary-stat-split">
+                  <div className="sv-summary-stat-part">
+                    <strong>{money(summary.actualTotal)}</strong>
+                    <span className="field-help">closed</span>
+                  </div>
+                  <div className="sv-summary-stat-part">
+                    <strong>{money(summary.projectedTotal)}</strong>
+                    <span className="field-help">projected</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p className="field-help">
+              {summary.actualCount} closed deal{summary.actualCount === 1 ? "" : "s"}
+              {summary.projectedCount > 0 && `, ${summary.projectedCount} more still under contract`}. "Projected" is
+              an estimate using the same formula as the real Close-Out Calculator — the actual number may differ
+              slightly once a deal is formally closed out.
+            </p>
+          </div>
         </>
       )}
     </div>
