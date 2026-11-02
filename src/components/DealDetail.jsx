@@ -526,15 +526,21 @@ export default function DealDetail({
         />
       </div>
 
-      {isBroker && (transaction.stage === "contract" || transaction.stage === "closed") && (
+      {(transaction.stage === "contract" || transaction.stage === "closed") && (
         <div className="detail-section">
           <h2 className="comps-section-title">Under Contract Details</h2>
-          <p className="field-help">Broker-only — collected from the Under Contract form.</p>
+          <p className="field-help">
+            {isBroker
+              ? "Collected from the Under Contract form."
+              : "Read-only — what was submitted on the Under Contract form. Contact Fran or Holly to request a change."}
+          </p>
           <div className="detail-grid">
-            <div>
-              <div className="detail-label">Commission %</div>
-              <div>{transaction.closeouts?.commission_pct ?? "—"}</div>
-            </div>
+            {isBroker && (
+              <div>
+                <div className="detail-label">Commission %</div>
+                <div>{transaction.closeouts?.commission_pct ?? "—"}</div>
+              </div>
+            )}
             <div>
               <div className="detail-label">Lead Type</div>
               <div>{transaction.commission_data?.lead_type || "—"}</div>
@@ -585,7 +591,7 @@ export default function DealDetail({
             </div>
           </div>
 
-          {transaction.closeouts?.commission_after_referral != null && (
+          {isBroker && transaction.closeouts?.commission_after_referral != null && (
             <>
               <h3 className="timeframe-group-title closeout-split-title">Close-Out Split</h3>
               <div className="detail-grid">

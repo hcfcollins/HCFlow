@@ -14,10 +14,25 @@ const STAGE_LABELS = { contract: "Under Contract", closed: "Closed" };
 
 function formatDateShort(dateStr) {
   if (!dateStr) return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr);
+  // \d{1,2} (not a strict \d{2}) so a non-zero-padded stored value like
+  // "2026-9-5" still displays correctly instead of falling through to the
+  // raw, unformatted string.
+  const match = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(dateStr);
   if (!match) return dateStr;
   const [, y, m, d] = match;
-  return `${m}/${d}/${y}`;
+  return `${m.padStart(2, "0")}/${d.padStart(2, "0")}/${y}`;
+}
+
+// Zero-pads a YYYY-M-D (or already YYYY-MM-DD) string to YYYY-MM-DD so plain
+// string comparison actually matches chronological order — next_date is a
+// plain text column, not a real date type, and some stored values aren't
+// zero-padded (e.g. "2026-9-5"), which otherwise sorts AFTER "2026-10-...".
+function normalizeDateForSort(dateStr) {
+  if (!dateStr) return null;
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(dateStr);
+  if (!m) return dateStr;
+  const [, y, mo, d] = m;
+  return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
 }
 
 function money(n) {
@@ -125,10 +140,12 @@ export default function AgentSpreadsheetView({ transactions, currentAgent, onBac
     .filter(Boolean)
     // Soonest closing date first; deals with no date yet sort to the end.
     .sort((a, b) => {
-      if (!a.closing_date && !b.closing_date) return 0;
-      if (!a.closing_date) return 1;
-      if (!b.closing_date) return -1;
-      return a.closing_date.localeCompare(b.closing_date);
+      const av = normalizeDateForSort(a.closing_date);
+      const bv = normalizeDateForSort(b.closing_date);
+      if (!av && !bv) return 0;
+      if (!av) return 1;
+      if (!bv) return -1;
+      return av.localeCompare(bv);
     });
 
   async function patchDeal(dealId, patch) {

@@ -64,7 +64,10 @@ body {
   background: var(--color-cream-bg);
   color: var(--color-navy);
 }
-.app { max-width: 480px; margin: 0 auto; padding: 20px 18px 60px; }
+/* Bottom padding clears both fixed bottom bars (search, and the My Earnings/
+   My Spreadsheet row pinned just above it) so page content never ends up
+   hidden underneath them. */
+.app { max-width: 480px; margin: 0 auto; padding: 20px 18px 130px; }
 /* Spreadsheet View earns the whole screen on desktop instead of sitting
    centered in the same narrow column every other mobile-first screen uses —
    it's the one view built around a wide data grid. The compound selector
@@ -159,7 +162,21 @@ button { cursor: pointer; }
 .center-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; text-align: center; }
 .error-banner { background: var(--color-danger-bg); color: var(--color-danger-text); padding: 10px 14px; border-radius: 10px; margin-bottom: 14px; font-size: 13px; }
 .view-as-banner { background: var(--color-bg-slate); color: var(--color-navy); padding: 8px 14px; border-radius: 10px; margin-bottom: 14px; font-size: 12px; font-weight: 600; text-align: center; }
-.cta-button-row { display: flex; gap: 8px; margin-top: 20px; }
+/* Pinned just above the fixed bottom search bar (position/width/centering
+   mirror .search-bar--fixed) so both stay visible without scrolling — the
+   64px offset is the search bar's own ~46px height plus its 14px bottom
+   margin plus a small gap; nudge if the two ever visibly overlap or gap. */
+.cta-button-row {
+  display: flex;
+  gap: 8px;
+  position: fixed;
+  left: 50%;
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  width: calc(100% - 36px);
+  max-width: 480px;
+  z-index: 49;
+}
 .my-earnings-cta {
   flex: 1;
   background: #8A9A6F;
@@ -665,6 +682,8 @@ button { cursor: pointer; }
 }
 .my-earnings-row:last-child { border-bottom: none; }
 .my-earnings-amount { text-align: right; flex-shrink: 0; }
+.my-earnings-amount--realized { font-weight: 700; font-style: normal; color: var(--color-navy); }
+.my-earnings-amount--projected { font-style: italic; font-weight: 400; color: var(--color-text-muted); }
 .agent-missing-info { background: var(--color-bg-slate); border-left: 3px solid var(--color-pink); border-radius: 8px; padding: 12px 14px; margin-bottom: 18px; }
 
 .celebration {
@@ -1096,4 +1115,5 @@ button { cursor: pointer; }
   .sign-inventory-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
   .social-calendar { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); align-items: start; }
   .search-bar--fixed { max-width: 500px; }
+  .cta-button-row { max-width: 500px; }
 }

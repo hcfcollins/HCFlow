@@ -319,12 +319,19 @@ create policy "todos_delete" on todos for delete
 -- Insert is open to any signed-in user because the Under Contract form (filled out by
 -- regular agents) writes some of these fields; agents just can't read them back. See
 -- Build Spec §6 and §5 for why writes and reads have different access rules here.
-create policy "commission_select" on commission_data for select using (is_broker());
+-- Select is also open to the owning agent, not just brokers — DealDetail's
+-- read-only "Under Contract Details" section shows an agent what they
+-- entered (lead type, client source, referral, deposit, dates, appraiser) on
+-- their own deal. The actual money split (closeouts: agent/Holly/Fran/bank
+-- amounts) stays fully broker-only below, unchanged — this only covers the
+-- inputs, never the calculated payout.
+create policy "commission_select" on commission_data for select
+  using (exists (select 1 from transactions t where t.id = transaction_id
+    and (is_broker() or t.agent_id = current_agent_id())));
 create policy "commission_insert" on commission_data for insert with check (auth.uid() is not null);
 -- Update (not just insert) is also open to the owning agent, not just brokers —
 -- New Comp and Under Contract both write these fields, and an agent correcting
--- their own entry (e.g. a referral %) shouldn't be silently blocked. Reading
--- commission data back stays broker-only above, unchanged.
+-- their own entry (e.g. a referral %) shouldn't be silently blocked.
 create policy "commission_update" on commission_data for update
   using (exists (select 1 from transactions t where t.id = transaction_id
     and (is_broker() or t.agent_id = current_agent_id())));

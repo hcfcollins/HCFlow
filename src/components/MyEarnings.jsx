@@ -79,11 +79,12 @@ export default function MyEarnings({ onBack }) {
                     <div className="my-earnings-amount">
                       {d.amount == null ? (
                         <span className="field-help">Not enough on record yet</span>
+                      ) : d.is_actual ? (
+                        <strong className="my-earnings-amount--realized">{money(d.amount)}</strong>
                       ) : (
-                        <>
-                          <strong>{money(d.amount)}</strong>
-                          {!d.is_actual && <span className="field-help"> projected</span>}
-                        </>
+                        <span className="my-earnings-amount--projected">
+                          {money(d.amount)} <span className="field-help">projected</span>
+                        </span>
                       )}
                     </div>
                   </li>
