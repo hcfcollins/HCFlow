@@ -373,6 +373,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
   const [agentFilter, setAgentFilter] = useState("");
   const [stageFilter, setStageFilter] = useState("contract"); // defaults to Under Contract — the deals actually being actively worked day to day
   const [showTerminated, setShowTerminated] = useState(false); // swaps the table to ONLY terminated deals, with its own summary below
+  const [showAgentPerformance, setShowAgentPerformance] = useState(false); // swaps the table to the per-agent summary below
   const [sortKey, setSortKey] = useState("next_date");
   const [sortDir, setSortDir] = useState("asc"); // soonest closing date first
   const [summaryMonth, setSummaryMonth] = useState(""); // "" = all time, else "YYYY-MM"
@@ -424,6 +425,46 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
     }
     return { count: filtered.length, totalPrice, totalCommission };
   }, [filtered, showTerminated]);
+
+  // Independent of the row filters above (search/agent/stage) — this is a
+  // whole-roster report, not a filtered view. Excludes terminated deals the
+  // same way the main table does by default. "Brokerage Earned" is real
+  // closed-deal bank_amount only (never projected), per Fran's own framing
+  // of "actually earned".
+  const agentPerformance = useMemo(() => {
+    if (!showAgentPerformance) return [];
+    const byAgent = new Map();
+    for (const tx of transactions) {
+      if (tx.terminated_at) continue;
+      const name = tx.agent?.name || "Unassigned";
+      if (!byAgent.has(name)) {
+        byAgent.set(name, {
+          name,
+          buyCount: 0,
+          sellCount: 0,
+          splitCount: 0,
+          totalCount: 0,
+          closedCount: 0,
+          projectedCount: 0,
+          bankEarned: 0,
+        });
+      }
+      const row = byAgent.get(name);
+      row.totalCount++;
+      if (tx.side === "Buy") row.buyCount++;
+      else if (tx.side === "Sell") row.sellCount++;
+      else if (tx.side === "Split") row.splitCount++;
+
+      const co = tx.closeouts;
+      if (co?.commission_after_referral != null) {
+        row.closedCount++;
+        row.bankEarned += Number(co.bank_amount) || 0;
+      } else if (tx.stage === "contract") {
+        row.projectedCount++;
+      }
+    }
+    return [...byAgent.values()].sort((a, b) => b.totalCount - a.totalCount);
+  }, [transactions, showAgentPerformance]);
 
   const sorted = useMemo(() => {
     const col = COLUMNS.find((c) => c.key === sortKey);
@@ -646,12 +687,68 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
           </select>
         )}
         <label className="sv-terminated-toggle">
-          <input type="checkbox" checked={showTerminated} onChange={(e) => setShowTerminated(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={showTerminated}
+            onChange={(e) => {
+              setShowTerminated(e.target.checked);
+              if (e.target.checked) setShowAgentPerformance(false);
+            }}
+          />
           Show Terminated
+        </label>
+        <label className="sv-terminated-toggle">
+          <input
+            type="checkbox"
+            checked={showAgentPerformance}
+            onChange={(e) => {
+              setShowAgentPerformance(e.target.checked);
+              if (e.target.checked) setShowTerminated(false);
+            }}
+          />
+          Agent Performance
         </label>
       </div>
 
-      {showTerminated && terminatedSummary && (
+      {showAgentPerformance && (
+        <div className="sv-table-wrap">
+          <table className="sv-table">
+            <thead>
+              <tr>
+                <th>Agent</th>
+                <th>Buy</th>
+                <th>Sell</th>
+                <th>Split</th>
+                <th>Total</th>
+                <th>Closed</th>
+                <th>Projected</th>
+                <th>Brokerage Earned</th>
+              </tr>
+            </thead>
+            <tbody>
+              {agentPerformance.map((row) => (
+                <tr key={row.name}>
+                  <td>{row.name}</td>
+                  <td>{row.buyCount}</td>
+                  <td>{row.sellCount}</td>
+                  <td>{row.splitCount}</td>
+                  <td>{row.totalCount}</td>
+                  <td>{row.closedCount}</td>
+                  <td>{row.projectedCount}</td>
+                  <td>{money(row.bankEarned)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {agentPerformance.length === 0 && <p className="empty-state">No active deals on record yet.</p>}
+          <p className="field-help sv-summary-range-label">
+            "Projected" counts deals still Under Contract with enough on record to estimate — not yet reflected in
+            Brokerage Earned, which is only real closed-deal money.
+          </p>
+        </div>
+      )}
+
+      {!showAgentPerformance && showTerminated && terminatedSummary && (
         <div className="sv-summary sv-summary--terminated">
           <h2 className="comps-section-title">Terminated Deals</h2>
           <div className="sv-summary-stats">
@@ -675,6 +772,8 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
         </div>
       )}
 
+      {!showAgentPerformance && (
+      <>
       <div className="sv-table-wrap">
         <table className="sv-table">
           <thead>
@@ -827,6 +926,8 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
         </table>
       </div>
       {sorted.length === 0 && <p className="empty-state">No deals match these filters.</p>}
+      </>
+      )}
 
       <div className="sv-summary">
         <h2 className="comps-section-title">Commission Summary</h2>
