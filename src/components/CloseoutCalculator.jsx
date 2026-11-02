@@ -108,10 +108,12 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   // Comes out of the brokerage's own cut, not the agent/Holly/Fran split.
   const tcFeeAmount = TC_FEE_AMOUNTS[tcFeeType] || 0;
   const finalBankAmount = applyTcFee(result.bankAmount, tcFeeType);
-  // Summed from the actual displayed line items (not re-derived from the input
-  // formula) so it's a genuine check against the math below, not just a copy of
-  // commissionAfterReferral minus the TC fee.
-  const totalToDistribute = round2((result.agentCommission || 0) + result.hollyCommission + result.franCommission + finalBankAmount);
+  // What actually gets paid out through Gusto: agent/Holly/Fran commission
+  // plus the TC fee (also a Gusto payment, to the coordinator). The referral
+  // fee isn't in here — it's paid outside Gusto entirely — and Brokerage
+  // Keeps isn't either, since that money stays in the business rather than
+  // going out to anyone.
+  const totalToDistribute = round2((result.agentCommission || 0) + result.hollyCommission + result.franCommission + (tcFeeType ? tcFeeAmount : 0));
 
   // Maps this calculator's numbers onto the "Deal Tracker Form" sheet's actual
   // columns (confirmed against the live Zap — see commit history), skipping
