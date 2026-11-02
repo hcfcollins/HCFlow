@@ -67,10 +67,13 @@ body {
 .app { max-width: 480px; margin: 0 auto; padding: 20px 18px 60px; }
 /* Spreadsheet View earns the whole screen on desktop instead of sitting
    centered in the same narrow column every other mobile-first screen uses —
-   it's the one view built around a wide data grid. */
-.sv-app-wrap { max-width: none; }
+   it's the one view built around a wide data grid. The compound selector
+   (not just .sv-app-wrap alone) is deliberate: a later, equal-specificity
+   ".app { max-width: 900px }" tablet rule further down this file was
+   winning on source order and re-capping this at 900px wide. */
+.app.sv-app-wrap { max-width: none; }
 @media (min-width: 1000px) {
-  .sv-app-wrap { padding-left: 40px; padding-right: 40px; }
+  .app.sv-app-wrap { padding-left: 24px; padding-right: 24px; }
 }
 .app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .main-header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
@@ -972,14 +975,45 @@ button { cursor: pointer; }
   padding: 0;
 }
 .sv-row-quick-actions button:hover { background: var(--color-border); color: var(--color-navy); }
+/* Custom tooltip instead of relying on the native title attribute — these
+   are tiny 20px icon-only buttons in a dense grid, and the browser's default
+   title tooltip (slow to appear, easy to miss) wasn't visible enough. */
+.sv-row-quick-actions button[data-tooltip] { position: relative; }
+.sv-row-quick-actions button[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-navy);
+  color: var(--color-white);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 20;
+  pointer-events: none;
+}
 
 /* Specificity has to at least match the zebra-stripe rules above (which also
    target tbody tr / tbody tr td.sv-col-frozen) or a selected even/odd row's
    own stripe color wins and the selection highlight never actually shows —
    that was happening before this was written to match. */
 .sv-table tbody tr.sv-row-selected { background: rgba(var(--pink-rgb), 0.18); }
-.sv-table tbody tr.sv-row-selected .sv-row-actions,
-.sv-table tbody tr.sv-row-selected td.sv-col-frozen { background: rgba(var(--pink-rgb), 0.18); }
+.sv-table tbody tr.sv-row-selected .sv-row-actions { background: rgba(var(--pink-rgb), 0.18); }
+/* The frozen columns sit above whatever's scrolled underneath them, so their
+   background has to be fully opaque — a plain rgba here let the scrolled-past
+   column text show through at the sticky edge, which read as "transparent/
+   messy" while scrolling. Pre-mixed to a solid color per row parity instead
+   of layering translucency, and given higher specificity than the zebra
+   stripe rules above so it always wins regardless of source order. */
+.sv-table tbody tr:nth-child(odd).sv-row-selected td.sv-col-frozen {
+  background: color-mix(in srgb, var(--color-white) 82%, rgb(var(--pink-rgb)) 18%);
+}
+.sv-table tbody tr:nth-child(even).sv-row-selected td.sv-col-frozen {
+  background: color-mix(in srgb, var(--color-bg-slate) 82%, rgb(var(--pink-rgb)) 18%);
+}
 .sv-summary { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--color-border); }
 .sv-summary .sv-filters { margin-bottom: 14px; }
 .sv-summary-stats { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }

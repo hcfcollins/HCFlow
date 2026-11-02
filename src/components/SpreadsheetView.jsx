@@ -24,10 +24,24 @@ import ConfirmDialog from "./ConfirmDialog";
 // scoped to this one column's display, not every date in the app.
 function formatDateShort(dateStr) {
   if (!dateStr) return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr);
+  // \d{1,2} (not a strict \d{2}) so a non-zero-padded stored value like
+  // "2026-9-5" still displays correctly instead of falling through to the
+  // raw, unformatted string.
+  const match = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(dateStr);
   if (!match) return dateStr;
   const [, y, m, d] = match;
-  return `${m}/${d}/${y}`;
+  return `${m.padStart(2, "0")}/${d.padStart(2, "0")}/${y}`;
+}
+
+// Zero-pads a YYYY-M-D (or already YYYY-MM-DD) string to YYYY-MM-DD so plain
+// string comparison actually matches chronological order — see the sort
+// comparator below for why this matters.
+function normalizeDateForSort(dateStr) {
+  if (!dateStr) return null;
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(dateStr);
+  if (!m) return dateStr;
+  const [, y, mo, d] = m;
+  return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
 }
 
 // Display-only formatters (the underlying edit input still gets/saves a plain
@@ -352,8 +366,17 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
     const col = COLUMNS.find((c) => c.key === sortKey);
     const copy = [...filtered];
     copy.sort((a, b) => {
-      const av = sortKey === "agent" ? a.agent?.name : col ? getValue(a, col) : a[sortKey];
-      const bv = sortKey === "agent" ? b.agent?.name : col ? getValue(b, col) : b[sortKey];
+      let av = sortKey === "agent" ? a.agent?.name : col ? getValue(a, col) : a[sortKey];
+      let bv = sortKey === "agent" ? b.agent?.name : col ? getValue(b, col) : b[sortKey];
+      // next_date is a plain text column, not a real date type, and some
+      // stored values aren't zero-padded (e.g. "2026-9-5") — compared as
+      // plain strings that sorts AFTER "2026-10-...", since "9" > "1" as the
+      // first differing character, which is exactly the "October before
+      // September" bug this normalizes away.
+      if (col?.type === "date") {
+        av = normalizeDateForSort(av);
+        bv = normalizeDateForSort(bv);
+      }
       if (av == null && bv == null) return 0;
       if (av == null) return 1;
       if (bv == null) return -1;
@@ -387,7 +410,11 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
         if (alreadyClosed) continue;
       } else {
         if (summaryMonth) {
-          const txMonth = tx.next_date && /^\d{4}-\d{2}/.test(tx.next_date) ? tx.next_date.slice(0, 7) : null;
+          // A non-zero-padded stored date (e.g. "2026-9-5") would fail a plain
+          // \d{4}-\d{2} test and silently drop out of every month filter —
+          // normalize first so this matches regardless of how it's stored.
+          const normalizedNextDate = normalizeDateForSort(tx.next_date);
+          const txMonth = normalizedNextDate ? normalizedNextDate.slice(0, 7) : null;
           if (txMonth !== summaryMonth) continue;
         }
         if (alreadyClosed) {
@@ -659,15 +686,20 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                 <td className="sv-col-frozen" style={{ left: FROZEN_LEFTS.actions }}>
                   <div className="sv-row-quick-actions" onClick={(e) => e.stopPropagation()}>
                     {tx.terminated_at ? (
-                      <button type="button" title="Reactivate deal" onClick={() => handleReactivate(tx)}>
+                      <button type="button" title="Reactivate deal" data-tooltip="Reactivate deal" onClick={() => handleReactivate(tx)}>
                         <RotateCcw size={12} />
                       </button>
                     ) : checkReceivedLabel(tx) === "Yes" ? null : (
                       <>
-                        <button type="button" title="Close-Out Calculator" onClick={() => setClosingOutTx(tx)}>
+                        <button
+                          type="button"
+                          title="Close-Out Calculator"
+                          data-tooltip="Close-Out Calculator"
+                          onClick={() => setClosingOutTx(tx)}
+                        >
                           <DollarSign size={12} />
                         </button>
-                        <button type="button" title="Terminate deal" onClick={() => setTerminatingTx(tx)}>
+                        <button type="button" title="Terminate deal" data-tooltip="Terminate deal" onClick={() => setTerminatingTx(tx)}>
                           <Ban size={12} />
                         </button>
                       </>
@@ -713,15 +745,15 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                 ))}
                 <td className="sv-row-actions">
                   <div className="sv-row-quick-actions" onClick={(e) => e.stopPropagation()}>
-                    <button type="button" title="Close-Out Calculator" onClick={() => setClosingOutTx(tx)}>
+                    <button type="button" title="Close-Out Calculator" data-tooltip="Close-Out Calculator" onClick={() => setClosingOutTx(tx)}>
                       <DollarSign size={12} />
                     </button>
                     {tx.terminated_at ? (
-                      <button type="button" title="Reactivate deal" onClick={() => handleReactivate(tx)}>
+                      <button type="button" title="Reactivate deal" data-tooltip="Reactivate deal" onClick={() => handleReactivate(tx)}>
                         <RotateCcw size={12} />
                       </button>
                     ) : (
-                      <button type="button" title="Terminate deal" onClick={() => setTerminatingTx(tx)}>
+                      <button type="button" title="Terminate deal" data-tooltip="Terminate deal" onClick={() => setTerminatingTx(tx)}>
                         <Ban size={12} />
                       </button>
                     )}
