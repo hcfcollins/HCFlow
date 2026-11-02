@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileText } from "lucide-react";
+import { FileText, X } from "lucide-react";
 import EmailListInput from "./EmailListInput";
 import CheckboxGroup from "./CheckboxGroup";
 import RadioGroup from "./RadioGroup";
@@ -212,8 +212,8 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
           <div className="brand-eyebrow">{transaction.address}</div>
           <h1>Generate Comp</h1>
         </div>
-        <button type="button" onClick={onCancel}>
-          Close
+        <button type="button" className="header-icon-btn" onClick={onCancel} aria-label="Close" title="Close">
+          <X size={20} />
         </button>
       </header>
 

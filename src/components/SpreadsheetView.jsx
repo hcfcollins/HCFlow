@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { DollarSign, Ban, RotateCcw } from "lucide-react";
+import { DollarSign, Ban, RotateCcw, ArrowLeft } from "lucide-react";
 import {
   updateTransactionFields,
   upsertCommissionData,
@@ -591,8 +591,8 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
           <div className="brand-eyebrow">Broker Tools</div>
           <h1>Spreadsheet View</h1>
         </div>
-        <button type="button" onClick={onBack}>
-          Back
+        <button type="button" className="header-icon-btn" onClick={onBack} aria-label="Back" title="Back">
+          <ArrowLeft size={20} />
         </button>
       </header>
 

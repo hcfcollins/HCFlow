@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FileText, Copy, Check } from "lucide-react";
+import { FileText, Copy, Check, ArrowLeft } from "lucide-react";
 import RadioGroup from "./RadioGroup";
 import ConfirmDialog from "./ConfirmDialog";
 import { SkeletonList } from "./Skeleton";
@@ -57,8 +57,8 @@ export default function ManageAgents({ onBack }) {
           <div className="brand-eyebrow">Broker Tools</div>
           <h1>Manage Agents</h1>
         </div>
-        <button type="button" onClick={onBack}>
-          Back
+        <button type="button" className="header-icon-btn" onClick={onBack} aria-label="Back" title="Back">
+          <ArrowLeft size={20} />
         </button>
       </header>
 

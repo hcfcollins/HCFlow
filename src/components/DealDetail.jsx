@@ -212,8 +212,8 @@ export default function DealDetail({
     >
       <header className="detail-header">
         <div className="detail-header-top-row">
-          <button type="button" className="detail-back-btn" onClick={onBack}>
-            <ChevronLeft size={18} /> Back
+          <button type="button" className="detail-back-btn" onClick={onBack} aria-label="Back" title="Back">
+            <ChevronLeft size={22} />
           </button>
           {canPostSocial && (
             <div className="detail-social-menu-wrap">

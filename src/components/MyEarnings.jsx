@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { fetchMyEarnings } from "../lib/transactions";
 import { formatDate } from "./DealDetail";
 import { SkeletonList } from "./Skeleton";
@@ -35,8 +36,8 @@ export default function MyEarnings({ onBack }) {
           <div className="brand-eyebrow">My Deals</div>
           <h1>My Earnings</h1>
         </div>
-        <button type="button" onClick={onBack}>
-          Back
+        <button type="button" className="header-icon-btn" onClick={onBack} aria-label="Back" title="Back">
+          <ArrowLeft size={20} />
         </button>
       </header>
 

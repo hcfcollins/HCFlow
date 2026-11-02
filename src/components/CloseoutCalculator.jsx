@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Copy } from "lucide-react";
+import { Copy, X } from "lucide-react";
 import RadioGroup from "./RadioGroup";
 import {
   saveCloseout,
@@ -330,21 +330,28 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
           <div className="brand-eyebrow">{transaction.address}</div>
           <h1>Close-Out Calculator</h1>
         </div>
-        <button type="button" onClick={onCancel}>
-          Close
+        <button type="button" className="header-icon-btn" onClick={onCancel} aria-label="Close" title="Close">
+          <X size={20} />
         </button>
       </header>
 
       {error && <div className="error-banner">{error}</div>}
 
-      <label className="tbd-toggle closeout-external-toggle">
-        <input
-          type="checkbox"
-          checked={alreadyClosedExternally}
-          onChange={(e) => setAlreadyClosedExternally(e.target.checked)}
-        />
-        This deal already closed outside the app — just mark it Closed, don't notify the Deal Tracker sheet or Xero
-      </label>
+      <div className="closeout-external-toggle">
+        <label className="tbd-toggle">
+          <input
+            type="checkbox"
+            checked={alreadyClosedExternally}
+            onChange={(e) => setAlreadyClosedExternally(e.target.checked)}
+          />
+          This deal already closed outside the app — just mark it Closed, don't notify the Deal Tracker sheet or Xero
+        </label>
+        {alreadyClosedExternally && (
+          <button type="button" className="google-btn closeout-external-save-btn" onClick={handleSave} disabled={saving}>
+            {saving ? "Saving…" : "Save and Send Closeout"}
+          </button>
+        )}
+      </div>
 
       <fieldset>
         <legend>Deal Basics</legend>

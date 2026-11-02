@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ImageOff } from "lucide-react";
+import { ImageOff, ArrowLeft } from "lucide-react";
 import { BoostPostPanel, ListingGraphicPanel } from "./SocialPostPanels";
 import { listListingPhotos, fetchListingFile } from "../lib/transactions";
 
@@ -167,8 +167,8 @@ export default function SocialScheduler({ transactions, onBack, onMarkPosted, on
           <div className="brand-eyebrow">Broker Tools</div>
           <h1>Social Scheduler</h1>
         </div>
-        <button type="button" onClick={onBack}>
-          Back
+        <button type="button" className="header-icon-btn" onClick={onBack} aria-label="Back" title="Back">
+          <ArrowLeft size={20} />
         </button>
       </header>
 

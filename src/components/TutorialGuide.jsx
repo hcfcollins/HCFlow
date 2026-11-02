@@ -7,6 +7,7 @@ import {
   Home,
   FileSignature,
   PartyPopper,
+  X,
 } from "lucide-react";
 
 // Mirrors the actual stage flow enforced in the schema/App.jsx — keep in sync if
@@ -93,8 +94,8 @@ export default function TutorialGuide({ onBack }) {
           <div className="brand-eyebrow">Help</div>
           <h1>How It Works</h1>
         </div>
-        <button type="button" onClick={onBack}>
-          Close
+        <button type="button" className="header-icon-btn" onClick={onBack} aria-label="Close" title="Close">
+          <X size={20} />
         </button>
       </header>
 
