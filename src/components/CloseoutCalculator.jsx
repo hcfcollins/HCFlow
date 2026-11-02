@@ -127,6 +127,9 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const referralAmount = grossCommission * (referralPctNum / 100);
   const commissionAfterReferral = netOverride ? Number(netAmount) || 0 : grossCommission - referralAmount;
   const hasReferral = referralPctNum > 0;
+  // "Send" is misleading when the external-close box is checked — that path
+  // deliberately skips the Deal Tracker sheet and Xero push.
+  const saveButtonLabel = alreadyClosedExternally ? "Save and Mark Closed" : "Save and Send Closeout";
 
   const result = calculateCloseout({
     commissionAfterReferral,
@@ -348,7 +351,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         </label>
         {alreadyClosedExternally && (
           <button type="button" className="google-btn closeout-external-save-btn" onClick={handleSave} disabled={saving}>
-            {saving ? "Saving…" : "Save and Send Closeout"}
+            {saving ? "Saving…" : saveButtonLabel}
           </button>
         )}
       </div>
@@ -508,7 +511,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
           Cancel
         </button>
         <button type="button" className="google-btn" onClick={handleSave} disabled={saving}>
-          {saving ? "Saving…" : "Save and Send Closeout"}
+          {saving ? "Saving…" : saveButtonLabel}
         </button>
       </div>
     </div>
