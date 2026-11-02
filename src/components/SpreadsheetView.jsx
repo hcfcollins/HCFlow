@@ -98,7 +98,7 @@ const COLUMNS = [
   { key: "next_date", label: "Closing Date", source: "tx", type: "date", format: formatDateShort },
   { key: "address", label: "Address", source: "tx", type: "text" },
   { key: "hold_deposit", label: "Hold Deposit?", source: "commission", type: "select", options: YES_NO_OPTIONS },
-  { key: "deposit_amount", label: "Deposit Amount", source: "commission", type: "number", format: money },
+  { key: "deposit_amount", label: "Deposit Held", source: "computed", readOnly: true, compute: depositHeldFor, format: money },
   { key: "tc_fee_type", label: "TC Fee", source: "commission", type: "select", options: Object.keys(TC_FEE_AMOUNTS) },
   { key: "seller_name", label: "Seller Name", source: "tx", type: "text" },
   { key: "buyer_name", label: "Buyer Name", source: "tx", type: "text" },
@@ -161,6 +161,16 @@ function checkReceivedLabel(tx) {
   if (tx.terminated_at) return "Terminated";
   if (tx.closeouts?.commission_after_referral != null) return "Yes";
   return "No";
+}
+
+// Total actually held, not just the first deposit — adds the second deposit
+// in too when one was recorded, so this is the real amount on trust.
+function depositHeldFor(tx) {
+  const cd = tx.commission_data;
+  if (!cd || cd.hold_deposit !== "Yes") return null;
+  const first = Number(cd.deposit_amount) || 0;
+  const second = cd.second_deposit === "Yes" ? Number(cd.second_deposit_amount) || 0 : 0;
+  return first + second;
 }
 
 // The gross commission before any referral deduction — price × commission %.

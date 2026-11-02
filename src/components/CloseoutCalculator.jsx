@@ -51,6 +51,34 @@ function CopyableRow({ label, amount, highlight }) {
   );
 }
 
+// Same idea as CopyableRow, but for the plain reference/memo text Gusto's
+// payment form wants (not a dollar amount) — e.g. the Invoice # and Memo
+// fields for a commission or TC fee payment.
+function CopyableTextRow({ label, text }) {
+  const showToast = useToast();
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast(`Copied "${text}"`);
+    } catch {
+      showToast("Couldn't copy — your browser blocked clipboard access");
+    }
+  }
+
+  return (
+    <div className="closeout-preview-row">
+      <span>{label}</span>
+      <span className="closeout-preview-value">
+        <span className="closeout-preview-text">{text}</span>
+        <button type="button" className="closeout-copy-btn" onClick={handleCopy} aria-label={`Copy ${label}`} title={`Copy ${label}`}>
+          <Copy size={13} />
+        </button>
+      </span>
+    </div>
+  );
+}
+
 export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const showToast = useToast();
   const saved = transaction.closeouts || {};
@@ -76,10 +104,15 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const [sendingTestEmail, setSendingTestEmail] = useState(false);
 
   const hasSign = transaction.side !== "Buy" && transaction.sign_status === "Yes";
+  const showDepositSection = transaction.side !== "Buy" && transaction.commission_data?.hold_deposit === "Yes";
 
   useEffect(() => {
     fetchAllAgents().then(setAllAgents).catch(() => {});
     if (hasSign) fetchSignInventory().then(setSignInventoryCount).catch(() => {});
+    // This screen replaces whatever was on screen before it (usually a deal
+    // scrolled partway down), so without this it opens mid-scroll instead of
+    // at the top.
+    window.scrollTo(0, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -382,44 +415,49 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         )}
       </fieldset>
 
-      {hasSign && (
+      {/* Consolidated into one compact fieldset — these were two separate
+          fieldsets taking up a lot of vertical room. Only Hall Collins' own
+          listings hold the trust deposit — on a pure Buy-side deal the other
+          brokerage holds it, so that part is irrelevant there, same as no
+          deposit ever being recorded. */}
+      {(hasSign || showDepositSection) && (
         <fieldset>
-          <legend>Sign</legend>
-          <p className="field-help">
-            A yard sign was put up for this listing.
-            {signInventoryCount != null && ` ${signInventoryCount} currently in inventory.`}
-          </p>
-          <label className="tbd-toggle">
-            <input type="checkbox" checked={signReturned} onChange={(e) => setSignReturned(e.target.checked)} />
-            Sign has been picked up — add it back to inventory
-          </label>
-        </fieldset>
-      )}
-
-      {/* Only Hall Collins' own listings hold the trust deposit — on a pure
-          Buy-side deal the other brokerage holds it, so this reconciliation
-          is irrelevant there. Also hidden when no deposit was ever recorded. */}
-      {transaction.side !== "Buy" && transaction.commission_data?.hold_deposit === "Yes" && (
-        <fieldset>
-          <legend>Deposit Reconciliation</legend>
-          <p className="field-help">
-            Recorded at Under Contract: {money(transaction.commission_data.deposit_amount)} held
-            {transaction.commission_data?.second_deposit === "Yes" &&
-              `, plus a second deposit of ${money(transaction.commission_data.second_deposit_amount)}`}
-            .
-          </p>
-          <label className="tbd-toggle">
-            <input type="checkbox" checked={depositRetained} onChange={(e) => setDepositRetained(e.target.checked)} />
-            Deposit retained (not refunded to buyer)
-          </label>
-          <label className="tbd-toggle">
-            <input
-              type="checkbox"
-              checked={trustToCheckingTransferred}
-              onChange={(e) => setTrustToCheckingTransferred(e.target.checked)}
-            />
-            Transferred from trust account into checking
-          </label>
+          <legend>Sign & Deposit</legend>
+          {hasSign && (
+            <>
+              <p className="field-help">
+                Yard sign was put up for this listing.
+                {signInventoryCount != null && ` ${signInventoryCount} currently in inventory.`}
+              </p>
+              <label className="tbd-toggle">
+                <input type="checkbox" checked={signReturned} onChange={(e) => setSignReturned(e.target.checked)} />
+                Sign has been picked up — add it back to inventory
+              </label>
+            </>
+          )}
+          {showDepositSection && (
+            <>
+              <p className="field-help">
+                Recorded at Under Contract: {money(transaction.commission_data.deposit_amount)} held
+                {transaction.commission_data?.second_deposit === "Yes" &&
+                  `, plus a second deposit of ${money(transaction.commission_data.second_deposit_amount)}`}
+                . Returning an unused deposit to the buyer is handled separately, as a to-do, only if this deal
+                ends up terminated instead of closed.
+              </p>
+              <label className="tbd-toggle">
+                <input type="checkbox" checked={depositRetained} onChange={(e) => setDepositRetained(e.target.checked)} />
+                Deposit applied toward commission — didn't forward it to the attorney, smaller check as a result
+              </label>
+              <label className="tbd-toggle">
+                <input
+                  type="checkbox"
+                  checked={trustToCheckingTransferred}
+                  onChange={(e) => setTrustToCheckingTransferred(e.target.checked)}
+                />
+                Transferred from trust account into checking
+              </label>
+            </>
+          )}
         </fieldset>
       )}
 
@@ -435,6 +473,18 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         {!result.isOwnerDeal && <CopyableRow label="Agent Commission" amount={result.agentCommission} />}
         {tcFeeType && <CopyableRow label={`Transaction Coordinator Fee (${tcFeeType})`} amount={tcFeeAmount} />}
         <CopyableRow label="Total to Distribute" amount={totalToDistribute} highlight />
+      </fieldset>
+
+      <fieldset>
+        <legend>Gusto Reference Notes</legend>
+        <p className="field-help">Ready to paste into Gusto's Invoice # / Memo fields for each payment.</p>
+        <CopyableTextRow label="Commission Memo" text={`Commission - ${transaction.address}`} />
+        {tcFeeType && (
+          <>
+            <CopyableTextRow label="TC Fee Invoice #" text={`TC Fee - ${transaction.address.split(",")[0].trim()}`} />
+            <CopyableTextRow label="TC Fee Memo" text={`Transaction Coordinator Fee - ${transaction.address}`} />
+          </>
+        )}
       </fieldset>
 
       <fieldset>
@@ -454,7 +504,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
           Cancel
         </button>
         <button type="button" className="google-btn" onClick={handleSave} disabled={saving}>
-          {saving ? "Saving…" : "Save & Mark Closed"}
+          {saving ? "Saving…" : "Save and Send Closeout"}
         </button>
       </div>
     </div>

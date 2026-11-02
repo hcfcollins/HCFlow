@@ -42,6 +42,20 @@ export async function terminateTransaction(id, reason) {
     .update({ terminated_at: new Date(), termination_reason: reason || null, updated_at: new Date() })
     .eq("id", id);
   if (error) throw error;
+
+  // A terminated deal with an earnest money deposit on file needs a deliberate
+  // step to actually return it to the buyer — distinct from "deposit retained"
+  // at an actual close-out, which means the brokerage applied an already-held
+  // deposit toward the commission (a smaller check, not a withheld refund).
+  // Best-effort: a failed lookup here must never block the termination itself.
+  try {
+    const { data: cd } = await supabase.from("commission_data").select("hold_deposit").eq("transaction_id", id).maybeSingle();
+    if (cd?.hold_deposit === "Yes") {
+      await addTodo(id, "Return Deposit to Buyer", null);
+    }
+  } catch {
+    // ignore — termination itself already succeeded above
+  }
 }
 
 export async function reactivateTransaction(id) {
