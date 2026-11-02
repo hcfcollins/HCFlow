@@ -363,14 +363,24 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
       </fieldset>
 
       <fieldset>
-        <legend>Based on Net Proceeds</legend>
+        <legend>Anticipated & Actual Commission</legend>
+        <label>
+          Anticipated Commission ($) <span className="field-help">(what you expect this to actually pay out)</span>
+          <input type="number" value={anticipatedCommission} onChange={(e) => setAnticipatedCommission(e.target.value)} placeholder="e.g. 9500" />
+        </label>
+        {anticipatedChanged && (
+          <label>
+            Note <span className="field-help">(required — why did this change?)</span>
+            <input value={anticipatedNote} onChange={(e) => setAnticipatedNote(e.target.value)} placeholder="e.g. price dropped at inspection" />
+          </label>
+        )}
         <label className="tbd-toggle">
           <input type="checkbox" checked={netOverride} onChange={(e) => setNetOverride(e.target.checked)} />
-          This deal's commission was based on net proceeds, not the price/commission % above
+          Based on net proceeds, not the price/commission % above
         </label>
         {netOverride && (
           <label>
-            Net Commission Amount ($)
+            Actual Commission Amount ($) <span className="field-help">(everything below recalculates from this)</span>
             <input type="number" value={netAmount} onChange={(e) => setNetAmount(e.target.value)} placeholder="e.g. 9780" />
           </label>
         )}
@@ -401,19 +411,6 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         </select>
       </label>
 
-      <fieldset>
-        <legend>Anticipated Commission</legend>
-        <label>
-          Anticipated Commission ($) <span className="field-help">(what you expect this to actually pay out — separate from the calculated figures below)</span>
-          <input type="number" value={anticipatedCommission} onChange={(e) => setAnticipatedCommission(e.target.value)} placeholder="e.g. 9500" />
-        </label>
-        {anticipatedChanged && (
-          <label>
-            Note <span className="field-help">(required — why did this change?)</span>
-            <input value={anticipatedNote} onChange={(e) => setAnticipatedNote(e.target.value)} placeholder="e.g. price dropped at inspection" />
-          </label>
-        )}
-      </fieldset>
 
       {/* Consolidated into one compact fieldset — these were two separate
           fieldsets taking up a lot of vertical room. Only Hall Collins' own
