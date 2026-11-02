@@ -56,7 +56,7 @@ export default function App() {
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [closingTransaction, setClosingTransaction] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
-  const [pageIndex, setPageIndex] = useState(0);
+  const [pageIndex, setPageIndex] = useState(2); // Under Contract — see PAGES in DealPages.jsx
   const [searchQuery, setSearchQuery] = useState("");
   const [showManageAgents, setShowManageAgents] = useState(false);
   const [showSocialScheduler, setShowSocialScheduler] = useState(false);
@@ -467,13 +467,15 @@ export default function App() {
     <div className="app">
       <header className="main-header">
         <div className="main-header-row">
-          <img src="/hall-collins-logo-full.png" alt="Hall Collins Real Estate Group" className="brand-logo" />
-          <div className="main-header-right">
-            <h1>Deal Flow</h1>
-            <button onClick={() => setShowTutorial(true)} aria-label="How It Works" title="How It Works">
+          <div className="brand-logo-group">
+            <img src="/hall-collins-logo-full.png" alt="Hall Collins Real Estate Group" className="brand-logo" />
+            <button className="header-icon-btn" onClick={() => setShowTutorial(true)} aria-label="How It Works" title="How It Works">
               <HelpCircle size={18} />
             </button>
-            <button onClick={signOut} aria-label="Sign out" title="Sign out">
+          </div>
+          <div className="main-header-right">
+            <h1>Deal Flow</h1>
+            <button className="header-icon-btn" onClick={signOut} aria-label="Sign out" title="Sign out">
               <LogOut size={18} />
             </button>
           </div>
@@ -490,7 +492,10 @@ export default function App() {
                 Manage Agents
               </button>
             )}
-            {effectiveAgent.role === "broker" && (
+            {/* Not ready for general use yet — limited to Fran while the feature is
+                still being worked on, not every broker. Remove this extra gate
+                (leave the role check) once it's ready for everyone. */}
+            {effectiveAgent.role === "broker" && session.user.email === "fran.collins@hallcollins.com" && (
               <button onClick={() => setShowSocialScheduler(true)} title="Broker only — manage the daily social media rotation">
                 Social Scheduler
               </button>
@@ -509,15 +514,6 @@ export default function App() {
       )}
 
       {error && <div className="error-banner">{error}</div>}
-
-      <div className="cta-button-row">
-        <button type="button" className="my-earnings-cta" onClick={() => setShowMyEarnings(true)}>
-          My Earnings
-        </button>
-        <button type="button" className="my-earnings-cta" onClick={() => setShowMySpreadsheet(true)}>
-          My Spreadsheet
-        </button>
-      </div>
 
       {loadingTxs ? (
         <SkeletonList count={4} />
@@ -547,6 +543,15 @@ export default function App() {
           }}
         />
       )}
+
+      <div className="cta-button-row">
+        <button type="button" className="my-earnings-cta" onClick={() => setShowMyEarnings(true)}>
+          My Earnings
+        </button>
+        <button type="button" className="my-earnings-cta" onClick={() => setShowMySpreadsheet(true)}>
+          My Spreadsheet
+        </button>
+      </div>
     </div>
   );
 }

@@ -297,14 +297,14 @@ function CollapsibleSection({ title, count, colorClass, onTitleClick, children, 
 /** Every OPEN to-do across every active deal, flattened into one list — each row
  * is tagged with its property address (tappable, jumps straight to that deal)
  * since so many to-dos share the same text ("Go Live", "Send Listing Agreement")
- * across different properties. Sorted by urgency (overdue/due-soonest first,
- * undated to-dos last) rather than grouped by property, since the point of a
- * combined view is triaging what needs attention today across the whole pipeline.
- * Completed to-dos are deliberately left out of every summary view (this one and
- * each deal's card) — they only show, with their completion date, inside that
+ * across different properties. Defaults to grouped-by-property (toggle flips to
+ * a flat urgency sort — overdue/due-soonest first, undated last — for triaging
+ * what needs attention today across the whole pipeline instead). Completed
+ * to-dos are deliberately left out of every summary view (this one and each
+ * deal's card) — they only show, with their completion date, inside that
  * deal's own detail screen. */
 function AllTodosPage({ transactions, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail }) {
-  const [groupByProperty, setGroupByProperty] = useState(false);
+  const [groupByProperty, setGroupByProperty] = useState(true);
   const pending = transactions.flatMap((tx) => (tx.todos || []).filter((t) => !t.done).map((t) => ({ ...t, tx })));
 
   const urgency = (t) => (t.due_date ? new Date(`${t.due_date}T00:00:00`).getTime() : Infinity);
@@ -535,13 +535,17 @@ function ActiveListingsPage({
         >
           <Signpost size={14} /> {activeFilter === "signs" ? "Back to Listings" : "Sign Inventory"}
         </button>
-        <button
-          type="button"
-          className="sign-inventory-toggle"
-          onClick={() => setActiveFilter((f) => (f === "social" ? null : "social"))}
-        >
-          {activeFilter === "social" ? "Back to Listings" : "Social Rotation"}
-        </button>
+        {/* Not ready for general use yet — limited to Fran while the feature is
+            still being worked on. Remove this gate once it's ready for everyone. */}
+        {currentAgent?.email === "fran.collins@hallcollins.com" && (
+          <button
+            type="button"
+            className="sign-inventory-toggle"
+            onClick={() => setActiveFilter((f) => (f === "social" ? null : "social"))}
+          >
+            {activeFilter === "social" ? "Back to Listings" : "Social Rotation"}
+          </button>
+        )}
       </div>
 
       {activeFilter === "signs" ? (

@@ -80,6 +80,24 @@ body {
 .main-header-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .main-header-right { display: flex; align-items: center; gap: 10px; }
 .main-header-right h1 { margin: 0; }
+.brand-logo-group { display: flex; align-items: center; gap: 6px; }
+/* Subtle, borderless icon buttons for Help/Sign out — plain unstyled <button>s
+   here were falling back to the browser's native button chrome (grey box,
+   border, padding), which read as dated. */
+.header-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-text-muted);
+  border-radius: 999px;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+.header-icon-btn:hover { color: var(--color-navy); background: var(--color-bg-slate); }
 .detail-header { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 20px; }
 .detail-header-top-row { display: flex; justify-content: space-between; align-items: center; width: 100%; }
 .detail-back-btn { display: inline-flex; align-items: center; gap: 2px; border: none; background: none; padding: 0; color: var(--color-navy); font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 14px; }
@@ -141,7 +159,7 @@ button { cursor: pointer; }
 .center-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; text-align: center; }
 .error-banner { background: var(--color-danger-bg); color: var(--color-danger-text); padding: 10px 14px; border-radius: 10px; margin-bottom: 14px; font-size: 13px; }
 .view-as-banner { background: var(--color-bg-slate); color: var(--color-navy); padding: 8px 14px; border-radius: 10px; margin-bottom: 14px; font-size: 12px; font-weight: 600; text-align: center; }
-.cta-button-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.cta-button-row { display: flex; gap: 8px; margin-top: 20px; }
 .my-earnings-cta {
   flex: 1;
   background: #8A9A6F;
