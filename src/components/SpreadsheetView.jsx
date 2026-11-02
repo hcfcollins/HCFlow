@@ -30,6 +30,18 @@ function formatDateShort(dateStr) {
   return `${m}/${d}/${y}`;
 }
 
+// Display-only formatters (the underlying edit input still gets/saves a plain
+// number) — makes it unambiguous in the dense grid that, e.g., a referral
+// split is entered as 25 (not .25) for 25%.
+function money(n) {
+  if (n === null || n === undefined || n === "") return null;
+  return `$${Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+function pct(n) {
+  if (n === null || n === undefined || n === "") return null;
+  return `${n}%`;
+}
+
 const STAGE_OPTIONS = [
   { value: "comps", label: "Comp" },
   { value: "won", label: "Listing Won" },
@@ -63,33 +75,37 @@ const COLUMNS = [
   { key: "address", label: "Address", source: "tx", type: "text" },
   // The two most-glanced-at commission figures lead the scrolling section
   // (right after Agent) rather than sitting buried at the far right.
-  { key: "agent_commission", label: "Agent Commission", source: "closeout", readOnly: true },
-  { key: "bank_amount", label: "Brokerage Keeps", source: "closeout", readOnly: true },
+  { key: "agent_commission", label: "Agent Commission", source: "closeout", readOnly: true, format: money },
+  { key: "bank_amount", label: "Brokerage Keeps", source: "closeout", readOnly: true, format: money },
   { key: "town", label: "Town", source: "tx", type: "text" },
   { key: "region", label: "Region", source: "tx", type: "select", options: REGION_OPTIONS },
   { key: "side", label: "Side", source: "tx", type: "select", options: SIDE_OPTIONS },
   { key: "stage", label: "Stage", source: "tx", type: "select", options: STAGE_OPTIONS },
   { key: "property_style", label: "Property Style", source: "tx", type: "select", options: PROPERTY_STYLES },
-  { key: "price", label: "Price", source: "tx", type: "number" },
+  { key: "price", label: "Price", source: "tx", type: "number", format: money },
   { key: "sign_status", label: "Sign Status", source: "tx", type: "select", options: SIGN_STATUS_OPTIONS },
   { key: "seller_name", label: "Seller Name", source: "tx", type: "text" },
   { key: "buyer_name", label: "Buyer Name", source: "tx", type: "text" },
   { key: "notes", label: "Notes", source: "tx", type: "text" },
   { key: "lead_type", label: "Lead Type", source: "commission", type: "select", options: LEAD_TYPE_OPTIONS },
   { key: "client_source", label: "Client Source", source: "commission", type: "select", options: CLIENT_SOURCES },
+  // Grouped together in the order Fran reads them off at close-out time: the
+  // rate, what it comes to in dollars (so she can write the check), then who
+  // it's owed to.
+  { key: "referral_pct", label: "Referral %", source: "commission", type: "number", format: pct },
+  { key: "referral_amount", label: "Referral Amount", source: "computed", readOnly: true, compute: referralAmountFor, format: money },
   { key: "referral_owed_to", label: "Referral Owed To", source: "commission", type: "text" },
-  { key: "referral_pct", label: "Referral %", source: "commission", type: "number" },
   { key: "hold_deposit", label: "Hold Deposit?", source: "commission", type: "select", options: YES_NO_OPTIONS },
-  { key: "deposit_amount", label: "Deposit Amount", source: "commission", type: "number" },
+  { key: "deposit_amount", label: "Deposit Amount", source: "commission", type: "number", format: money },
   { key: "inspection_date", label: "Inspection Date", source: "commission", type: "date", format: formatDate },
   { key: "financing_date", label: "Financing Date", source: "commission", type: "date", format: formatDate },
   { key: "appraiser", label: "Appraiser", source: "commission", type: "text" },
   { key: "tc_fee_type", label: "TC Fee", source: "commission", type: "select", options: Object.keys(TC_FEE_AMOUNTS) },
-  { key: "commission_pct", label: "Commission %", source: "closeout", readOnly: true },
-  { key: "agent_split_pct", label: "Agent Split %", source: "closeout", readOnly: true },
-  { key: "commission_after_referral", label: "Comm. After Referral", source: "closeout", readOnly: true },
-  { key: "holly_commission", label: "Holly Commission", source: "closeout", readOnly: true },
-  { key: "fran_commission", label: "Fran Commission", source: "closeout", readOnly: true },
+  { key: "commission_pct", label: "Commission %", source: "closeout", readOnly: true, format: pct },
+  { key: "agent_split_pct", label: "Agent Split %", source: "closeout", readOnly: true, format: pct },
+  { key: "commission_after_referral", label: "Comm. After Referral", source: "closeout", readOnly: true, format: money },
+  { key: "holly_commission", label: "Holly Commission", source: "closeout", readOnly: true, format: money },
+  { key: "fran_commission", label: "Fran Commission", source: "closeout", readOnly: true, format: money },
 ];
 
 // Closing Date and Address come straight from COLUMNS; Check Received (now a
@@ -115,9 +131,24 @@ function checkReceivedLabel(tx) {
   return "No";
 }
 
+// Not a stored column anywhere — derived from price × commission % × referral
+// % (same price/commission-pct fallback chain estimateCloseout uses: the
+// frozen closeout's own figures once closed, else the live transaction/
+// commission_data) so it reads correctly both before and after close-out.
+function referralAmountFor(tx) {
+  const co = tx.closeouts;
+  const price = co?.price ?? tx.price;
+  const commissionPct = co?.commission_pct;
+  const referralPct = Number(co?.referral_pct ?? tx.commission_data?.referral_pct ?? 0) || 0;
+  if (price == null || commissionPct == null || !referralPct) return null;
+  const grossCommission = Number(price) * (Number(commissionPct) / 100);
+  return round2(grossCommission * (referralPct / 100));
+}
+
 function getValue(tx, col) {
   if (col.source === "tx") return tx[col.key];
   if (col.source === "commission") return tx.commission_data?.[col.key];
+  if (col.source === "computed") return col.compute(tx);
   return tx.closeouts?.[col.key];
 }
 
@@ -246,8 +277,8 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
   const [agentFilter, setAgentFilter] = useState("");
   const [stageFilter, setStageFilter] = useState("contract"); // defaults to Under Contract — the deals actually being actively worked day to day
   const [showTerminated, setShowTerminated] = useState(false); // swaps the table to ONLY terminated deals, with its own summary below
-  const [sortKey, setSortKey] = useState("address");
-  const [sortDir, setSortDir] = useState("asc");
+  const [sortKey, setSortKey] = useState("next_date");
+  const [sortDir, setSortDir] = useState("asc"); // soonest closing date first
   const [summaryMonth, setSummaryMonth] = useState(""); // "" = all time, else "YYYY-MM"
   const [pendingOnly, setPendingOnly] = useState(false); // "All Pending" — projected only, ignores summaryMonth
   const [selectedRowId, setSelectedRowId] = useState(null);
