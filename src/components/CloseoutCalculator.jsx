@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Copy } from "lucide-react";
 import RadioGroup from "./RadioGroup";
 import {
   saveCloseout,
@@ -20,32 +21,32 @@ function money(n) {
   return `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-/** Gusto doesn't have a direct API for a single company yet (their embedded
- * payroll program is partner-only right now) — this just gets the exact text
- * for each payment onto the clipboard, ready to paste into Gusto's own manual
- * contractor payment form, instead of Fran retyping/recalculating it there. */
-function GustoCopyRow({ payeeName, amount, memo, invoiceNumber }) {
+// Gusto's API isn't connectable yet (partner-only program, no self-serve
+// access) — rather than a separate "Copy for Gusto" section with its own
+// formatted text block, each Preview row below gets its own small copy
+// button on the plain number itself, ready to paste wherever it's needed.
+function CopyableRow({ label, amount, highlight }) {
   const showToast = useToast();
-  if (!amount) return null;
 
   async function handleCopy() {
-    const text = [`Amount: ${money(amount)}`, `Memo: ${memo}`, invoiceNumber ? `Invoice #: ${invoiceNumber}` : null]
-      .filter(Boolean)
-      .join("\n");
+    const raw = Number(amount || 0).toFixed(2);
     try {
-      await navigator.clipboard.writeText(text);
-      showToast(`Copied — paste into ${payeeName}'s Gusto payment`);
+      await navigator.clipboard.writeText(raw);
+      showToast(`Copied ${money(amount)}`);
     } catch {
       showToast("Couldn't copy — your browser blocked clipboard access");
     }
   }
 
   return (
-    <div className="closeout-preview-row">
-      <span>{payeeName}</span>
-      <button type="button" className="comps-minimize-btn" onClick={handleCopy}>
-        Copy for Gusto
-      </button>
+    <div className={highlight ? "closeout-preview-row closeout-preview-row--total" : "closeout-preview-row"}>
+      <span>{label}</span>
+      <span className="closeout-preview-value">
+        <strong>{money(amount)}</strong>
+        <button type="button" className="closeout-copy-btn" onClick={handleCopy} aria-label={`Copy ${label}`} title={`Copy ${label}`}>
+          <Copy size={13} />
+        </button>
+      </span>
     </div>
   );
 }
@@ -92,6 +93,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const grossCommission = priceNum * (commissionPctNum / 100);
   const referralAmount = grossCommission * (referralPctNum / 100);
   const commissionAfterReferral = netOverride ? Number(netAmount) || 0 : grossCommission - referralAmount;
+  const hasReferral = referralPctNum > 0;
 
   const result = calculateCloseout({
     commissionAfterReferral,
@@ -166,8 +168,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
       tc_fee: tcFeeType ? tcFeeAmount : null,
       // For the per-payee Xero Bills: who each one is actually owed to (so the
       // Bill's Contact is the real payee, not the brokerage) and a ready-made
-      // Reference string matching the exact text used by the Gusto copy
-      // helper above, so the Bill and the Gusto payment read identically.
+      // Reference string for that Bill's memo line.
       referral_owed_to: transaction.commission_data?.referral_owed_to || null,
       tc_fee_payee_name: tcFeeType ? coordinatorAgent?.name || "Kerry Dawson" : null,
       commission_reference: `Commission - ${transaction.address}`,
@@ -424,63 +425,16 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
 
       <fieldset className="closeout-preview">
         <legend>Preview</legend>
-        <div className="closeout-preview-row">
-          <span>Commission After Referral</span>
-          <strong>{money(commissionAfterReferral)}</strong>
-        </div>
-        {!result.isOwnerDeal && (
-          <div className="closeout-preview-row">
-            <span>Agent Commission</span>
-            <strong>{money(result.agentCommission)}</strong>
-          </div>
-        )}
-        <div className="closeout-preview-row">
-          <span>Holly's Commission</span>
-          <strong>{money(result.hollyCommission)}</strong>
-        </div>
-        <div className="closeout-preview-row">
-          <span>Fran's Commission</span>
-          <strong>{money(result.franCommission)}</strong>
-        </div>
-        {tcFeeType && (
-          <div className="closeout-preview-row">
-            <span>Transaction Coordinator Fee ({tcFeeType})</span>
-            <strong>−{money(tcFeeAmount)}</strong>
-          </div>
-        )}
-        <div className="closeout-preview-row">
-          <span>Brokerage Keeps</span>
-          <strong>{money(finalBankAmount)}</strong>
-        </div>
-        <div className="closeout-preview-row closeout-preview-row--total">
-          <span>Total to Distribute</span>
-          <strong>{money(totalToDistribute)}</strong>
-        </div>
-      </fieldset>
+        <CopyableRow label={hasReferral ? "Commission After Referral" : "Total Commission"} amount={commissionAfterReferral} />
+        <CopyableRow label="Brokerage Keeps" amount={finalBankAmount} />
 
-      <fieldset>
-        <legend>Gusto Payroll</legend>
-        <p className="field-help">
-          Direct push isn't possible yet (Gusto's API program is partner-only right now) — copy each payment's
-          amount, memo, and invoice number here, then paste into Gusto's contractor payment form manually.
-        </p>
-        {!result.isOwnerDeal && (
-          <GustoCopyRow
-            payeeName={transaction.agent?.name || "Agent"}
-            amount={result.agentCommission}
-            memo={`Commission - ${transaction.address}`}
-          />
-        )}
-        <GustoCopyRow payeeName="Holly Hall" amount={result.hollyCommission} memo={`Commission - ${transaction.address}`} />
-        <GustoCopyRow payeeName="Fran Collins" amount={result.franCommission} memo={`Commission - ${transaction.address}`} />
-        {tcFeeType && (
-          <GustoCopyRow
-            payeeName={coordinatorAgent?.name || "Transaction Coordinator"}
-            amount={tcFeeAmount}
-            memo={`Transaction Coordinator Fee - ${transaction.address}`}
-            invoiceNumber={`TC - ${transaction.address}`.slice(0, 25)}
-          />
-        )}
+        <div className="closeout-preview-gap" />
+
+        <CopyableRow label="Holly's Commission" amount={result.hollyCommission} />
+        <CopyableRow label="Fran's Commission" amount={result.franCommission} />
+        {!result.isOwnerDeal && <CopyableRow label="Agent Commission" amount={result.agentCommission} />}
+        {tcFeeType && <CopyableRow label={`Transaction Coordinator Fee (${tcFeeType})`} amount={tcFeeAmount} />}
+        <CopyableRow label="Total to Distribute" amount={totalToDistribute} highlight />
       </fieldset>
 
       <fieldset>

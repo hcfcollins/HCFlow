@@ -852,6 +852,24 @@ button { cursor: pointer; }
 .closeout-preview-row:last-child { border-bottom: none; }
 .closeout-preview-row--total { margin-top: 6px; padding-top: 12px; border-top: 2px solid var(--color-navy); border-bottom: none; font-size: 15px; }
 .closeout-preview-row--total strong { color: var(--color-navy); }
+/* Separates "what came in" (Total Commission/Commission After Referral,
+   Brokerage Keeps) from "who gets paid out" (Holly/Fran/Agent/TC Fee/Total). */
+.closeout-preview-gap { height: 14px; }
+.closeout-preview-value { display: flex; align-items: center; gap: 6px; }
+.closeout-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--color-text-faint);
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+.closeout-copy-btn:hover { background: var(--color-bg-slate); color: var(--color-navy); }
 
 /* ===== Loading skeletons ===== */
 @keyframes skeleton-shimmer {

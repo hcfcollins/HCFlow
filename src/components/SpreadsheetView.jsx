@@ -38,10 +38,20 @@ function formatDateShort(dateStr) {
 // comparator below for why this matters.
 function normalizeDateForSort(dateStr) {
   if (!dateStr) return null;
-  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(dateStr);
-  if (!m) return dateStr;
-  const [, y, mo, d] = m;
-  return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(dateStr);
+  if (iso) {
+    const [, y, mo, d] = iso;
+    return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+  // Defensive fallback for a stray US-format value (e.g. "11/5/2026", from
+  // somewhere other than the native date picker) — without this, it's
+  // compared as a plain string against ISO values and sorts nonsensically.
+  const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(dateStr);
+  if (us) {
+    const [, mo, d, y] = us;
+    return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+  return dateStr;
 }
 
 // Display-only formatters (the underlying edit input still gets/saves a plain
