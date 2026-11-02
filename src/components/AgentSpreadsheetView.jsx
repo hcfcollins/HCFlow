@@ -25,6 +25,22 @@ function money(n) {
   return `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
+const OWNER_NAMES = ["Fran Collins", "Holly Hall"];
+
+// Spells out which rule actually set the number — an Organic lead always
+// keeps a flat 80% (not a negotiated split, so nothing's stored for it);
+// only a Provided lead has an actual agreed split, defaulting to 60% until
+// a different number is entered at close-out.
+function agentSplitLabel(d, currentAgent) {
+  if (currentAgent?.name && OWNER_NAMES.includes(currentAgent.name)) return null;
+  if (d.lead_type === "Provided") {
+    const pct = d.agent_split_pct != null ? d.agent_split_pct : 60;
+    return `${pct}% (Provided lead)`;
+  }
+  if (d.lead_type === "Organic") return "80% (Organic lead)";
+  return null;
+}
+
 /** Click-to-edit text/date cell — deliberately simpler than SpreadsheetView's
  * EditableCell (no select-type support needed here), since these are plain
  * text/date fields an agent fills in themselves. */
@@ -106,7 +122,14 @@ export default function AgentSpreadsheetView({ transactions, currentAgent, onBac
         buyer_attorney: tx.buyer_attorney?.name || null,
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    // Soonest closing date first; deals with no date yet sort to the end.
+    .sort((a, b) => {
+      if (!a.closing_date && !b.closing_date) return 0;
+      if (!a.closing_date) return 1;
+      if (!b.closing_date) return -1;
+      return a.closing_date.localeCompare(b.closing_date);
+    });
 
   async function patchDeal(dealId, patch) {
     setEarnings((prev) => ({ ...prev, deals: prev.deals.map((d) => (d.id === dealId ? { ...d, ...patch } : d)) }));
@@ -230,7 +253,7 @@ export default function AgentSpreadsheetView({ transactions, currentAgent, onBac
                           onSave={(v) => tx && handleSaveCommissionField(tx, "financing_date", v)}
                         />
                       </td>
-                      <td>{d.agent_split_pct != null ? `${d.agent_split_pct}%` : <span className="field-help">—</span>}</td>
+                      <td>{agentSplitLabel(d, currentAgent) || <span className="field-help">—</span>}</td>
                       <td>
                         {d.amount == null ? (
                           <span className="field-help">Not enough on record yet</span>

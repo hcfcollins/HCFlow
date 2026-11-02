@@ -102,7 +102,7 @@ const COLUMNS = [
   { key: "appraiser", label: "Appraiser", source: "commission", type: "text" },
   { key: "tc_fee_type", label: "TC Fee", source: "commission", type: "select", options: Object.keys(TC_FEE_AMOUNTS) },
   { key: "commission_pct", label: "Commission %", source: "closeout", readOnly: true, format: pct },
-  { key: "agent_split_pct", label: "Agent Split %", source: "closeout", readOnly: true, format: pct },
+  { key: "agent_split_pct", label: "Agent Split %", source: "computed", readOnly: true, compute: agentSplitLabelFor },
   { key: "commission_after_referral", label: "Comm. After Referral", source: "closeout", readOnly: true, format: money },
   { key: "holly_commission", label: "Holly Commission", source: "closeout", readOnly: true, format: money },
   { key: "fran_commission", label: "Fran Commission", source: "closeout", readOnly: true, format: money },
@@ -143,6 +143,25 @@ function referralAmountFor(tx) {
   if (price == null || commissionPct == null || !referralPct) return null;
   const grossCommission = Number(price) * (Number(commissionPct) / 100);
   return round2(grossCommission * (referralPct / 100));
+}
+
+const OWNER_NAMES = ["Fran Collins", "Holly Hall"];
+
+// Spells out which rule actually produced the number — an Organic lead
+// always keeps a flat 80% (not a negotiated split, so nothing's stored for
+// it); only a Provided lead has an actual agreed split, defaulting to 60%
+// until a different number is entered at close-out. Not applicable to an
+// owner deal (Fran/Holly), which follows a different Sell/Buy/Split rule
+// entirely rather than a single "agent %".
+function agentSplitLabelFor(tx) {
+  if (tx.agent?.name && OWNER_NAMES.includes(tx.agent.name)) return null;
+  const co = tx.closeouts;
+  const leadType = co?.lead_type ?? tx.commission_data?.lead_type ?? "Organic";
+  if (leadType === "Provided") {
+    const pct = co?.agent_split_pct != null ? co.agent_split_pct : 60;
+    return `${pct}% (Provided lead)`;
+  }
+  return "80% (Organic lead)";
 }
 
 function getValue(tx, col) {

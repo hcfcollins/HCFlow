@@ -142,6 +142,7 @@ Deno.serve(async (req) => {
           is_actual: true,
           commission_pct: co.commission_pct,
           agent_split_pct: co.agent_split_pct,
+          lead_type: co.lead_type ?? cd?.lead_type ?? null,
           commission_after_referral: co.commission_after_referral,
         });
         continue;
@@ -150,7 +151,15 @@ Deno.serve(async (req) => {
       const price = co?.price ?? tx.price;
       const commissionPct = co?.commission_pct;
       if (price == null || commissionPct == null) {
-        deals.push({ ...base, amount: null, is_actual: false, commission_pct: null, agent_split_pct: null, commission_after_referral: null });
+        deals.push({
+          ...base,
+          amount: null,
+          is_actual: false,
+          commission_pct: null,
+          agent_split_pct: null,
+          lead_type: cd?.lead_type ?? null,
+          commission_after_referral: null,
+        });
         continue;
       }
       const leadType = co?.lead_type ?? cd?.lead_type ?? "Organic";
@@ -170,11 +179,20 @@ Deno.serve(async (req) => {
         is_actual: false,
         commission_pct: commissionPct,
         agent_split_pct: co?.agent_split_pct ?? null,
+        lead_type: leadType,
         commission_after_referral: round2(commissionAfterReferral),
       });
     }
 
-    deals.sort((a, b) => (a.closing_date || "").localeCompare(b.closing_date || ""));
+    // Soonest closing date first; deals with no closing date yet sort to the
+    // end regardless of direction, not to the front (an empty string sorts
+    // before any real date in a plain string compare).
+    deals.sort((a, b) => {
+      if (!a.closing_date && !b.closing_date) return 0;
+      if (!a.closing_date) return 1;
+      if (!b.closing_date) return -1;
+      return a.closing_date.localeCompare(b.closing_date);
+    });
 
     return jsonResponse({
       agentName: agent.name,
