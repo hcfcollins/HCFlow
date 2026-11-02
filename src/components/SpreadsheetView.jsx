@@ -46,6 +46,22 @@ function formatDateShort(dateStr) {
   return dateStr;
 }
 
+// Pure string manipulation, deliberately not Date-parsed — needed for the
+// Commission Summary's month-bucket matching (compared against a "YYYY-MM"
+// from monthStrOffset below). Parsing through Date and reading back
+// getUTCMonth()/getMonth() would require picking one of UTC or local time,
+// and those parse differently by format (bare ISO dates are UTC per spec,
+// but "M/D/YYYY" is local) — a real risk of shifting a date near a month
+// boundary into the wrong bucket. This just reads the digits directly.
+function monthKeyFor(dateStr) {
+  if (!dateStr) return null;
+  const iso = /^(\d{4})-(\d{1,2})-/.exec(dateStr);
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, "0")}`;
+  const us = /^(\d{1,2})\/\d{1,2}\/(\d{4})$/.exec(dateStr);
+  if (us) return `${us[2]}-${us[1].padStart(2, "0")}`;
+  return null;
+}
+
 // Zero-pads a YYYY-M-D (or already YYYY-MM-DD) string to YYYY-MM-DD so plain
 // string comparison actually matches chronological order — see the sort
 // comparator below for why this matters.
@@ -460,9 +476,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
           // A non-zero-padded stored date (e.g. "2026-9-5") would fail a plain
           // \d{4}-\d{2} test and silently drop out of every month filter —
           // normalize first so this matches regardless of how it's stored.
-          const normalizedNextDate = normalizeDateForSort(tx.next_date);
-          const txMonth = normalizedNextDate ? normalizedNextDate.slice(0, 7) : null;
-          if (txMonth !== summaryMonth) continue;
+          if (monthKeyFor(tx.next_date) !== summaryMonth) continue;
         }
         if (alreadyClosed) {
           bankActual += Number(co.bank_amount) || 0;
