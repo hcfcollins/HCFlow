@@ -24,7 +24,7 @@ function money(n) {
  * payroll program is partner-only right now) — this just gets the exact text
  * for each payment onto the clipboard, ready to paste into Gusto's own manual
  * contractor payment form, instead of Fran retyping/recalculating it there. */
-function GustoCopyRow({ payeeName, gustoContractorId, amount, memo, invoiceNumber }) {
+function GustoCopyRow({ payeeName, amount, memo, invoiceNumber }) {
   const showToast = useToast();
   if (!amount) return null;
 
@@ -42,10 +42,7 @@ function GustoCopyRow({ payeeName, gustoContractorId, amount, memo, invoiceNumbe
 
   return (
     <div className="closeout-preview-row">
-      <span>
-        {payeeName}
-        {!gustoContractorId && <span className="field-note"> (no Gusto Contractor ID on file)</span>}
-      </span>
+      <span>{payeeName}</span>
       <button type="button" className="comps-minimize-btn" onClick={handleCopy}>
         Copy for Gusto
       </button>
@@ -85,8 +82,6 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const hollyAgent = allAgents.find((a) => a.name === "Holly Hall");
-  const franAgent = allAgents.find((a) => a.name === "Fran Collins");
   const coordinatorAgent = allAgents.find((a) => a.role === "coordinator");
 
   const anticipatedChanged = String(anticipatedCommission) !== String(originalAnticipated);
@@ -472,27 +467,15 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         {!result.isOwnerDeal && (
           <GustoCopyRow
             payeeName={transaction.agent?.name || "Agent"}
-            gustoContractorId={transaction.agent?.gusto_contractor_id}
             amount={result.agentCommission}
             memo={`Commission - ${transaction.address}`}
           />
         )}
-        <GustoCopyRow
-          payeeName="Holly Hall"
-          gustoContractorId={hollyAgent?.gusto_contractor_id}
-          amount={result.hollyCommission}
-          memo={`Commission - ${transaction.address}`}
-        />
-        <GustoCopyRow
-          payeeName="Fran Collins"
-          gustoContractorId={franAgent?.gusto_contractor_id}
-          amount={result.franCommission}
-          memo={`Commission - ${transaction.address}`}
-        />
+        <GustoCopyRow payeeName="Holly Hall" amount={result.hollyCommission} memo={`Commission - ${transaction.address}`} />
+        <GustoCopyRow payeeName="Fran Collins" amount={result.franCommission} memo={`Commission - ${transaction.address}`} />
         {tcFeeType && (
           <GustoCopyRow
             payeeName={coordinatorAgent?.name || "Transaction Coordinator"}
-            gustoContractorId={coordinatorAgent?.gusto_contractor_id}
             amount={tcFeeAmount}
             memo={`Transaction Coordinator Fee - ${transaction.address}`}
             invoiceNumber={`TC - ${transaction.address}`.slice(0, 25)}
