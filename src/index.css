@@ -1137,3 +1137,15 @@ button { cursor: pointer; }
   .search-bar--fixed { max-width: 500px; }
   .cta-button-row { max-width: 500px; }
 }
+
+/* ===== Desktop — the same "use the real screen" treatment Spreadsheet View
+   already had (.app.sv-app-wrap), extended to every other screen. Card/grid
+   content (.tx-list, .detail-grid, etc. above) just gets more columns as
+   .app widens — it's already built to reflow. Plain single-column forms
+   don't get wider just because the screen is, though, or every input on
+   a 1600px-wide Under Contract form would stretch edge to edge and be
+   unreadable — .uc-form stays centered at a comfortable reading width. */
+@media (min-width: 1100px) {
+  .app { max-width: 1280px; }
+  .uc-form { max-width: 640px; margin: 0 auto; }
+}
