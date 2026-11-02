@@ -190,12 +190,15 @@ Deno.serve(async (req) => {
     // text column, not a real date type, and some stored values aren't
     // zero-padded (e.g. "2026-9-5") — normalize before comparing, or those
     // sort AFTER "2026-10-...", since "9" > "1" as the first differing char.
-    function normalizeDateForSort(dateStr: string | null): string | null {
+    // next_date is plain text, not a real date column, and this data mixes
+    // several sources (the native date picker, old seed/test rows, early
+    // manual entry) that don't all agree on format. Date.parse handles ISO
+    // (padded or not), US slash format, and most other reasonable variants
+    // in one pass; falls back to the raw string only if Date can't parse it.
+    function normalizeDateForSort(dateStr: string | null): string | number | null {
       if (!dateStr) return null;
-      const m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(dateStr);
-      if (!m) return dateStr;
-      const [, y, mo, d] = m;
-      return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+      const t = Date.parse(dateStr);
+      return Number.isNaN(t) ? dateStr : t;
     }
     deals.sort((a, b) => {
       const av = normalizeDateForSort(a.closing_date);
@@ -203,7 +206,7 @@ Deno.serve(async (req) => {
       if (!av && !bv) return 0;
       if (!av) return 1;
       if (!bv) return -1;
-      return av.localeCompare(bv);
+      return av < bv ? -1 : av > bv ? 1 : 0;
     });
 
     return jsonResponse({

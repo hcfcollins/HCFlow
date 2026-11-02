@@ -26,32 +26,41 @@ function formatDateShort(dateStr) {
   if (!dateStr) return null;
   // \d{1,2} (not a strict \d{2}) so a non-zero-padded stored value like
   // "2026-9-5" still displays correctly instead of falling through to the
-  // raw, unformatted string.
-  const match = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(dateStr);
-  if (!match) return dateStr;
-  const [, y, m, d] = match;
-  return `${m.padStart(2, "0")}/${d.padStart(2, "0")}/${y}`;
+  // raw, unformatted string. Deliberately regex-based, not Date-parsed —
+  // parsing a bare "YYYY-MM-DD" with `new Date()` reads it as UTC midnight,
+  // which can display as the previous day once formatted back out in a
+  // timezone behind UTC (most of the US) — this reformats the digits
+  // directly instead, so the calendar date on screen never shifts.
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(dateStr);
+  if (iso) {
+    const [, y, m, d] = iso;
+    return `${m.padStart(2, "0")}/${d.padStart(2, "0")}/${y}`;
+  }
+  // Already US-format (just re-pad it) — some rows predate the native date
+  // picker and were stored this way directly.
+  const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(dateStr);
+  if (us) {
+    const [, m, d, y] = us;
+    return `${m.padStart(2, "0")}/${d.padStart(2, "0")}/${y}`;
+  }
+  return dateStr;
 }
 
 // Zero-pads a YYYY-M-D (or already YYYY-MM-DD) string to YYYY-MM-DD so plain
 // string comparison actually matches chronological order — see the sort
 // comparator below for why this matters.
+// next_date is plain text, not a real date column, and this data mixes
+// several sources (the native date picker, old seed/test rows, early manual
+// entry) that don't all agree on format — narrow regexes kept missing one
+// format or another. Date.parse handles ISO (padded or not), US slash
+// format, and most other reasonable variants in one pass; returns a real
+// timestamp (a number), which compares correctly regardless of source
+// string shape. Falls back to the raw string only if Date can't parse it
+// at all, so an unparseable value doesn't crash the sort.
 function normalizeDateForSort(dateStr) {
   if (!dateStr) return null;
-  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(dateStr);
-  if (iso) {
-    const [, y, mo, d] = iso;
-    return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
-  }
-  // Defensive fallback for a stray US-format value (e.g. "11/5/2026", from
-  // somewhere other than the native date picker) — without this, it's
-  // compared as a plain string against ISO values and sorts nonsensically.
-  const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(dateStr);
-  if (us) {
-    const [, mo, d, y] = us;
-    return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
-  }
-  return dateStr;
+  const t = Date.parse(dateStr);
+  return Number.isNaN(t) ? dateStr : t;
 }
 
 // Display-only formatters (the underlying edit input still gets/saves a plain

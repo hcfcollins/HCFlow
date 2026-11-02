@@ -17,23 +17,35 @@ function formatDateShort(dateStr) {
   if (!dateStr) return null;
   // \d{1,2} (not a strict \d{2}) so a non-zero-padded stored value like
   // "2026-9-5" still displays correctly instead of falling through to the
-  // raw, unformatted string.
-  const match = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(dateStr);
-  if (!match) return dateStr;
-  const [, y, m, d] = match;
-  return `${m.padStart(2, "0")}/${d.padStart(2, "0")}/${y}`;
+  // raw, unformatted string. Deliberately regex-based, not Date-parsed —
+  // parsing a bare "YYYY-MM-DD" with `new Date()` reads it as UTC midnight,
+  // which can display as the previous day once formatted back out in a
+  // timezone behind UTC (most of the US) — this reformats the digits
+  // directly instead, so the calendar date on screen never shifts.
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(dateStr);
+  if (iso) {
+    const [, y, m, d] = iso;
+    return `${m.padStart(2, "0")}/${d.padStart(2, "0")}/${y}`;
+  }
+  const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(dateStr);
+  if (us) {
+    const [, m, d, y] = us;
+    return `${m.padStart(2, "0")}/${d.padStart(2, "0")}/${y}`;
+  }
+  return dateStr;
 }
 
-// Zero-pads a YYYY-M-D (or already YYYY-MM-DD) string to YYYY-MM-DD so plain
-// string comparison actually matches chronological order — next_date is a
-// plain text column, not a real date type, and some stored values aren't
-// zero-padded (e.g. "2026-9-5"), which otherwise sorts AFTER "2026-10-...".
+// next_date is plain text, not a real date column, and this data mixes
+// several sources (the native date picker, old seed/test rows, early manual
+// entry) that don't all agree on format. Date.parse handles ISO (padded or
+// not), US slash format, and most other reasonable variants in one pass;
+// returns a timestamp (a number), which compares correctly regardless of
+// source string shape — falls back to the raw string only if Date can't
+// parse it at all.
 function normalizeDateForSort(dateStr) {
   if (!dateStr) return null;
-  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(dateStr);
-  if (!m) return dateStr;
-  const [, y, mo, d] = m;
-  return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  const t = Date.parse(dateStr);
+  return Number.isNaN(t) ? dateStr : t;
 }
 
 function money(n) {
@@ -146,7 +158,9 @@ export default function AgentSpreadsheetView({ transactions, currentAgent, onBac
       if (!av && !bv) return 0;
       if (!av) return 1;
       if (!bv) return -1;
-      return av.localeCompare(bv);
+      // normalizeDateForSort can return a number (timestamp) or a string
+      // (unparseable fallback) — plain comparison operators handle both.
+      return av < bv ? -1 : av > bv ? 1 : 0;
     });
 
   async function patchDeal(dealId, patch) {
