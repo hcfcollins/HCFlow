@@ -693,13 +693,14 @@ export async function pushDepositsToXero(payload) {
   if (error) throw error;
 }
 
-/** Sends the commission closeout email for an already-saved closeout — see
- * send-closeout-email for the recipient/branching logic. testMode routes
+/** Sends the commission closeout email from the Close-Out Calculator's own
+ * already-computed numbers (payload shape matches buildEmailPayload there) —
+ * see send-closeout-email for the recipient/branching logic. testMode routes
  * every email it would have sent to Fran's own address instead, with a
  * banner naming who the real recipients would have been. */
-export async function sendCloseoutEmail(transactionId, testMode = false) {
+export async function sendCloseoutEmail(payload, testMode = false) {
   const { data, error } = await supabase.functions.invoke("send-closeout-email", {
-    body: { transactionId, testMode },
+    body: { ...payload, testMode },
   });
   if (error) {
     if (error.context?.json) {

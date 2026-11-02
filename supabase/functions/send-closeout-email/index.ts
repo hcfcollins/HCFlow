@@ -1,9 +1,12 @@
 // Sends the commission closeout email for a deal, replicating the branching
 // logic from the old Google Sheet's MailApp-based Apps Script trigger (the
-// "handleCommissionEmail" function Fran shared) — but reads the authoritative,
-// already-saved closeouts row instead of recalculating, and sends via the
-// Gmail API (a real Workspace mailbox, not a transactional-email provider) so
-// it looks and behaves like a genuine email from Hall Collins.
+// "handleCommissionEmail" function Fran shared) — fed the Close-Out
+// Calculator's own already-computed numbers directly (the same values shown
+// in its own Preview section, same shape as buildSheetPayload) rather than
+// reading a saved closeouts row, so this works from Run Close-Out Calculator
+// too, before anything's actually been saved. Sends via the Gmail API (a real
+// Workspace mailbox, not a transactional-email provider) so it looks and
+// behaves like a genuine email from Hall Collins.
 //
 // Branches (same as the legacy script):
 // - Owner deal (agent is Holly or Fran): one email to Fran + Holly with the
@@ -13,16 +16,17 @@
 //   actually have a cut — a second email to Fran + Holly with the team's side
 //   of it. No agent email on file -> that email is just skipped, like legacy.
 //
-// Expects POST { transactionId: string, testMode?: boolean }. In test mode,
-// every email that *would* have gone out is instead sent only to Fran's own
-// address, with a banner naming who the real recipients would have been.
+// Expects POST { address, agentName, agentEmail, leadType, grossCommission,
+// commissionAfterReferral, referralOwedTo, referralPct, referralAmount,
+// agentCommission, hollyCommission, franCommission, bankAmount, tcFeeAmount,
+// totalToDistribute, testMode? }. In test mode, every email that *would* have
+// gone out is instead sent only to Fran's own address, with a banner naming
+// who the real recipients would have been.
 //
 // Needs Gmail API OAuth (Cloud Console project + OAuth client + a refresh
 // token authorized with the gmail.send scope against the sending mailbox) —
 // see the app's project memory for the exact one-time setup steps.
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const GMAIL_CLIENT_ID = Deno.env.get("GMAIL_CLIENT_ID")!;
 const GMAIL_CLIENT_SECRET = Deno.env.get("GMAIL_CLIENT_SECRET")!;
 const GMAIL_REFRESH_TOKEN = Deno.env.get("GMAIL_REFRESH_TOKEN")!;
@@ -92,7 +96,7 @@ function referralLine(referralOwedTo: string | null, referralPct: number | null,
 
 const SIGNOFF = `<p><em>Love, Jeeves — your happy Hall Collins robot!</em></p>`;
 
-function ownerEmailHtml(d: ReturnType<typeof buildData>): string {
+function ownerEmailHtml(d: EmailData): string {
   return `<p>Congratulations on your closing of ${d.address}!</p>
 <p></p>
 <p>Here is the breakdown of the closing:</p>
@@ -107,7 +111,7 @@ ${d.tcFeeAmount ? `<p><strong>Transaction Coordinator Fee:</strong> −${money(d
 ${SIGNOFF}`;
 }
 
-function agentEmailHtml(d: ReturnType<typeof buildData>): string {
+function agentEmailHtml(d: EmailData): string {
   return `<p>Congratulations on your closing of ${d.address}!</p>
 <p></p>
 <h3>Here is your commission breakdown:</h3>
@@ -117,7 +121,7 @@ ${referralLine(d.referralOwedTo, d.referralPct, d.referralAmount)}
 ${SIGNOFF}`;
 }
 
-function providedLeadPartnerEmailHtml(d: ReturnType<typeof buildData>): string {
+function providedLeadPartnerEmailHtml(d: EmailData): string {
   return `<p>Commission breakdown for provided lead closing at ${d.address}:</p>
 <p></p>
 <h3>Hall Collins Team Commission:</h3>
@@ -136,35 +140,22 @@ If sent for real, this would have gone to: <strong>${realTo.join(", ")}</strong>
 </div>`;
 }
 
-function buildData(tx: any) {
-  const c = tx.closeouts;
-  const grossCommission = Number(c.price || 0) * (Number(c.commission_pct || 0) / 100);
-  const referralAmount = round2(grossCommission - Number(c.commission_after_referral || 0));
-  const bankAmount = Number(c.bank_amount || 0);
-  const agentCommission = c.agent_commission != null ? Number(c.agent_commission) : null;
-  const hollyCommission = Number(c.holly_commission || 0);
-  const franCommission = Number(c.fran_commission || 0);
-  return {
-    address: tx.address,
-    agentName: tx.agent?.name || null,
-    agentEmail: tx.agent?.email || null,
-    leadType: c.lead_type,
-    grossCommission,
-    commissionAfterReferral: Number(c.commission_after_referral || 0),
-    referralOwedTo: tx.commission_data?.referral_owed_to || null,
-    referralPct: c.referral_pct != null ? Number(c.referral_pct) : null,
-    referralAmount,
-    agentCommission,
-    hollyCommission,
-    franCommission,
-    bankAmount,
-    tcFeeAmount: c.tc_fee_amount != null ? Number(c.tc_fee_amount) : 0,
-    totalToDistribute: round2((agentCommission || 0) + hollyCommission + franCommission + bankAmount),
-  };
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
+interface EmailData {
+  address: string;
+  agentName: string | null;
+  agentEmail: string | null;
+  leadType: string | null;
+  grossCommission: number;
+  commissionAfterReferral: number;
+  referralOwedTo: string | null;
+  referralPct: number | null;
+  referralAmount: number;
+  agentCommission: number | null;
+  hollyCommission: number;
+  franCommission: number;
+  bankAmount: number;
+  tcFeeAmount: number;
+  totalToDistribute: number;
 }
 
 const CORS_HEADERS = {
@@ -182,18 +173,31 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers: CORS_HEADERS });
 
   try {
-    const { transactionId, testMode } = await req.json();
-    if (!transactionId) return jsonResponse({ error: "transactionId required" }, 400);
+    // Takes the Close-Out Calculator's own live, already-computed numbers
+    // directly (the same shape buildSheetPayload sends to Sheet/Xero) rather
+    // than reading a saved closeouts row — so "Send Test Email" works from
+    // Run Close-Out Calculator too, before anything's actually been saved.
+    const reqBody = await req.json();
+    const { testMode } = reqBody;
+    if (!reqBody.address) return jsonResponse({ error: "address required" }, 400);
 
-    const txRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}&select=address,agent:agents!transactions_agent_id_fkey(name,email),commission_data(referral_owed_to),closeouts(*)`,
-      { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` } }
-    );
-    const [tx] = await txRes.json();
-    if (!tx) return jsonResponse({ error: "Transaction not found" }, 404);
-    if (!tx.closeouts) return jsonResponse({ error: "This deal has no saved close-out yet" }, 400);
-
-    const d = buildData(tx);
+    const d: EmailData = {
+      address: reqBody.address,
+      agentName: reqBody.agentName || null,
+      agentEmail: reqBody.agentEmail || null,
+      leadType: reqBody.leadType,
+      grossCommission: Number(reqBody.grossCommission || 0),
+      commissionAfterReferral: Number(reqBody.commissionAfterReferral || 0),
+      referralOwedTo: reqBody.referralOwedTo || null,
+      referralPct: reqBody.referralPct != null ? Number(reqBody.referralPct) : null,
+      referralAmount: Number(reqBody.referralAmount || 0),
+      agentCommission: reqBody.agentCommission != null ? Number(reqBody.agentCommission) : null,
+      hollyCommission: Number(reqBody.hollyCommission || 0),
+      franCommission: Number(reqBody.franCommission || 0),
+      bankAmount: Number(reqBody.bankAmount || 0),
+      tcFeeAmount: Number(reqBody.tcFeeAmount || 0),
+      totalToDistribute: Number(reqBody.totalToDistribute || 0),
+    };
     const isOwnerDeal = d.agentName && OWNER_NAMES.includes(d.agentName);
     const accessToken = await getGmailAccessToken();
     const sentEmails: { to: string[]; cc: string[]; subject: string }[] = [];

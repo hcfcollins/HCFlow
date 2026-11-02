@@ -165,6 +165,30 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
     };
   }
 
+  // Same already-computed numbers shown in the Preview section below — the
+  // closeout email uses these live, so "Send Test Email" works from this
+  // screen before anything's actually been saved, not just on an already-
+  // closed deal.
+  function buildEmailPayload() {
+    return {
+      address: transaction.address,
+      agentName: transaction.agent?.name || null,
+      agentEmail: transaction.agent?.email || null,
+      leadType,
+      grossCommission: round2(grossCommission),
+      commissionAfterReferral: round2(commissionAfterReferral),
+      referralOwedTo: transaction.commission_data?.referral_owed_to || null,
+      referralPct: referralPctNum || null,
+      referralAmount: round2(referralAmount),
+      agentCommission: result.isOwnerDeal ? null : result.agentCommission,
+      hollyCommission: result.hollyCommission,
+      franCommission: result.franCommission,
+      bankAmount: finalBankAmount,
+      tcFeeAmount: tcFeeType ? tcFeeAmount : 0,
+      totalToDistribute,
+    };
+  }
+
   async function handleSave() {
     if (anticipatedChanged && !anticipatedNote.trim()) {
       setError("You changed the Anticipated Commission amount — add a note explaining why before saving.");
@@ -232,7 +256,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   async function handleSendTestEmail() {
     setSendingTestEmail(true);
     try {
-      const result = await sendCloseoutEmail(transaction.id, true);
+      const result = await sendCloseoutEmail(buildEmailPayload(), true);
       const recipients = result.sent.map((s) => [...s.to, ...s.cc].join(", ")).join(" / ");
       showToast(`Test email${result.sent.length > 1 ? "s" : ""} sent to you — real recipients would be: ${recipients}`);
     } catch (e) {
@@ -241,8 +265,6 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
       setSendingTestEmail(false);
     }
   }
-
-  const hasSavedCloseout = transaction.closeouts?.commission_after_referral != null;
 
   return (
     <div className="uc-form closeout-calculator" onKeyDown={focusNextOnEnter}>
@@ -436,18 +458,17 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         )}
       </fieldset>
 
-      {hasSavedCloseout && (
-        <fieldset>
-          <legend>Closeout Email</legend>
-          <p className="field-help">
-            Sends only to you (fran.collins@hallcollins.com), with a banner showing exactly who the real recipients
-            would be — nothing goes to the agent, Holly, or partners@hallcollins.com from this button.
-          </p>
-          <button type="button" className="comps-minimize-btn" onClick={handleSendTestEmail} disabled={sendingTestEmail}>
-            {sendingTestEmail ? "Sending…" : "Send Test Closeout Email"}
-          </button>
-        </fieldset>
-      )}
+      <fieldset>
+        <legend>Closeout Email</legend>
+        <p className="field-help">
+          Sends only to you (fran.collins@hallcollins.com), with a banner showing exactly who the real recipients
+          would be, using the numbers currently shown above — nothing goes to the agent, Holly, or
+          partners@hallcollins.com from this button, and nothing needs to be saved first.
+        </p>
+        <button type="button" className="comps-minimize-btn" onClick={handleSendTestEmail} disabled={sendingTestEmail}>
+          {sendingTestEmail ? "Sending…" : "Send Test Closeout Email"}
+        </button>
+      </fieldset>
 
       <div className="comp-edit-all-actions">
         <button type="button" onClick={onCancel} disabled={saving}>
