@@ -87,39 +87,47 @@ const COLUMNS = [
   // formatted, same as inspection/financing dates further down.
   { key: "next_date", label: "Closing Date", source: "tx", type: "date", format: formatDateShort },
   { key: "address", label: "Address", source: "tx", type: "text" },
-  // The two most-glanced-at commission figures lead the scrolling section
-  // (right after Agent) rather than sitting buried at the far right.
-  { key: "agent_commission", label: "Agent Commission", source: "closeout", readOnly: true, format: money },
-  { key: "bank_amount", label: "Brokerage Keeps", source: "closeout", readOnly: true, format: money },
-  { key: "town", label: "Town", source: "tx", type: "text" },
-  { key: "region", label: "Region", source: "tx", type: "select", options: REGION_OPTIONS },
-  { key: "side", label: "Side", source: "tx", type: "select", options: SIDE_OPTIONS },
-  { key: "stage", label: "Stage", source: "tx", type: "select", options: STAGE_OPTIONS },
-  { key: "property_style", label: "Property Style", source: "tx", type: "select", options: PROPERTY_STYLES },
-  { key: "price", label: "Price", source: "tx", type: "number", format: money },
-  { key: "sign_status", label: "Sign Status", source: "tx", type: "select", options: SIGN_STATUS_OPTIONS },
+  { key: "hold_deposit", label: "Hold Deposit?", source: "commission", type: "select", options: YES_NO_OPTIONS },
+  { key: "deposit_amount", label: "Deposit Amount", source: "commission", type: "number", format: money },
+  { key: "tc_fee_type", label: "TC Fee", source: "commission", type: "select", options: Object.keys(TC_FEE_AMOUNTS) },
   { key: "seller_name", label: "Seller Name", source: "tx", type: "text" },
   { key: "buyer_name", label: "Buyer Name", source: "tx", type: "text" },
-  { key: "notes", label: "Notes", source: "tx", type: "text" },
+  // Agent/Seller Attorney/Buyer Attorney need custom cell logic (an agent_id
+  // select, and attorney name resolution via handleSaveAttorney) that doesn't
+  // fit the generic getValue/EditableCell path, so the row/header renderers
+  // special-case these three keys — the "computed" source here is only used
+  // for sorting (getValue needs some way to pull a sortable value out of a
+  // joined object).
+  { key: "seller_attorney", label: "Seller Attorney", source: "computed", compute: (tx) => tx.seller_attorney?.name || null },
+  { key: "buyer_attorney", label: "Buyer Attorney", source: "computed", compute: (tx) => tx.buyer_attorney?.name || null },
+  { key: "agent_id", label: "Agent", source: "computed", compute: (tx) => tx.agent?.name || null },
+  { key: "side", label: "Side", source: "tx", type: "select", options: SIDE_OPTIONS },
   { key: "lead_type", label: "Lead Type", source: "commission", type: "select", options: LEAD_TYPE_OPTIONS },
-  { key: "client_source", label: "Client Source", source: "commission", type: "select", options: CLIENT_SOURCES },
+  { key: "price", label: "Price", source: "tx", type: "number", format: money },
+  { key: "commission_pct", label: "Commission %", source: "closeout", readOnly: true, format: pct },
+  { key: "total_commission", label: "Total Commission", source: "computed", readOnly: true, compute: totalCommissionFor, format: money },
+  { key: "bank_amount", label: "Brokerage Keeps", source: "closeout", readOnly: true, format: money },
   // Grouped together in the order Fran reads them off at close-out time: the
   // rate, what it comes to in dollars (so she can write the check), then who
   // it's owed to.
   { key: "referral_pct", label: "Referral %", source: "commission", type: "number", format: pct },
   { key: "referral_amount", label: "Referral Amount", source: "computed", readOnly: true, compute: referralAmountFor, format: money },
   { key: "referral_owed_to", label: "Referral Owed To", source: "commission", type: "text" },
-  { key: "hold_deposit", label: "Hold Deposit?", source: "commission", type: "select", options: YES_NO_OPTIONS },
-  { key: "deposit_amount", label: "Deposit Amount", source: "commission", type: "number", format: money },
-  { key: "inspection_date", label: "Inspection Date", source: "commission", type: "date", format: formatDate },
-  { key: "financing_date", label: "Financing Date", source: "commission", type: "date", format: formatDate },
-  { key: "appraiser", label: "Appraiser", source: "commission", type: "text" },
-  { key: "tc_fee_type", label: "TC Fee", source: "commission", type: "select", options: Object.keys(TC_FEE_AMOUNTS) },
-  { key: "commission_pct", label: "Commission %", source: "closeout", readOnly: true, format: pct },
   { key: "agent_split_pct", label: "Agent Split %", source: "computed", readOnly: true, compute: agentSplitLabelFor },
   { key: "commission_after_referral", label: "Comm. After Referral", source: "closeout", readOnly: true, format: money },
   { key: "holly_commission", label: "Holly Commission", source: "closeout", readOnly: true, format: money },
   { key: "fran_commission", label: "Fran Commission", source: "closeout", readOnly: true, format: money },
+  { key: "agent_commission", label: "Agent Commission", source: "closeout", readOnly: true, format: money },
+  { key: "town", label: "Town", source: "tx", type: "text" },
+  { key: "region", label: "Region", source: "tx", type: "select", options: REGION_OPTIONS },
+  { key: "stage", label: "Stage", source: "tx", type: "select", options: STAGE_OPTIONS },
+  { key: "property_style", label: "Property Style", source: "tx", type: "select", options: PROPERTY_STYLES },
+  { key: "sign_status", label: "Sign Status", source: "tx", type: "select", options: SIGN_STATUS_OPTIONS },
+  { key: "notes", label: "Notes", source: "tx", type: "text" },
+  { key: "client_source", label: "Client Source", source: "commission", type: "select", options: CLIENT_SOURCES },
+  { key: "inspection_date", label: "Inspection Date", source: "commission", type: "date", format: formatDate },
+  { key: "financing_date", label: "Financing Date", source: "commission", type: "date", format: formatDate },
+  { key: "appraiser", label: "Appraiser", source: "commission", type: "text" },
 ];
 
 // Closing Date and Address come straight from COLUMNS; Check Received (now a
@@ -143,6 +151,16 @@ function checkReceivedLabel(tx) {
   if (tx.terminated_at) return "Terminated";
   if (tx.closeouts?.commission_after_referral != null) return "Yes";
   return "No";
+}
+
+// The gross commission before any referral deduction — price × commission %.
+// Same price/commission-pct fallback chain as the other computed columns.
+function totalCommissionFor(tx) {
+  const co = tx.closeouts;
+  const price = co?.price ?? tx.price;
+  const commissionPct = co?.commission_pct;
+  if (price == null || commissionPct == null) return null;
+  return round2(Number(price) * (Number(commissionPct) / 100));
 }
 
 // Not a stored column anywhere — derived from price × commission % × referral
@@ -366,8 +384,8 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
     const col = COLUMNS.find((c) => c.key === sortKey);
     const copy = [...filtered];
     copy.sort((a, b) => {
-      let av = sortKey === "agent" ? a.agent?.name : col ? getValue(a, col) : a[sortKey];
-      let bv = sortKey === "agent" ? b.agent?.name : col ? getValue(b, col) : b[sortKey];
+      let av = col ? getValue(a, col) : a[sortKey];
+      let bv = col ? getValue(b, col) : b[sortKey];
       // next_date is a plain text column, not a real date type, and some
       // stored values aren't zero-padded (e.g. "2026-9-5") — compared as
       // plain strings that sorts AFTER "2026-10-...", since "9" > "1" as the
@@ -643,11 +661,6 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
               >
                 Address{sortKey === "address" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
               </th>
-              <th className="sv-th-sortable" onClick={() => handleSort("agent")}>
-                Agent{sortKey === "agent" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
-              </th>
-              <th>Seller Attorney</th>
-              <th>Buyer Attorney</th>
               {COLUMNS.slice(FROZEN_COLUMN_COUNT).map((col) => (
                 <th
                   key={col.key}
@@ -709,40 +722,42 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                 <td className="sv-col-frozen sv-col-frozen-last" style={{ left: FROZEN_LEFTS.address }}>
                   <EditableCell value={tx.address} onSave={(v) => handleSaveTx(tx, "address", v)} />
                 </td>
-                <td>
-                  <EditableCell
-                    value={tx.agent_id}
-                    displayValue={tx.agent?.name}
-                    type="select"
-                    options={agentOptions}
-                    onSave={(v) => handleSaveTx(tx, "agent_id", v)}
-                  />
-                </td>
-                <td>
-                  <EditableCell
-                    value={tx.seller_attorney?.name || ""}
-                    onSave={(v) => handleSaveAttorney(tx, "seller", v)}
-                  />
-                </td>
-                <td>
-                  <EditableCell
-                    value={tx.buyer_attorney?.name || ""}
-                    onSave={(v) => handleSaveAttorney(tx, "buyer", v)}
-                  />
-                </td>
-                {COLUMNS.slice(FROZEN_COLUMN_COUNT).map((col) => (
-                  <td key={col.key}>
-                    <EditableCell
-                      value={getValue(tx, col)}
-                      type={col.type}
-                      options={col.options}
-                      format={col.format}
-                      readOnly={col.readOnly}
-                      onSave={(v) => handleSaveCell(tx, col, v)}
-                      projectedValue={col.source === "closeout" && col.key !== "check_received" && estimate ? estimate[col.key] : undefined}
-                    />
-                  </td>
-                ))}
+                {COLUMNS.slice(FROZEN_COLUMN_COUNT).map((col) => {
+                  if (col.key === "agent_id") {
+                    return (
+                      <td key={col.key}>
+                        <EditableCell
+                          value={tx.agent_id}
+                          displayValue={tx.agent?.name}
+                          type="select"
+                          options={agentOptions}
+                          onSave={(v) => handleSaveTx(tx, "agent_id", v)}
+                        />
+                      </td>
+                    );
+                  }
+                  if (col.key === "seller_attorney" || col.key === "buyer_attorney") {
+                    const side = col.key === "seller_attorney" ? "seller" : "buyer";
+                    return (
+                      <td key={col.key}>
+                        <EditableCell value={tx[col.key]?.name || ""} onSave={(v) => handleSaveAttorney(tx, side, v)} />
+                      </td>
+                    );
+                  }
+                  return (
+                    <td key={col.key}>
+                      <EditableCell
+                        value={getValue(tx, col)}
+                        type={col.type}
+                        options={col.options}
+                        format={col.format}
+                        readOnly={col.readOnly}
+                        onSave={(v) => handleSaveCell(tx, col, v)}
+                        projectedValue={col.source === "closeout" && col.key !== "check_received" && estimate ? estimate[col.key] : undefined}
+                      />
+                    </td>
+                  );
+                })}
                 <td className="sv-row-actions">
                   <div className="sv-row-quick-actions" onClick={(e) => e.stopPropagation()}>
                     <button type="button" title="Close-Out Calculator" data-tooltip="Close-Out Calculator" onClick={() => setClosingOutTx(tx)}>
