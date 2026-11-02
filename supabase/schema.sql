@@ -210,8 +210,20 @@ create table closeouts (
   trust_to_checking_transferred boolean, -- confirmed at close-out: has the deposit actually moved from the trust account into checking yet
   check_received text check (check_received in ('Yes', 'No')) default 'No', -- whether the commission check has actually been received/cashed — edited directly from Spreadsheet View, independent of the rest of the close-out math
   is_historical_import boolean default false, -- true for rows imported from the old Google Sheet
+  sign_returned boolean default false, -- confirmed at close-out: the yard sign was picked up and counted back into sign_inventory — guards against double-incrementing on a re-save
   calculated_at timestamptz not null default now()
 );
+
+-- ============================================================
+-- 7a. SIGN INVENTORY (singleton — a simple count, not individually tracked signs)
+-- ============================================================
+create table sign_inventory (
+  id int primary key default 1,
+  available_count int not null default 0,
+  updated_at timestamptz not null default now(),
+  constraint sign_inventory_singleton check (id = 1)
+);
+insert into sign_inventory (id, available_count) values (1, 0);
 
 -- ============================================================
 -- 8. ROW LEVEL SECURITY
@@ -225,6 +237,7 @@ alter table activity_log enable row level security;
 alter table todos enable row level security;
 alter table commission_data enable row level security;
 alter table closeouts enable row level security;
+alter table sign_inventory enable row level security;
 
 -- Helper: is the logged-in user a broker? (matches their auth email to the agents table)
 create or replace function is_broker()
@@ -319,6 +332,9 @@ create policy "commission_update" on commission_data for update
 create policy "closeouts_select" on closeouts for select using (is_broker());
 create policy "closeouts_insert" on closeouts for insert with check (auth.uid() is not null);
 create policy "closeouts_update" on closeouts for update using (is_broker());
+
+create policy "sign_inventory_select" on sign_inventory for select using (auth.uid() is not null);
+create policy "sign_inventory_update" on sign_inventory for update using (is_broker());
 
 -- ============================================================
 -- 8b. STORAGE — agent-assets bucket (cover sheets uploaded via Manage Agents)

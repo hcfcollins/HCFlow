@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import RadioGroup from "./RadioGroup";
-import { saveCloseout, fetchAllAgents, pushCloseoutToSheet, pushCloseoutToXero, sendCloseoutEmail } from "../lib/transactions";
+import {
+  saveCloseout,
+  fetchAllAgents,
+  pushCloseoutToSheet,
+  pushCloseoutToXero,
+  sendCloseoutEmail,
+  fetchSignInventory,
+  incrementSignInventory,
+} from "../lib/transactions";
 import { calculateCloseout, applyTcFee, TC_FEE_AMOUNTS, round2 } from "../lib/commissionCalc";
 import { useToast } from "../lib/ToastContext";
 import { focusNextOnEnter } from "../lib/formKeyNav";
@@ -62,13 +70,19 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const [depositRetained, setDepositRetained] = useState(saved.deposit_retained ?? false);
   const [trustToCheckingTransferred, setTrustToCheckingTransferred] = useState(saved.trust_to_checking_transferred ?? false);
   const [alreadyClosedExternally, setAlreadyClosedExternally] = useState(saved.is_historical_import ?? false);
+  const [signReturned, setSignReturned] = useState(saved.sign_returned ?? false);
+  const [signInventoryCount, setSignInventoryCount] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [allAgents, setAllAgents] = useState([]);
   const [sendingTestEmail, setSendingTestEmail] = useState(false);
 
+  const hasSign = transaction.side !== "Buy" && transaction.sign_status === "Yes";
+
   useEffect(() => {
     fetchAllAgents().then(setAllAgents).catch(() => {});
+    if (hasSign) fetchSignInventory().then(setSignInventoryCount).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const hollyAgent = allAgents.find((a) => a.name === "Holly Hall");
@@ -217,8 +231,20 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         deposit_retained: depositRetained,
         trust_to_checking_transferred: trustToCheckingTransferred,
         is_historical_import: alreadyClosedExternally,
+        sign_returned: signReturned,
       });
       showToast("Close-out saved — deal marked Closed");
+
+      // Only increment once — if it was already marked returned on a prior
+      // save, saving again (e.g. editing some other field) must not keep
+      // adding to the count.
+      if (hasSign && signReturned && !saved.sign_returned) {
+        try {
+          await incrementSignInventory();
+        } catch (e) {
+          showToast(`Saved, but couldn't update sign inventory: ${e.message}`);
+        }
+      }
 
       // A deal that already closed outside the app (e.g. handled manually before
       // this feature existed) must not re-trigger the Sheet/Xero pushes — those
@@ -357,6 +383,20 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
           </label>
         )}
       </fieldset>
+
+      {hasSign && (
+        <fieldset>
+          <legend>Sign</legend>
+          <p className="field-help">
+            A yard sign was put up for this listing.
+            {signInventoryCount != null && ` ${signInventoryCount} currently in inventory.`}
+          </p>
+          <label className="tbd-toggle">
+            <input type="checkbox" checked={signReturned} onChange={(e) => setSignReturned(e.target.checked)} />
+            Sign has been picked up — add it back to inventory
+          </label>
+        </fieldset>
+      )}
 
       {/* Only Hall Collins' own listings hold the trust deposit — on a pure
           Buy-side deal the other brokerage holds it, so this reconciliation

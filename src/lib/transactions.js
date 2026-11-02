@@ -738,6 +738,25 @@ export async function saveCloseout(transactionId, closeoutFields) {
   await updateTransactionStage(transactionId, "closed");
 }
 
+export async function fetchSignInventory() {
+  const { data, error } = await supabase.from("sign_inventory").select("available_count").eq("id", 1).single();
+  if (error) throw error;
+  return data.available_count;
+}
+
+/** Read-then-write, not an atomic SQL increment — acceptable here since sign
+ * pickups are confirmed one close-out at a time by a single broker, not a
+ * high-concurrency counter. */
+export async function incrementSignInventory() {
+  const current = await fetchSignInventory();
+  const { error } = await supabase
+    .from("sign_inventory")
+    .update({ available_count: current + 1, updated_at: new Date() })
+    .eq("id", 1);
+  if (error) throw error;
+  return current + 1;
+}
+
 /** Patches the closeouts row directly — e.g. Spreadsheet View's Check Received
  * toggle — without saveCloseout's "mark the deal Closed" side effect. Safe as
  * a plain upsert: every deal already has a closeouts row from Under Contract
