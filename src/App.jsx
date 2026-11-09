@@ -32,7 +32,6 @@ import ManageAgents from "./components/ManageAgents";
 import SocialScheduler from "./components/SocialScheduler";
 import SpreadsheetView from "./components/SpreadsheetView";
 import TutorialGuide from "./components/TutorialGuide";
-import MyEarnings from "./components/MyEarnings";
 import AgentSpreadsheetView from "./components/AgentSpreadsheetView";
 import { SkeletonList } from "./components/Skeleton";
 import { LogOut, HelpCircle } from "lucide-react";
@@ -62,7 +61,6 @@ export default function App() {
   const [showSocialScheduler, setShowSocialScheduler] = useState(false);
   const [showSpreadsheetView, setShowSpreadsheetView] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
-  const [showMyEarnings, setShowMyEarnings] = useState(false);
   const [showMySpreadsheet, setShowMySpreadsheet] = useState(false);
   const [viewAsAgent, setViewAsAgent] = useState(false);
 
@@ -343,14 +341,6 @@ export default function App() {
     );
   }
 
-  if (showMyEarnings) {
-    return (
-      <div className="app">
-        <MyEarnings onBack={() => setShowMyEarnings(false)} />
-      </div>
-    );
-  }
-
   if (showMySpreadsheet) {
     return (
       <div className="app">
@@ -545,9 +535,6 @@ export default function App() {
       )}
 
       <div className="cta-button-row">
-        <button type="button" className="my-earnings-cta" onClick={() => setShowMyEarnings(true)}>
-          My Earnings
-        </button>
         <button type="button" className="my-earnings-cta" onClick={() => setShowMySpreadsheet(true)}>
           My Spreadsheet
         </button>
