@@ -24,6 +24,7 @@ import {
   notifyTodo,
   todoHasMention,
   setReadyForCloseout,
+  sendTestDailyDigest,
 } from "./lib/transactions";
 import { TodoActionsContext } from "./lib/TodoActionsContext";
 import { buildUtilityEmail, openGmailCompose } from "./lib/clientEmail";
@@ -84,7 +85,10 @@ export default function App() {
   const [showSpreadsheetView, setShowSpreadsheetView] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showMySpreadsheet, setShowMySpreadsheet] = useState(false);
-  const [viewAsAgent, setViewAsAgent] = useState(false);
+  // Broker-only previews: null (normal), "agent", or "coordinator" (TC View).
+  const [viewAs, setViewAs] = useState(null);
+  const viewAsAgent = viewAs === "agent";
+  const [sendingTestDigest, setSendingTestDigest] = useState(false);
   const showToast = useToast();
 
   useEffect(() => {
@@ -268,6 +272,20 @@ export default function App() {
     loadTransactions({ silent: true });
   }
 
+  async function handleSendTestDigest() {
+    setSendingTestDigest(true);
+    try {
+      const result = await sendTestDailyDigest();
+      const n = result?.sent?.length || 0;
+      showToast(n ? `Sent ${n} test digest${n === 1 ? "" : "s"} to your inbox (${result.sent.map((x) => x.agent).join(", ")})` : "No agents have open to-dos — nothing to send");
+      if (result?.errors?.length) console.error("Digest errors:", result.errors);
+    } catch (e) {
+      showToast(`Couldn't send the test digest: ${e.message}`);
+    } finally {
+      setSendingTestDigest(false);
+    }
+  }
+
   /** Staff bell on a to-do: email + in-app remind the deal's agent about it. */
   async function handleNotifyTodoOwner(todo) {
     setNotifyingTodoId(todo.id);
@@ -399,7 +417,7 @@ export default function App() {
   }
 
   function handleStageChangeRequest(tx, newStage) {
-    const isBrokerUser = agent?.role === "broker" && !viewAsAgent;
+    const isBrokerUser = agent?.role === "broker" && !viewAs;
     if (newStage === "ready_closeout") {
       handleReadyForCloseout(tx, true);
       return;
@@ -454,8 +472,8 @@ export default function App() {
   // Transaction coordinator: sees every deal (RLS is_staff()) and the
   // Spreadsheet View with all commission figures stripped, but not Manage
   // Agents, the Social Scheduler, or View as Agent.
-  const isCoordinator = agent.role === "coordinator";
-  const effectiveAgent = viewAsAgent ? { ...agent, role: "agent" } : agent;
+  const effectiveAgent = viewAs ? { ...agent, role: viewAs } : agent;
+  const isCoordinator = effectiveAgent.role === "coordinator";
   const viewerStages = effectiveAgent.role === "broker" ? STAGES : NON_BROKER_STAGES;
 
   if (showUnderContractForm) {
@@ -640,8 +658,21 @@ export default function App() {
         {(isRealBroker || effectiveAgent.role === "broker" || isCoordinator) && (
           <div className="app-header-actions">
             {isRealBroker && (
-              <button onClick={() => setViewAsAgent((v) => !v)} title="Broker only — preview the app as a regular agent would see it">
-                {viewAsAgent ? "View as Broker" : "View as Agent"}
+              <button onClick={() => setViewAs((v) => (v === "agent" ? null : "agent"))} title="Broker only — preview the app as a regular agent would see it">
+                {viewAs === "agent" ? "View as Broker" : "View as Agent"}
+              </button>
+            )}
+            {isRealBroker && (
+              <button onClick={() => setViewAs((v) => (v === "coordinator" ? null : "coordinator"))} title="Broker only — preview the app as the transaction coordinator would see it">
+                {viewAs === "coordinator" ? "View as Broker" : "TC View"}
+              </button>
+            )}
+            {/* TEMPORARY — for trying out the daily digest email. Sends every
+                agent's digest to Fran only (test mode is forced server-side
+                for this path). Remove once the digest is dialed in. */}
+            {isRealBroker && !viewAs && (
+              <button disabled={sendingTestDigest} onClick={handleSendTestDigest} title="Temporary — email every agent's daily digest to you, in test mode">
+                {sendingTestDigest ? "Sending…" : "Test Daily Digest"}
               </button>
             )}
             {effectiveAgent.role === "broker" && (
@@ -668,6 +699,11 @@ export default function App() {
 
       {viewAsAgent && (
         <div className="view-as-banner">Viewing as an agent would — showing only your own deals.</div>
+      )}
+      {viewAs === "coordinator" && (
+        <div className="view-as-banner">
+          TC View — what the transaction coordinator sees. Actions are still real (e.g. the to-do bell really emails the agent).
+        </div>
       )}
 
       {error && <div className="error-banner">{error}</div>}

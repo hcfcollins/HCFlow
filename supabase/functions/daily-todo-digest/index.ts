@@ -9,8 +9,10 @@
 // daylight saving — and this function only actually sends on the run where
 // it's 6 AM in America/New_York, so exactly one goes out per day.
 //
-// Not a user-facing endpoint: deployed with --no-verify-jwt and instead
-// requires the x-cron-secret header to match the CRON_SECRET function secret.
+// Deployed with --no-verify-jwt. Two ways in:
+// - pg_cron, with the x-cron-secret header matching the CRON_SECRET secret.
+// - TEMPORARY: a signed-in broker from the app's "Test Daily Digest" button.
+//   That path always forces testMode + force, so it can never email agents.
 //
 // POST body (all optional): { force: true } skips the 6 AM check;
 // { testMode: true } sends every agent's digest to Fran only, with a banner.
@@ -28,8 +30,26 @@ const APP_URL = "https://hc-flow.vercel.app";
 
 const serviceHeaders = { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` };
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  return new Response(JSON.stringify(body), { status, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+}
+
+/** True if the Authorization header is a real session for a broker. */
+async function isBrokerCaller(authHeader: string | null): Promise<boolean> {
+  if (!authHeader) return false;
+  const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { Authorization: authHeader, apikey: SERVICE_ROLE_KEY } });
+  if (!userRes.ok) return false;
+  const user = await userRes.json();
+  if (!user.email) return false;
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/agents?email=eq.${encodeURIComponent(user.email)}&role=eq.broker&select=id`, { headers: serviceHeaders });
+  const rows = await res.json();
+  return Array.isArray(rows) && rows.length > 0;
 }
 
 function escapeHtml(s: string): string {
@@ -132,16 +152,21 @@ function rank(t: Todo, today: string): number {
 }
 
 Deno.serve(async (req) => {
-  if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
-  if (!CRON_SECRET || req.headers.get("x-cron-secret") !== CRON_SECRET) return json({ error: "Forbidden" }, 403);
+  if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
+  if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers: CORS_HEADERS });
 
   try {
+    const fromCron = Boolean(CRON_SECRET) && req.headers.get("x-cron-secret") === CRON_SECRET;
+    const fromBroker = !fromCron && (await isBrokerCaller(req.headers.get("Authorization")));
+    if (!fromCron && !fromBroker) return json({ error: "Forbidden" }, 403);
+
     let body: { force?: boolean; testMode?: boolean } = {};
     try {
       body = await req.json();
     } catch {
       // empty body from cron is fine
     }
+    if (fromBroker) body = { force: true, testMode: true };
     const { date: today, hour } = nowInVermont();
     if (!body.force && hour !== 6) return json({ skipped: `It's ${hour}:xx in Vermont, not 6` });
 

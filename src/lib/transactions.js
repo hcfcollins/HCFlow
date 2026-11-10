@@ -1013,3 +1013,23 @@ export async function createActiveListing(fields) {
   await addActivityLog(tx.id, "Added as an existing active listing", fields.address);
   return tx;
 }
+
+/** TEMPORARY test button: runs the daily digest right now. The function only
+ * accepts a browser call from a broker, and always forces test mode for it —
+ * every digest goes to Fran's inbox, never the real agents. */
+export async function sendTestDailyDigest() {
+  const { data, error } = await supabase.functions.invoke("daily-todo-digest", { body: { testMode: true, force: true } });
+  if (error) {
+    if (error.context?.json) {
+      let detail;
+      try {
+        detail = (await error.context.json())?.error;
+      } catch {
+        // not JSON
+      }
+      if (detail) throw new Error(detail);
+    }
+    throw error;
+  }
+  return data;
+}
