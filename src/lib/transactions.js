@@ -589,7 +589,9 @@ export async function submitUnderContract(fields) {
   const txPatch = {
     region,
     side,
-    split_client_side: side === "Split" ? splitClientSide || null : null,
+    // Only sent on Split deals, so a database missing this newer column
+    // doesn't break every other Under Contract submission.
+    ...(side === "Split" ? { split_client_side: splitClientSide || null } : {}),
     agent_id: agentId,
     seller_name: sellerName,
     buyer_name: buyerName,
