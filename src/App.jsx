@@ -30,6 +30,8 @@ import { TodoActionsContext } from "./lib/TodoActionsContext";
 import { buildUtilityEmail, openGmailCompose } from "./lib/clientEmail";
 import ActiveListingForm from "./components/ActiveListingForm";
 import { Bell, Mail } from "lucide-react";
+// Bumped automatically on every commit by .githooks/pre-commit.
+import versionInfo from "./version.json";
 import { useToast } from "./lib/ToastContext";
 import NotificationBell from "./components/NotificationBell";
 import DealPages from "./components/DealPages";
@@ -643,6 +645,7 @@ export default function App() {
         <div className="main-header-row">
           <div className="brand-logo-group">
             <img src="/hall-collins-logo-full.png" alt="Hall Collins Real Estate Group" className="brand-logo" />
+            <span className="app-version" title="App version — goes up by one with every update">v{versionInfo.version}</span>
             <button className="header-icon-btn" onClick={() => setShowTutorial(true)} aria-label="How It Works" title="How It Works">
               <HelpCircle size={18} />
             </button>
