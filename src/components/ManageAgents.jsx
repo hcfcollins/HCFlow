@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { FileText, Copy, Check, ArrowLeft } from "lucide-react";
+import { FileText, Copy, Check, ArrowLeft, Mail } from "lucide-react";
+import { isTrackingOnboarding, onboardingItemsFor, buildWelcomeEmail } from "../lib/onboarding";
+import { openGmailCompose } from "../lib/clientEmail";
 import RadioGroup from "./RadioGroup";
 import ConfirmDialog from "./ConfirmDialog";
 import { SkeletonList } from "./Skeleton";
@@ -71,6 +73,8 @@ export default function ManageAgents({ onBack }) {
           Close-Out Calculator to paste payments in manually.
         </p>
       </div>
+
+      {!loading && <OnboardingTodos agents={agents} onChanged={load} />}
 
       <AddAgentForm onAdded={load} />
 
@@ -287,6 +291,109 @@ function OnboardingPackage({ text, onDone }) {
   );
 }
 
+/** Fran's to-do section for new-agent onboarding — one card per agent still
+ * being onboarded, with their open items. Profile items tick themselves off
+ * once the info is in their roster profile; the rest she checks off here.
+ * An agent drops out of this section once everything's done. */
+function OnboardingTodos({ agents, onChanged }) {
+  const showToast = useToast();
+  const [busyKey, setBusyKey] = useState(null);
+  const [showDone, setShowDone] = useState(false);
+  const tracked = agents.filter((a) => a.is_active && isTrackingOnboarding(a));
+  const withItems = tracked.map((a) => ({ agent: a, items: onboardingItemsFor(a) }));
+  const inProgress = withItems.filter((x) => x.items.some((i) => !i.done));
+  const complete = withItems.filter((x) => x.items.every((i) => i.done));
+
+  if (!tracked.length) return null;
+
+  async function toggle(agent, key, done) {
+    setBusyKey(`${agent.id}:${key}`);
+    try {
+      const next = { ...(agent.onboarding || {}) };
+      if (done) next[key] = new Date().toISOString();
+      else delete next[key];
+      await updateAgentFields(agent.id, { onboarding: next });
+      onChanged();
+    } catch (e) {
+      showToast(`Couldn't save: ${e.message}`);
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  return (
+    <div className="detail-section">
+      <h2 className="comps-section-title">
+        Onboarding To-Dos <span className="comps-section-count">{inProgress.length}</span>
+      </h2>
+      {inProgress.length === 0 && <p className="field-help">Everyone's fully onboarded. 🎉</p>}
+      <div className="agent-list">
+        {inProgress.map(({ agent, items }) => {
+          const doneCount = items.filter((i) => i.done).length;
+          return (
+            <div key={agent.id} className="tx-card onboarding-card">
+              <div className="tx-card-top">
+                <div>
+                  <div className="tx-address">{agent.name}</div>
+                  <div className="tx-sub">
+                    {doneCount} of {items.length} done
+                  </div>
+                </div>
+              </div>
+              <div className="onboarding-progress">
+                <div className="onboarding-progress-bar" style={{ width: `${(doneCount / items.length) * 100}%` }} />
+              </div>
+              <ul className="onboarding-items">
+                {items
+                  .slice()
+                  .sort((a, b) => Number(a.done) - Number(b.done))
+                  .map((item) => (
+                    <li key={item.key} className={item.done ? "onboarding-item--done" : ""}>
+                      <label className="onboarding-item">
+                        <input
+                          type="checkbox"
+                          checked={item.done}
+                          disabled={item.kind === "profile" || busyKey === `${agent.id}:${item.key}`}
+                          onChange={(e) => toggle(agent, item.key, e.target.checked)}
+                        />
+                        <span>
+                          {item.label}
+                          {item.kind === "profile" && !item.done && (
+                            <span className="field-help"> — fill in on their roster card below; checks itself off</span>
+                          )}
+                        </span>
+                      </label>
+                      {item.key === "welcome_email" && !item.done && (
+                        <button
+                          type="button"
+                          className="todo-action-btn onboarding-draft-btn"
+                          title={agent.email ? `Open a pre-filled Gmail draft to ${agent.email}` : "Add their email first"}
+                          onClick={() => openGmailCompose(buildWelcomeEmail(agent))}
+                        >
+                          <Mail size={11} /> Draft Email
+                        </button>
+                      )}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+      {complete.length > 0 && (
+        <button type="button" className="comps-minimize-btn" onClick={() => setShowDone((v) => !v)}>
+          {showDone ? "Hide" : "Show"} fully onboarded ({complete.length})
+        </button>
+      )}
+      {showDone && (
+        <p className="field-help">
+          {complete.map(({ agent }) => agent.name).join(", ")}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function AgentRow({ agent, onChanged }) {
   const [expanded, setExpanded] = useState(false);
   const [email, setEmail] = useState(agent.email || "");
@@ -393,6 +500,25 @@ function AgentRow({ agent, onChanged }) {
           {isDirty && (
             <button type="button" className="google-btn uc-submit" onClick={handleSave} disabled={saving}>
               {saving ? "Saving…" : "Save"}
+            </button>
+          )}
+
+          {agent.role !== "coordinator" && !isTrackingOnboarding(agent) && (
+            <button
+              type="button"
+              className="comps-status-btn"
+              disabled={saving}
+              onClick={async () => {
+                try {
+                  await updateAgentFields(agent.id, { onboarding: {} });
+                  onChanged();
+                  showToast(`Added ${agent.name} to Onboarding To-Dos`);
+                } catch (e) {
+                  setError(e.message);
+                }
+              }}
+            >
+              Start onboarding checklist
             </button>
           )}
         </>

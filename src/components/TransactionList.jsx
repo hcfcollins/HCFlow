@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Signpost, Lock, Mail, Share2 } from "lucide-react";
 import { stageSelectValue, closingStatusBadge } from "../lib/stages";
 import { formatBac, openGmailCompose } from "../lib/clientEmail";
-import TodoList from "./TodoList";
+import TodoList, { MissingInfoTodo } from "./TodoList";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 
 /** Today as YYYY-MM-DD in local time (not toISOString, which is UTC and can be
@@ -305,6 +305,7 @@ function TxCard({
       ) : (
         onAddTodo && (
           <div onClick={(e) => e.stopPropagation()}>
+            <MissingInfoTodo tx={tx} onOpen={onOpenDetail} />
             <TodoList
               todos={(tx.todos || []).filter((t) => !t.done)}
               onAdd={(text, dueDate) => onAddTodo(tx.id, text, dueDate)}

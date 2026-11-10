@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X, AlertTriangle } from "lucide-react";
+import { missingInfoFor } from "../lib/missingInfo";
 import { useTodoActions } from "../lib/TodoActionsContext";
 import MentionInput from "./MentionInput";
 import { useMentionRoster, splitMentions } from "../lib/mentions";
@@ -116,6 +117,30 @@ export function TodoRow({ todo, onToggle, onEdit, onDelete, propertyLabel, onPro
 
 /** `renderActions(todo)` — optional extra per-row buttons (e.g. the staff
  * "notify agent" bell, or Generate Utility Email on the Send Utilities to-do). */
+/** The "standing to-do" for a deal's missing info — highlighted, can't be
+ * checked off or deleted, and vanishes by itself once every field is filled
+ * in (see lib/missingInfo.js). Tapping it opens the deal to fill things in. */
+export function MissingInfoTodo({ tx, onOpen }) {
+  const missing = missingInfoFor(tx);
+  if (!missing.length) return null;
+  return (
+    <button
+      type="button"
+      className="missing-info-todo"
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpen?.(tx);
+      }}
+      title={onOpen ? "Open the deal to fill these in" : undefined}
+    >
+      <AlertTriangle size={14} className="missing-info-todo-icon" />
+      <span>
+        <strong>Add missing info:</strong> {missing.join(", ")}
+      </span>
+    </button>
+  );
+}
+
 export default function TodoList({ todos = [], onAdd, onToggle, onEdit, onDelete, renderActions }) {
   const [text, setText] = useState("");
   const [dueDate, setDueDate] = useState("");

@@ -916,18 +916,23 @@ export async function addAgent({
   dropboxBuyerPath = null,
   coverSheetUrl = null,
 }) {
-  const { data, error } = await supabase
-    .from("agents")
-    .insert({
-      name,
-      email,
-      role,
-      dropbox_listing_path: dropboxListingPath,
-      dropbox_buyer_path: dropboxBuyerPath,
-      cover_sheet_url: coverSheetUrl,
-    })
-    .select()
-    .single();
+  const row = {
+    name,
+    email,
+    role,
+    dropbox_listing_path: dropboxListingPath,
+    dropbox_buyer_path: dropboxBuyerPath,
+    cover_sheet_url: coverSheetUrl,
+    // New agents start with their onboarding checklist being tracked — see
+    // lib/onboarding.js. The transaction coordinator isn't onboarded as an agent.
+    ...(role === "coordinator" ? {} : { onboarding: {} }),
+  };
+  let { data, error } = await supabase.from("agents").insert(row).select().single();
+  if (error && /onboarding/.test(error.message || "")) {
+    // agents.onboarding migration not run yet — still add the agent.
+    delete row.onboarding;
+    ({ data, error } = await supabase.from("agents").insert(row).select().single());
+  }
   if (error) throw error;
   return data;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Pencil, Mail, FileText, FolderOpen, ChevronDown, ChevronLeft, Share2 } from "lucide-react";
-import TodoList from "./TodoList";
+import TodoList, { MissingInfoTodo } from "./TodoList";
 import RadioGroup from "./RadioGroup";
 import CheckboxGroup from "./CheckboxGroup";
 import GenerateCompForm from "./GenerateCompForm";
@@ -609,6 +609,7 @@ export default function DealDetail({
 
       <div className="detail-section">
         <h2 className="comps-section-title">To-Do</h2>
+        <MissingInfoTodo tx={transaction} />
         <TodoList
           todos={transaction.todos}
           onAdd={(text, dueDate) => onAddTodo(transaction.id, text, dueDate)}

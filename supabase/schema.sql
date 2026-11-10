@@ -18,6 +18,7 @@ create table agents (
   dropbox_buyer_path text, -- captured for a future buyer-side Dropbox automation; not read by any function yet
   gusto_contractor_id text, -- this agent's contractor_uuid in Gusto, for the future auto-payroll push on close-out
   cover_sheet_url text, -- public Storage URL to this agent's personalized CMA cover PDF, if they have one (falls back to the generic cover)
+  onboarding jsonb, -- new-agent onboarding checklist (lib/onboarding.js): null = not tracked; { itemKey: ISO date checked off }
   created_at timestamptz not null default now()
 );
 
