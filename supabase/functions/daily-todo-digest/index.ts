@@ -152,19 +152,37 @@ interface Tx {
   todos: Todo[];
 }
 
-function todoLine(t: Todo, today: string): string {
+function todoLine(t: Todo, today: string, tomorrow: string): string {
   let badge = "";
   if (t.due_date && t.due_date < today) badge = `<span style="color:#B42318;font-weight:700;">Overdue (${shortDate(t.due_date)})</span> `;
   else if (t.due_date === today) badge = `<span style="color:#B54708;font-weight:700;">Due today</span> `;
+  else if (t.due_date === tomorrow) badge = `<span style="color:#B54708;">Due tomorrow</span> `;
   else if (t.due_date) badge = `<span style="color:#667085;">Due ${shortDate(t.due_date)}</span> `;
+  else badge = `<span style="color:#C7155B;font-weight:700;">Tagged you</span> `;
   return `<li style="margin:3px 0;">${badge}${escapeHtml(t.text)}</li>`;
 }
 
 function rank(t: Todo, today: string): number {
-  if (!t.due_date) return 3;
+  if (!t.due_date) return 4;
   if (t.due_date < today) return 0;
   if (t.due_date === today) return 1;
-  return 2;
+  if (t.due_date === addDays(today, 1)) return 2;
+  return 3;
+}
+
+/** Does this to-do @-tag this person? Same rules as notify-todo and the app:
+ * "@First Last" exact, or "@First" by first name. */
+function tagsAgent(text: string, agentName: string): boolean {
+  const full = agentName.toLowerCase();
+  const first = full.split(/\s+/)[0];
+  const re = /(?:^|\s)@([A-Za-z][A-Za-z'-]*)(?:\s+([A-Za-z][A-Za-z'-]*))?/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    const f = m[1].toLowerCase();
+    if (m[2] && `${f} ${m[2].toLowerCase()}` === full) return true;
+    if (f === first) return true;
+  }
+  return false;
 }
 
 function addDays(ymd: string, days: number): string {
@@ -318,11 +336,22 @@ Deno.serve(async (req) => {
     const sent: { agent: string; deals: number; todos: number }[] = [];
     const errors: string[] = [];
 
+    // Kept short on purpose, so people actually read it instead of deleting
+    // it: only to-dos that are overdue, due today, or due tomorrow on their
+    // own deals — plus any to-do anywhere that @-tags them.
+    const tomorrow = addDays(today, 1);
     for (const agent of agents) {
-      if (!agent.email) continue;
+      if (!agent.email && EMAILS_LIVE) continue;
       const deals = txs
-        .filter((tx) => tx.agent_id === agent.id && !tx.compliance_closed_at)
-        .map((tx) => ({ tx, open: (tx.todos || []).filter((t) => !t.done).sort((a, b) => rank(a, today) - rank(b, today) || (a.due_date || "").localeCompare(b.due_date || "")) }))
+        .filter((tx) => !tx.compliance_closed_at)
+        .map((tx) => {
+          const isOwn = tx.agent_id === agent.id;
+          const open = (tx.todos || [])
+            .filter((t) => !t.done)
+            .filter((t) => (isOwn && t.due_date && t.due_date <= tomorrow) || tagsAgent(t.text, agent.name))
+            .sort((a, b) => rank(a, today) - rank(b, today) || (a.due_date || "").localeCompare(b.due_date || ""));
+          return { tx, open };
+        })
         .filter((d) => d.open.length);
       if (!deals.length) continue;
 
@@ -332,24 +361,31 @@ Deno.serve(async (req) => {
       const overdue = all.filter((t) => t.due_date && t.due_date < today).length;
       const dueToday = all.filter((t) => t.due_date === today).length;
 
-      const summary = [overdue ? `${overdue} overdue` : null, dueToday ? `${dueToday} due today` : null, `${all.length} open in total`]
+      const dueTomorrow = all.filter((t) => t.due_date === tomorrow).length;
+      const tagged = all.filter((t) => !t.due_date || t.due_date > tomorrow).length;
+      const summary = [
+        overdue ? `${overdue} overdue` : null,
+        dueToday ? `${dueToday} due today` : null,
+        dueTomorrow ? `${dueTomorrow} due tomorrow` : null,
+        tagged ? `${tagged} tagged to you` : null,
+      ]
         .filter(Boolean)
         .join(" · ");
 
       let html = `<p>Good morning ${escapeHtml(agent.name.split(/\s+/)[0])}!</p>
-<p>Here's your to-do list for today: <strong>${summary}</strong>.</p>`;
+<p>Here's what needs your attention: <strong>${summary}</strong>.</p>`;
       for (const { tx, open } of deals) {
         html += `<h3 style="margin:18px 0 4px;font-size:15px;">${escapeHtml(tx.address)}</h3><ul style="margin:0;padding-left:20px;">${open
-          .map((t) => todoLine(t, today))
+          .map((t) => todoLine(t, today, tomorrow))
           .join("")}</ul>`;
       }
       html += `<p style="margin-top:18px;"><a href="${APP_URL}">Open HC Flow</a></p>
 <p><em>Love, Jeeves — your happy Hall Collins robot!</em></p>`;
 
       const subject = overdue || dueToday ? `Today's To-Dos: ${[overdue ? `${overdue} overdue` : null, dueToday ? `${dueToday} due today` : null].filter(Boolean).join(", ")}` : "Today's To-Dos";
-      const to = body.testMode ? FRAN_EMAIL : agent.email;
+      const to = body.testMode ? FRAN_EMAIL : agent.email!;
       const finalHtml = body.testMode
-        ? `<div style="background:#FBF2D5;border:1px solid #E0C23A;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:13px;">🧪 <strong>TEST MODE</strong> — this would have gone to <strong>${escapeHtml(agent.email)}</strong>.</div>${html}`
+        ? `<div style="background:#FBF2D5;border:1px solid #E0C23A;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:13px;">🧪 <strong>TEST MODE</strong> — this would have gone to <strong>${agent.email ? escapeHtml(agent.email) : `${escapeHtml(agent.name)} — no email on file yet`}</strong>.</div>${html}`
         : html;
       try {
         await sendGmail(accessToken, to, subject, finalHtml);
