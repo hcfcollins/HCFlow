@@ -423,6 +423,13 @@ button { cursor: pointer; }
 .search-results { display: flex; flex-direction: column; gap: 12px; }
 
 .agent-list { display: flex; flex-direction: column; gap: 12px; }
+/* Each agent card also carries .uc-form (for its expanded edit fields), and
+   the desktop .uc-form rule (max-width + margin: auto) made every card shrink
+   to fit its own name — all different widths. Cards always fill their slot. */
+.agent-list .agent-row.uc-form { width: 100%; max-width: none; margin: 0; box-sizing: border-box; }
+@media (min-width: 700px) {
+  .agent-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); align-items: start; }
+}
 .agent-row-header { cursor: pointer; }
 .agent-deactivate-btn {
   flex-shrink: 0;
