@@ -165,6 +165,21 @@ const COLUMNS = [
   { key: "appraiser", label: "Appraiser", source: "commission", type: "text" },
 ];
 
+// Hidden entirely for the transaction coordinator's view (hideMoney) — she
+// sees every deal, but no commission math, actual or projected. Deposit Held
+// stays visible: that's trust-account money she tracks, not commission.
+const MONEY_COLUMN_KEYS = new Set([
+  "commission_pct",
+  "total_commission",
+  "bank_amount",
+  "referral_amount",
+  "agent_split_pct",
+  "commission_after_referral",
+  "holly_commission",
+  "fran_commission",
+  "agent_commission",
+]);
+
 // Closing Date and Address come straight from COLUMNS; Check Received (now a
 // computed status, not an editable field — see checkReceivedLabel) and the
 // Close Out/Terminate actions are hardcoded cells slotted in between them,
@@ -366,7 +381,8 @@ function monthLabel(monthStr) {
   return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
-export default function SpreadsheetView({ transactions, onBack, onOpenDetail, onRefresh }) {
+export default function SpreadsheetView({ transactions, onBack, onOpenDetail, onRefresh, hideMoney = false }) {
+  const visibleColumns = hideMoney ? COLUMNS.filter((c) => !MONEY_COLUMN_KEYS.has(c.key)) : COLUMNS;
   const [agents, setAgents] = useState([]);
   const [attorneys, setAttorneys] = useState([]);
   const [search, setSearch] = useState("");
@@ -722,7 +738,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                 <th>Total</th>
                 <th>Closed</th>
                 <th>Projected</th>
-                <th>Brokerage Earned</th>
+                {!hideMoney && <th>Brokerage Earned</th>}
               </tr>
             </thead>
             <tbody>
@@ -735,16 +751,18 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                   <td>{row.totalCount}</td>
                   <td>{row.closedCount}</td>
                   <td>{row.projectedCount}</td>
-                  <td>{money(row.bankEarned)}</td>
+                  {!hideMoney && <td>{money(row.bankEarned)}</td>}
                 </tr>
               ))}
             </tbody>
           </table>
           {agentPerformance.length === 0 && <p className="empty-state">No active deals on record yet.</p>}
-          <p className="field-help sv-summary-range-label">
-            "Projected" counts deals still Under Contract with enough on record to estimate — not yet reflected in
-            Brokerage Earned, which is only real closed-deal money.
-          </p>
+          {!hideMoney && (
+            <p className="field-help sv-summary-range-label">
+              "Projected" counts deals still Under Contract with enough on record to estimate — not yet reflected in
+              Brokerage Earned, which is only real closed-deal money.
+            </p>
+          )}
         </div>
       )}
 
@@ -760,15 +778,19 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
               <span className="sv-summary-stat-value">${Math.round(terminatedSummary.totalPrice).toLocaleString()}</span>
               <span className="sv-summary-stat-label">Total Price</span>
             </div>
-            <div className="sv-summary-stat">
-              <span className="sv-summary-stat-value">${Math.round(terminatedSummary.totalCommission).toLocaleString()}</span>
-              <span className="sv-summary-stat-label">Total Commission at Stake</span>
-            </div>
+            {!hideMoney && (
+              <div className="sv-summary-stat">
+                <span className="sv-summary-stat-value">${Math.round(terminatedSummary.totalCommission).toLocaleString()}</span>
+                <span className="sv-summary-stat-label">Total Commission at Stake</span>
+              </div>
+            )}
           </div>
-          <p className="field-help">
-            Commission at stake is the actual figure if a close-out was ever run on the deal, otherwise an estimate
-            from the price/commission % on record — same as the projected figures in the table above.
-          </p>
+          {!hideMoney && (
+            <p className="field-help">
+              Commission at stake is the actual figure if a close-out was ever run on the deal, otherwise an estimate
+              from the price/commission % on record — same as the projected figures in the table above.
+            </p>
+          )}
         </div>
       )}
 
@@ -803,7 +825,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
               >
                 Address{sortKey === "address" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
               </th>
-              {COLUMNS.slice(FROZEN_COLUMN_COUNT).map((col) => (
+              {visibleColumns.slice(FROZEN_COLUMN_COUNT).map((col) => (
                 <th
                   key={col.key}
                   className="sv-th-sortable"
@@ -818,7 +840,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
           </thead>
           <tbody>
             {sorted.map((tx) => {
-              const estimate = tx.terminated_at ? null : estimateCloseout(tx);
+              const estimate = tx.terminated_at || hideMoney ? null : estimateCloseout(tx);
               return (
               <tr
                 key={tx.id}
@@ -846,14 +868,16 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                       </button>
                     ) : checkReceivedLabel(tx) === "Yes" ? null : (
                       <>
-                        <button
-                          type="button"
-                          title="Close-Out Calculator"
-                          data-tooltip="Close-Out Calculator"
-                          onClick={() => setClosingOutTx(tx)}
-                        >
-                          <DollarSign size={12} />
-                        </button>
+                        {!hideMoney && (
+                          <button
+                            type="button"
+                            title="Close-Out Calculator"
+                            data-tooltip="Close-Out Calculator"
+                            onClick={() => setClosingOutTx(tx)}
+                          >
+                            <DollarSign size={12} />
+                          </button>
+                        )}
                         <button type="button" title="Terminate deal" data-tooltip="Terminate deal" onClick={() => setTerminatingTx(tx)}>
                           <Ban size={12} />
                         </button>
@@ -864,7 +888,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                 <td className="sv-col-frozen sv-col-frozen-last" style={{ left: FROZEN_LEFTS.address }}>
                   <EditableCell value={tx.address} onSave={(v) => handleSaveTx(tx, "address", v)} />
                 </td>
-                {COLUMNS.slice(FROZEN_COLUMN_COUNT).map((col) => {
+                {visibleColumns.slice(FROZEN_COLUMN_COUNT).map((col) => {
                   if (col.key === "agent_id") {
                     return (
                       <td key={col.key}>
@@ -902,9 +926,11 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
                 })}
                 <td className="sv-row-actions">
                   <div className="sv-row-quick-actions" onClick={(e) => e.stopPropagation()}>
-                    <button type="button" title="Close-Out Calculator" data-tooltip="Close-Out Calculator" onClick={() => setClosingOutTx(tx)}>
-                      <DollarSign size={12} />
-                    </button>
+                    {!hideMoney && (
+                      <button type="button" title="Close-Out Calculator" data-tooltip="Close-Out Calculator" onClick={() => setClosingOutTx(tx)}>
+                        <DollarSign size={12} />
+                      </button>
+                    )}
                     {tx.terminated_at ? (
                       <button type="button" title="Reactivate deal" data-tooltip="Reactivate deal" onClick={() => handleReactivate(tx)}>
                         <RotateCcw size={12} />
@@ -929,6 +955,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
       </>
       )}
 
+      {!hideMoney && (
       <div className="sv-summary">
         <h2 className="comps-section-title">Commission Summary</h2>
         <div className="sv-filters">
@@ -1026,6 +1053,7 @@ export default function SpreadsheetView({ transactions, onBack, onOpenDetail, on
           Close-Out Calculator yet defaults to 60% here until it is.
         </p>
       </div>
+      )}
 
       <ConfirmDialog
         open={!!terminatingTx}

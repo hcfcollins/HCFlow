@@ -45,3 +45,21 @@ export const FUEL_TYPE_OPTIONS = ["Oil", "Propane", "Pellet", "Electric", "Mini 
 export const NOT_SPECIFIED = "— not specified —";
 export const YES_NO_OPTIONS = [NOT_SPECIFIED, "Yes", "No"];
 export const SOLAR_OPTIONS = [NOT_SPECIFIED, "No", "Yes — Owned", "Yes — Leased"];
+
+// Utility Providers section on DealDetail — stored as one jsonb object on
+// transactions.utilities, keyed by these exact labels (e.g.
+// { "Electricity": "Green Mountain Power" }), so adding a type later is just
+// another entry here, no migration needed.
+export const UTILITY_TYPES = [
+  "Electricity",
+  "Oil",
+  "Propane",
+  "Internet",
+  "Trash",
+  "Plowing",
+  "Property Management",
+  "Solar Maintenance",
+  "Septic Maintenance",
+  "Water",
+  "Sewer",
+];

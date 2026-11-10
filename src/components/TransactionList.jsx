@@ -32,7 +32,9 @@ export default function TransactionList({
   onDeleteTodo,
   onOpenDetail,
 }) {
-  const isBroker = currentAgent.role === "broker";
+  // Named isBroker for history; true for the transaction coordinator too,
+  // since she also sees every agent's deals and needs the agent name shown.
+  const isBroker = currentAgent.role === "broker" || currentAgent.role === "coordinator";
 
   if (transactions.length === 0) {
     return <p className="empty-state">No transactions yet.</p>;

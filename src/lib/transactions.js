@@ -912,3 +912,52 @@ export async function addAttorney(name) {
   if (error) throw error;
   return data;
 }
+
+/** True when a to-do's text @-mentions anyone (e.g. "@Rachel call the
+ * appraiser") — the cheap client-side check for whether notifyTodo is worth
+ * calling at all for a non-coordinator. */
+export function todoHasMention(text) {
+  return /(^|\s)@[A-Za-z]/.test(text || "");
+}
+
+/** Emails + in-app-notifies whoever a new to-do concerns: the property's agent
+ * when the transaction coordinator adds it, plus anyone @-mentioned by first
+ * name. All recipient resolution happens server-side in notify-todo (it
+ * verifies the caller from their own session). Returns { notified: [names] }. */
+export async function notifyTodo({ transactionId, text, dueDate }) {
+  const { data, error } = await supabase.functions.invoke("notify-todo", {
+    body: { transactionId, text, dueDate: dueDate || null, appUrl: window.location.origin },
+  });
+  if (error) {
+    if (error.context?.json) {
+      let detail;
+      try {
+        const body = await error.context.json();
+        detail = body?.error;
+      } catch {
+        // not JSON — fall through
+      }
+      if (detail) throw new Error(detail);
+    }
+    throw error;
+  }
+  return data;
+}
+
+/** The signed-in user's own notifications, newest first — RLS limits rows to
+ * recipient_agent_id = current_agent_id(), so no filter is needed here. */
+export async function fetchNotifications() {
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) throw error;
+  return data;
+}
+
+export async function markNotificationsRead(ids) {
+  if (!ids.length) return;
+  const { error } = await supabase.from("notifications").update({ read_at: new Date() }).in("id", ids);
+  if (error) throw error;
+}

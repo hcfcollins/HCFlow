@@ -21,6 +21,7 @@ import {
   SOLAR_OPTIONS,
   NOT_SPECIFIED,
   recommendationOptionsFor,
+  UTILITY_TYPES,
 } from "../lib/compFieldOptions";
 
 /** Formats a "YYYY-MM-DD" date string as "Month Day, Year"; returns other formats unchanged. */
@@ -57,6 +58,10 @@ export default function DealDetail({
   onRelist,
 }) {
   const isBroker = currentAgent.role === "broker";
+  // The transaction coordinator sees every deal like a broker does, but never
+  // any commission math — see "Close-Out" gating below.
+  const isCoordinator = currentAgent.role === "coordinator";
+  const isStaff = isBroker || isCoordinator;
   const isActiveListing = transaction.stage === "won" || transaction.stage === "market";
   const isBuySide = transaction.side === "Buy";
   // A freshly-Won listing doesn't necessarily have a signed Listing Agreement yet —
@@ -75,7 +80,10 @@ export default function DealDetail({
   // Lets New Comp's "Add & Build CMA PDF" button drop an agent straight into this
   // screen already open, instead of landing on the deal detail view first.
   const [showGenerateComp, setShowGenerateComp] = useState(Boolean(transaction._openGenerateComp));
-  const [showCloseoutCalculator, setShowCloseoutCalculator] = useState(false);
+  // Set when the stage dropdown is switched to Closed — same idea as Under
+  // Contract opening its form — so the deal goes straight into the calculator.
+  const [showCloseoutCalculator, setShowCloseoutCalculator] = useState(Boolean(transaction._openCloseout));
+  const [utilitiesCollapsed, setUtilitiesCollapsed] = useState(true);
   const [showTerminateConfirm, setShowTerminateConfirm] = useState(false);
   const [showRelistConfirm, setShowRelistConfirm] = useState(false);
   const [relisting, setRelisting] = useState(false);
@@ -94,6 +102,13 @@ export default function DealDetail({
   useEffect(() => {
     fetchAttorneys().then(setAttorneys).catch(() => {});
   }, []);
+
+  // Already on this deal's detail screen when the stage dropdown flips to
+  // Closed — the component doesn't remount (same key), so the useState
+  // initializer above won't see the new flag on its own.
+  useEffect(() => {
+    if (transaction._openCloseout) setShowCloseoutCalculator(true);
+  }, [transaction._openCloseout]);
 
   // Swipe left anywhere on the detail screen to go back — same intent-detection
   // pattern as the page-switching swipe on the list screens (DealPages), so a
@@ -446,7 +461,7 @@ export default function DealDetail({
                   <div>{transaction.side}</div>
                 </div>
 
-                {isBroker && (
+                {isStaff && (
                   <div>
                     <div className="detail-label">Agent</div>
                     <div>{transaction.agent?.name || "—"}</div>
@@ -458,6 +473,7 @@ export default function DealDetail({
                   value={transaction.buyer_attorney?.name}
                   placeholder="TBD"
                   attorneyList={attorneys}
+                  editableWhenSet
                   onSave={(v) => handleAttorneySave("buyer", v)}
                 />
 
@@ -466,6 +482,7 @@ export default function DealDetail({
                   value={transaction.seller_attorney?.name}
                   placeholder="TBD"
                   attorneyList={attorneys}
+                  editableWhenSet
                   onSave={(v) => handleAttorneySave("seller", v)}
                 />
               </>
@@ -515,6 +532,44 @@ export default function DealDetail({
         />
       </div>
 
+      {transaction.stage !== "comps" && (
+        <div className="detail-section">
+          <button
+            type="button"
+            className="comps-section-header comps-collapse-toggle"
+            onClick={() => setUtilitiesCollapsed((c) => !c)}
+          >
+            <h2 className="comps-section-title">
+              Utility Providers
+              {(() => {
+                const filled = UTILITY_TYPES.filter((u) => transaction.utilities?.[u]).length;
+                return filled ? <span className="field-help"> ({filled} of {UTILITY_TYPES.length})</span> : null;
+              })()}
+            </h2>
+            <ChevronDown size={18} className={`collapse-chevron ${utilitiesCollapsed ? "" : "collapse-chevron--open"}`} />
+          </button>
+          {!utilitiesCollapsed && (
+            <div className="detail-grid">
+              {UTILITY_TYPES.map((u) => (
+                <EditableText
+                  key={u}
+                  label={u}
+                  value={transaction.utilities?.[u] || ""}
+                  placeholder="Not set"
+                  editableWhenSet
+                  onSave={(v) => {
+                    const next = { ...(transaction.utilities || {}) };
+                    if (v.trim()) next[u] = v.trim();
+                    else delete next[u];
+                    handleFieldSave({ utilities: next });
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="detail-section">
         <h2 className="comps-section-title">Notes</h2>
         <textarea
@@ -530,7 +585,7 @@ export default function DealDetail({
         <div className="detail-section">
           <h2 className="comps-section-title">Under Contract Details</h2>
           <p className="field-help">
-            {isBroker
+            {isStaff
               ? "Collected from the Under Contract form."
               : "Read-only — what was submitted on the Under Contract form. Contact Fran or Holly to request a change."}
           </p>
@@ -636,9 +691,11 @@ export default function DealDetail({
             </>
           )}
 
-          <button type="button" className="cma-export-btn" onClick={() => setShowCloseoutCalculator(true)}>
-            <FileText size={14} /> {transaction.closeouts?.commission_after_referral != null ? "Edit Close-Out" : "Run Close-Out Calculator"}
-          </button>
+          {!isCoordinator && (
+            <button type="button" className="cma-export-btn" onClick={() => setShowCloseoutCalculator(true)}>
+              <FileText size={14} /> {transaction.closeouts?.commission_after_referral != null ? "Edit Close-Out" : "Run Close-Out Calculator"}
+            </button>
+          )}
         </div>
       )}
 
@@ -1102,10 +1159,19 @@ function CompDetailsEditForm({ transaction, handleFieldSave, onDone }) {
   );
 }
 
-/** Shows a value, or an edit icon + inline text input when it's missing/TBD. */
-function EditableText({ label, value, placeholder, type = "text", attorneyList, onSave }) {
+/** Shows a value, or an edit icon + inline text input when it's missing/TBD.
+ * `editableWhenSet` keeps the pencil visible after a value is saved too (e.g.
+ * attorneys, which do change occasionally) — off by default because some
+ * callers pass a formatted display value (like "$350,000") that can't be
+ * edited back as-is. */
+function EditableText({ label, value, placeholder, type = "text", attorneyList, onSave, editableWhenSet = false }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || "");
+
+  function startEditing() {
+    setDraft(value || "");
+    setEditing(true);
+  }
 
   if (!value && !editing) {
     return (
@@ -1113,7 +1179,7 @@ function EditableText({ label, value, placeholder, type = "text", attorneyList, 
         <div className="detail-label">{label}</div>
         <div className="editable-missing">
           {placeholder}
-          <button type="button" className="edit-icon-btn" onClick={() => setEditing(true)}>
+          <button type="button" className="edit-icon-btn" onClick={startEditing}>
             <Pencil size={12} />
           </button>
         </div>
@@ -1134,10 +1200,14 @@ function EditableText({ label, value, placeholder, type = "text", attorneyList, 
           onChange={(e) => setDraft(e.target.value)}
           onBlur={() => {
             setEditing(false);
-            onSave(draft);
+            if (draft !== (value || "")) onSave(draft);
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape") {
+              setDraft(value || "");
+              setEditing(false);
+            }
           }}
         />
         {attorneyList && (
@@ -1154,7 +1224,16 @@ function EditableText({ label, value, placeholder, type = "text", attorneyList, 
   return (
     <div>
       <div className="detail-label">{label}</div>
-      <div>{value}</div>
+      {editableWhenSet ? (
+        <div className="editable-missing editable-set">
+          {value}
+          <button type="button" className="edit-icon-btn" onClick={startEditing} aria-label={`Edit ${label}`} title={`Edit ${label}`}>
+            <Pencil size={12} />
+          </button>
+        </div>
+      ) : (
+        <div>{value}</div>
+      )}
     </div>
   );
 }

@@ -21,7 +21,11 @@ import {
   markSocialClosingPosted,
   reorderSocialQueue,
   updateTransactionFields,
+  notifyTodo,
+  todoHasMention,
 } from "./lib/transactions";
+import { useToast } from "./lib/ToastContext";
+import NotificationBell from "./components/NotificationBell";
 import DealPages from "./components/DealPages";
 import LoginScreen from "./components/LoginScreen";
 import UnderContractForm from "./components/UnderContractForm";
@@ -63,6 +67,7 @@ export default function App() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [showMySpreadsheet, setShowMySpreadsheet] = useState(false);
   const [viewAsAgent, setViewAsAgent] = useState(false);
+  const showToast = useToast();
 
   useEffect(() => {
     if (session && agent) loadTransactions();
@@ -182,6 +187,22 @@ export default function App() {
   async function handleAddTodo(id, text, dueDate) {
     await addTodo(id, text, dueDate);
     loadTransactions({ silent: true });
+    // The transaction coordinator's to-dos always notify the deal's agent;
+    // anyone's @mention notifies whoever's named. Best-effort — the to-do is
+    // already saved, so a notification failure only gets a toast.
+    if (agent?.role === "coordinator" || todoHasMention(text)) {
+      try {
+        const result = await notifyTodo({ transactionId: id, text, dueDate });
+        if (result?.notified?.length) {
+          const missing = result.noEmailOnFile?.length ? ` (no email on file for ${result.noEmailOnFile.join(", ")})` : "";
+          showToast(`Notified ${result.notified.join(", ")}${missing}`);
+        }
+        if (result?.emailErrors?.length) console.error("notify-todo email errors:", result.emailErrors);
+      } catch (e) {
+        console.error("notify-todo failed:", e);
+        showToast(`To-do saved, but couldn't send the notification: ${e.message}`);
+      }
+    }
   }
 
   async function handleToggleTodo(todo, done) {
@@ -277,6 +298,15 @@ export default function App() {
   function handleStageChangeRequest(tx, newStage) {
     if (newStage === "contract" && tx.stage !== "contract") {
       handleRequestUnderContract(tx);
+    } else if (newStage === "closed" && tx.stage !== "closed" && agent?.role === "broker" && !viewAsAgent) {
+      // Same idea as Under Contract opening its form: closing a deal goes
+      // straight into the Close-Out Calculator, which marks it Closed on save
+      // (and leaves the stage alone if cancelled). Broker-only — agents and
+      // the coordinator never see the commission split, so for them this
+      // still just changes the stage directly.
+      // A fresh value each time (not just `true`) so picking Closed again after
+      // cancelling out of the calculator still re-triggers DealDetail's effect.
+      setSelectedTransaction({ ...tx, _openCloseout: Date.now() });
     } else {
       handleStageChange(tx.id, newStage);
     }
@@ -309,6 +339,10 @@ export default function App() {
   // `isBroker = currentAgent.role === "broker"` check throughout the app already
   // reacts correctly with no per-component changes needed.
   const isRealBroker = agent.role === "broker";
+  // Transaction coordinator: sees every deal (RLS is_staff()) and the
+  // Spreadsheet View with all commission figures stripped, but not Manage
+  // Agents, the Social Scheduler, or View as Agent.
+  const isCoordinator = agent.role === "coordinator";
   const effectiveAgent = viewAsAgent ? { ...agent, role: "agent" } : agent;
 
   if (showUnderContractForm) {
@@ -384,6 +418,7 @@ export default function App() {
       <div className="app sv-app-wrap">
         <SpreadsheetView
           transactions={txs}
+          hideMoney={isCoordinator}
           onBack={() => setShowSpreadsheetView(false)}
           onRefresh={() => loadTransactions({ silent: true })}
           onOpenDetail={(tx) => {
@@ -465,12 +500,13 @@ export default function App() {
           </div>
           <div className="main-header-right">
             <h1>Deal Flow</h1>
+            <NotificationBell transactions={txs} onOpenDeal={setSelectedTransaction} />
             <button className="header-icon-btn" onClick={signOut} aria-label="Sign out" title="Sign out">
               <LogOut size={18} />
             </button>
           </div>
         </div>
-        {(isRealBroker || effectiveAgent.role === "broker") && (
+        {(isRealBroker || effectiveAgent.role === "broker" || isCoordinator) && (
           <div className="app-header-actions">
             {isRealBroker && (
               <button onClick={() => setViewAsAgent((v) => !v)} title="Broker only — preview the app as a regular agent would see it">
@@ -490,8 +526,8 @@ export default function App() {
                 Social Scheduler
               </button>
             )}
-            {effectiveAgent.role === "broker" && (
-              <button onClick={() => setShowSpreadsheetView(true)} title="Broker only — every deal, every agent, full commission detail">
+            {(effectiveAgent.role === "broker" || isCoordinator) && (
+              <button onClick={() => setShowSpreadsheetView(true)} title="Every deal, every agent, in one table">
                 Spreadsheet View
               </button>
             )}
@@ -534,11 +570,13 @@ export default function App() {
         />
       )}
 
-      <div className="cta-button-row">
-        <button type="button" className="my-earnings-cta" onClick={() => setShowMySpreadsheet(true)}>
-          My Spreadsheet
-        </button>
-      </div>
+      {!isCoordinator && (
+        <div className="cta-button-row">
+          <button type="button" className="my-earnings-cta" onClick={() => setShowMySpreadsheet(true)}>
+            My Spreadsheet
+          </button>
+        </div>
+      )}
     </div>
   );
 }

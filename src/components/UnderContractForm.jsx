@@ -47,8 +47,11 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
   const [error, setError] = useState(null);
 
   const [region, setRegion] = useState(initialData?.region || draft?.region || "VT");
-  const [selectedAgentId, setSelectedAgentId] = useState(initialData?.agent_id || draft?.selectedAgentId || currentAgent.id);
-  const [selectedAgentName, setSelectedAgentName] = useState(initialData?.agent?.name || draft?.selectedAgentName || currentAgent.name);
+  // The transaction coordinator never owns a deal herself, so she starts with
+  // no agent picked rather than defaulting to her own id.
+  const defaultsToSelf = currentAgent.role !== "coordinator";
+  const [selectedAgentId, setSelectedAgentId] = useState(initialData?.agent_id || draft?.selectedAgentId || (defaultsToSelf ? currentAgent.id : null));
+  const [selectedAgentName, setSelectedAgentName] = useState(initialData?.agent?.name || draft?.selectedAgentName || (defaultsToSelf ? currentAgent.name : null));
   const [side, setSide] = useState(initialData?.side || draft?.side || "Sell");
   const [leadType, setLeadType] = useState(initialData?.commission_data?.lead_type || draft?.leadType || "Organic");
   const [sellerName, setSellerName] = useState(initialData?.seller_name || draft?.sellerName || "");
@@ -134,6 +137,10 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (!selectedAgentId) {
+      setError("Pick which agent this deal belongs to.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {

@@ -103,6 +103,7 @@ create table transactions (
   social_went_live_at timestamptz, -- set once, first time the "Go Live" to-do is checked; never cleared — marks eligibility for the one closing shoutout
   social_last_posted_at timestamptz, -- bumped every time a social post (rotation or closing) is marked done
   social_closing_posted_at timestamptz, -- set once the one-time closing shoutout has been posted
+  utilities jsonb, -- Utility Providers section on DealDetail, keyed by UTILITY_TYPES in lib/compFieldOptions.js, e.g. {"Electricity": "Green Mountain Power"}
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -226,6 +227,23 @@ create table sign_inventory (
 insert into sign_inventory (id, available_count) values (1, 0);
 
 -- ============================================================
+-- 7b. NOTIFICATIONS (in-app bell — one row per recipient)
+-- Written only by the notify-todo Edge Function (service role); a user can
+-- read and mark-read only their own.
+-- ============================================================
+create table notifications (
+  id uuid primary key default gen_random_uuid(),
+  recipient_agent_id uuid not null references agents(id) on delete cascade,
+  transaction_id uuid references transactions(id) on delete cascade,
+  kind text not null, -- 'todo_assigned' | 'todo_mention'
+  message text not null,
+  created_by_agent_id uuid references agents(id) on delete set null,
+  read_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index on notifications (recipient_agent_id, created_at desc);
+
+-- ============================================================
 -- 8. ROW LEVEL SECURITY
 -- ============================================================
 
@@ -238,6 +256,7 @@ alter table todos enable row level security;
 alter table commission_data enable row level security;
 alter table closeouts enable row level security;
 alter table sign_inventory enable row level security;
+alter table notifications enable row level security;
 
 -- Helper: is the logged-in user a broker? (matches their auth email to the agents table)
 create or replace function is_broker()
@@ -250,6 +269,23 @@ as $$
     select 1 from agents
     where email = auth.jwt() ->> 'email'
     and role = 'broker'
+  );
+$$;
+
+-- Helper: broker OR transaction coordinator — the "sees every deal" roles.
+-- Used for deal-level visibility (transactions, to-dos, documents, activity,
+-- commission_data inputs). The money itself (closeouts) stays is_broker()
+-- only: the coordinator never sees commission figures.
+create or replace function is_staff()
+returns boolean
+language sql
+security definer
+stable
+as $$
+  select exists (
+    select 1 from agents
+    where email = auth.jwt() ->> 'email'
+    and role in ('broker', 'coordinator')
   );
 $$;
 
@@ -276,44 +312,44 @@ create policy "attorneys_delete" on attorneys for delete using (is_broker());
 
 -- Transactions: brokers see everything; agents see only their own deals
 create policy "transactions_select" on transactions for select
-  using (is_broker() or agent_id = current_agent_id());
+  using (is_staff() or agent_id = current_agent_id());
 create policy "transactions_insert" on transactions for insert
-  with check (is_broker() or agent_id = current_agent_id());
+  with check (is_staff() or agent_id = current_agent_id());
 create policy "transactions_update" on transactions for update
-  using (is_broker() or agent_id = current_agent_id());
+  using (is_staff() or agent_id = current_agent_id());
 create policy "transactions_delete" on transactions for delete
   using (is_broker());
 
 -- Documents & activity log: follow the parent transaction's visibility
 create policy "documents_select" on documents for select
   using (exists (select 1 from transactions t where t.id = transaction_id
-    and (is_broker() or t.agent_id = current_agent_id())));
+    and (is_staff() or t.agent_id = current_agent_id())));
 create policy "documents_insert" on documents for insert
   with check (exists (select 1 from transactions t where t.id = transaction_id
-    and (is_broker() or t.agent_id = current_agent_id())));
+    and (is_staff() or t.agent_id = current_agent_id())));
 create policy "documents_update" on documents for update
   using (exists (select 1 from transactions t where t.id = transaction_id
-    and (is_broker() or t.agent_id = current_agent_id())));
+    and (is_staff() or t.agent_id = current_agent_id())));
 
 create policy "activity_select" on activity_log for select
   using (exists (select 1 from transactions t where t.id = transaction_id
-    and (is_broker() or t.agent_id = current_agent_id())));
+    and (is_staff() or t.agent_id = current_agent_id())));
 create policy "activity_insert" on activity_log for insert
   with check (exists (select 1 from transactions t where t.id = transaction_id
-    and (is_broker() or t.agent_id = current_agent_id())));
+    and (is_staff() or t.agent_id = current_agent_id())));
 
 create policy "todos_select" on todos for select
   using (exists (select 1 from transactions t where t.id = transaction_id
-    and (is_broker() or t.agent_id = current_agent_id())));
+    and (is_staff() or t.agent_id = current_agent_id())));
 create policy "todos_insert" on todos for insert
   with check (exists (select 1 from transactions t where t.id = transaction_id
-    and (is_broker() or t.agent_id = current_agent_id())));
+    and (is_staff() or t.agent_id = current_agent_id())));
 create policy "todos_update" on todos for update
   using (exists (select 1 from transactions t where t.id = transaction_id
-    and (is_broker() or t.agent_id = current_agent_id())));
+    and (is_staff() or t.agent_id = current_agent_id())));
 create policy "todos_delete" on todos for delete
   using (exists (select 1 from transactions t where t.id = transaction_id
-    and (is_broker() or t.agent_id = current_agent_id())));
+    and (is_staff() or t.agent_id = current_agent_id())));
 
 -- Commission data & close-outs: reading is BROKER ONLY — this is the sensitive layer.
 -- Insert is open to any signed-in user because the Under Contract form (filled out by
@@ -327,18 +363,21 @@ create policy "todos_delete" on todos for delete
 -- inputs, never the calculated payout.
 create policy "commission_select" on commission_data for select
   using (exists (select 1 from transactions t where t.id = transaction_id
-    and (is_broker() or t.agent_id = current_agent_id())));
+    and (is_staff() or t.agent_id = current_agent_id())));
 create policy "commission_insert" on commission_data for insert with check (auth.uid() is not null);
 -- Update (not just insert) is also open to the owning agent, not just brokers —
 -- New Comp and Under Contract both write these fields, and an agent correcting
 -- their own entry (e.g. a referral %) shouldn't be silently blocked.
 create policy "commission_update" on commission_data for update
   using (exists (select 1 from transactions t where t.id = transaction_id
-    and (is_broker() or t.agent_id = current_agent_id())));
+    and (is_staff() or t.agent_id = current_agent_id())));
 
 create policy "closeouts_select" on closeouts for select using (is_broker());
 create policy "closeouts_insert" on closeouts for insert with check (auth.uid() is not null);
 create policy "closeouts_update" on closeouts for update using (is_broker());
+
+create policy "notifications_select" on notifications for select using (recipient_agent_id = current_agent_id());
+create policy "notifications_update" on notifications for update using (recipient_agent_id = current_agent_id());
 
 create policy "sign_inventory_select" on sign_inventory for select using (auth.uid() is not null);
 create policy "sign_inventory_update" on sign_inventory for update using (is_broker());
