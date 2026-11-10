@@ -49,6 +49,11 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+/** Makes bare http(s) URLs in already-escaped text clickable. */
+function linkify(escaped: string): string {
+  return escaped.replace(/https?:\/\/[^\s<]+/g, (url) => `<a href="${url}">${url}</a>`);
+}
+
 function formatDue(dateStr: string | null): string | null {
   if (!dateStr) return null;
   const m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(dateStr);
@@ -148,8 +153,12 @@ Deno.serve(async (req) => {
 
     const { transactionId, text: rawText, dueDate, appUrl, notifyOwner, event } = await req.json();
     const isCloseoutEvent = event === "ready_for_closeout";
+    // Coordinator-facing events: a comp moved to Listing Won (her "Input
+    // Partial in MLS" to-do was just created), or a broker closed a deal (her
+    // compliance checklist to-dos were just created).
+    const coordinatorEvent = event === "listing_won" || event === "compliance_ready" ? event : null;
     const text = rawText || "";
-    if (!transactionId || (!text && !isCloseoutEvent)) return jsonResponse({ error: "transactionId and text required" }, 400);
+    if (!transactionId || (!text && !isCloseoutEvent && !coordinatorEvent)) return jsonResponse({ error: "transactionId and text required" }, 400);
 
     const rosterRes = await fetch(`${SUPABASE_URL}/rest/v1/agents?is_active=eq.true&select=id,name,email,role`, {
       headers: serviceHeaders,
@@ -167,9 +176,12 @@ Deno.serve(async (req) => {
     const isStaff = caller.role === "broker" || caller.role === "coordinator";
     if (!isStaff && tx.agent_id !== caller.id) return jsonResponse({ error: "Not your deal" }, 403);
 
-    type Reason = "assigned" | "mention" | "reminder" | "closeout";
+    type Reason = "assigned" | "mention" | "reminder" | "closeout" | "listing_won" | "compliance";
     const recipients = new Map<string, { agent: Agent; reason: Reason }>();
-    if (isCloseoutEvent) {
+    if (coordinatorEvent) {
+      const reason: Reason = coordinatorEvent === "listing_won" ? "listing_won" : "compliance";
+      for (const a of roster.filter((r) => r.role === "coordinator")) recipients.set(a.id, { agent: a, reason });
+    } else if (isCloseoutEvent) {
       for (const a of roster.filter((r) => r.role === "broker")) recipients.set(a.id, { agent: a, reason: "closeout" });
     } else {
       if (tx.agent_id && ((caller.role === "coordinator") || (notifyOwner && isStaff))) {
@@ -193,9 +205,14 @@ Deno.serve(async (req) => {
       mention: "todo_mention",
       reminder: "todo_reminder",
       closeout: "ready_for_closeout",
+      listing_won: "listing_won",
+      compliance: "compliance_ready",
     };
+    const ownerName = roster.find((a) => a.id === tx.agent_id)?.name || "An agent";
     function plainMessage(reason: Reason): string {
       if (reason === "closeout") return `${firstName} marked ${tx.address} Ready for Closeout`;
+      if (reason === "listing_won") return `${ownerName.split(/\s+/)[0]} won the listing at ${tx.address} — time to input the partial in MLS`;
+      if (reason === "compliance") return `${tx.address} is closed — your compliance checklist is ready`;
       if (reason === "mention") return `${firstName} mentioned you in a to-do on ${tx.address}: "${text}"`;
       if (reason === "reminder") return `${firstName} sent you a reminder about a to-do on ${tx.address}: "${text}"`;
       return `${firstName} added a to-do on ${tx.address}: "${text}"`;
@@ -215,7 +232,9 @@ Deno.serve(async (req) => {
     const notificationError = insRes.ok ? null : await insRes.text();
 
     const emailErrors: string[] = [];
-    const withEmail = [...recipients.values()].filter(({ agent }) => agent.email);
+    // In test mode everything goes to Fran anyway, so include people with no
+    // email on file too — she can still see what they'd get.
+    const withEmail = [...recipients.values()].filter(({ agent }) => !EMAILS_LIVE || agent.email);
     if (withEmail.length) {
       const accessToken = await getGmailAccessToken();
       for (const { agent, reason } of withEmail) {
@@ -224,6 +243,10 @@ Deno.serve(async (req) => {
         const intro =
           reason === "closeout"
             ? `${who} marked ${where} <strong>Ready for Closeout</strong> — it's waiting on your commission review.`
+            : reason === "listing_won"
+            ? `${escapeHtml(ownerName)} just won the listing at ${where}! Your to-do:`
+            : reason === "compliance"
+            ? `${where} has been closed out. Your compliance checklist is ready:`
             : reason === "mention"
             ? `${who} mentioned you in a to-do on ${where}:`
             : reason === "reminder"
@@ -231,15 +254,22 @@ Deno.serve(async (req) => {
             : `${who} added a to-do on ${where}:`;
         const html = `<p>Hi ${escapeHtml(agent.name.split(/\s+/)[0])},</p>
 <p>${intro}</p>
-${text ? `<blockquote style="border-left:3px solid #E8A0B4;margin:12px 0;padding:6px 12px;">${escapeHtml(text)}</blockquote>` : ""}
+${text ? `<blockquote style="border-left:3px solid #E8A0B4;margin:12px 0;padding:6px 12px;">${linkify(escapeHtml(text)).replace(/\n/g, "<br/>")}</blockquote>` : ""}
 ${due ? `<p><strong>Due:</strong> ${escapeHtml(due)}</p>` : ""}
 ${appUrl ? `<p><a href="${escapeHtml(appUrl)}">Open HC Flow</a></p>` : ""}
 <p><em>Love, Jeeves — your happy Hall Collins robot!</em></p>`;
         try {
-          const subject = reason === "closeout" ? `Ready for Closeout: ${tx.address}` : `To-do: ${tx.address}`;
+          const subject =
+            reason === "closeout"
+              ? `Ready for Closeout: ${tx.address}`
+              : reason === "listing_won"
+              ? `Listing Won: ${tx.address}`
+              : reason === "compliance"
+              ? `Compliance Checklist: ${tx.address}`
+              : `To-do: ${tx.address}`;
           const banner = EMAILS_LIVE
             ? ""
-            : `<div style="background:#FBF2D5;border:1px solid #E0C23A;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:13px;">🧪 <strong>TEST MODE</strong> — this would have gone to <strong>${escapeHtml(agent.email!)}</strong>.</div>`;
+            : `<div style="background:#FBF2D5;border:1px solid #E0C23A;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:13px;">🧪 <strong>TEST MODE</strong> — this would have gone to <strong>${agent.email ? escapeHtml(agent.email) : `${escapeHtml(agent.name)} — no email on file yet, add one in Manage Agents`}</strong>.</div>`;
           await sendGmail(accessToken, EMAILS_LIVE ? agent.email! : FRAN_EMAIL, subject, banner + html);
         } catch (e) {
           emailErrors.push(`${agent.name}: ${String(e)}`);

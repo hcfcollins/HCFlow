@@ -54,7 +54,9 @@ export const SOLAR_OPTIONS = [NOT_SPECIFIED, "No", "Yes — Owned", "Yes — Lea
 // `showIf` hides a field that doesn't apply (no septic maintenance on town
 // sewer).
 export const UTILITY_FIELDS = [
-  { key: "Electricity" },
+  // `suggestions` = pick-from-a-list OR type your own, same as the attorney
+  // fields (a native datalist).
+  { key: "Electricity", suggestions: ["Green Mountain Power", "Washington Electric", "Off-Grid", "Liberty", "NH Coop"] },
   { key: "Oil" },
   { key: "Propane" },
   { key: "Internet" },
@@ -63,9 +65,20 @@ export const UTILITY_FIELDS = [
   { key: "Property Management" },
   { key: "Solar Maintenance" },
   { key: "Water", options: ["Town Water", "Private"] },
-  { key: "Septic", options: ["Town Septic", "Private"] },
-  { key: "Septic Maintenance", showIf: (u) => u?.Septic !== "Town Septic" },
+  { key: "Septic", options: ["Town Sewer", "Private"] },
+  { key: "Septic Maintenance", showIf: (u) => !isTownSewer(u?.Septic) },
 ];
+
+/** "Town Septic" was the label for a short while before "Town Sewer" — treat
+ * any saved value either way as town sewer. */
+export function isTownSewer(v) {
+  return v === "Town Sewer" || v === "Town Septic";
+}
+
+export function normalizeUtilities(u) {
+  if (!u) return {};
+  return u.Septic === "Town Septic" ? { ...u, Septic: "Town Sewer" } : u;
+}
 
 export const UTILITY_TYPES = UTILITY_FIELDS.map((f) => f.key);
 

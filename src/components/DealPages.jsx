@@ -547,7 +547,7 @@ function ActiveListingsPage({
         )}
         {/* Not ready for general use yet — limited to Fran while the feature is
             still being worked on. Remove this gate once it's ready for everyone. */}
-        {currentAgent?.email === "fran.collins@hallcollins.com" && (
+        {currentAgent?.email === "fran.collins@hallcollins.com" && currentAgent?.role !== "coordinator" && (
           <button
             type="button"
             className="sign-inventory-toggle"

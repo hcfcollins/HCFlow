@@ -708,7 +708,7 @@ button { cursor: pointer; }
 .todo-due-badge--upcoming { background: var(--color-border); color: var(--color-text-muted); }
 .todo-add { display: flex; gap: 6px; margin-top: 4px; }
 .todo-add .mention-input-wrap { flex: 1; min-width: 0; }
-.todo-add input { width: 100%; box-sizing: border-box; flex: 1; min-width: 0; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--color-border-input); font-family: 'Montserrat', sans-serif; font-size: 13px; }
+.todo-add input, .todo-add .mention-overlay { width: 100%; box-sizing: border-box; flex: 1; min-width: 0; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--color-border-input); font-family: 'Montserrat', sans-serif; font-size: 13px; }
 .todo-add button { border: none; background: var(--color-navy); color: var(--color-white); border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 700; flex-shrink: 0; }
 .todo-due-toggle { background: var(--color-border); color: var(--color-text-muted); padding: 6px 10px; font-size: 14px; }
 .todo-due-toggle--active { background: rgba(var(--pink-rgb), 0.12); }
@@ -1297,3 +1297,35 @@ button { cursor: pointer; }
   .utility-edit-form { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; }
   .utility-edit-radio, .utility-edit-actions { grid-column: 1 / -1; }
 }
+
+/* Live highlight of confirmed @names inside the to-do input (MentionInput):
+   the overlay draws the text; the input on top keeps the caret/selection. */
+.mention-overlay {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: pre;
+  pointer-events: none;
+  color: inherit;
+  background: var(--color-white);
+  border-color: transparent !important;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+.mention-input-wrap .mention-input--overlaid {
+  position: relative;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--color-navy);
+}
+.mention-input-wrap .mention-input--overlaid::placeholder { color: var(--color-text-muted); }
+.mention-input-wrap .mention-input--overlaid::selection { background: rgba(var(--pink-rgb), 0.2); color: transparent; }
+.mention-overlay-tag {
+  color: rgb(var(--pink-rgb));
+  -webkit-text-stroke: 0.45px rgb(var(--pink-rgb));
+  background: rgba(var(--pink-rgb), 0.08);
+  border-radius: 3px;
+}
+.todo-link { color: var(--color-navy); text-decoration: underline; word-break: break-all; }

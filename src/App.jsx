@@ -123,7 +123,11 @@ export default function App() {
       // that step failed, so retrying must still re-attempt just that piece.
       if (tx && !tx.todos?.length) {
         try {
-          await seedWonListingTodos(id);
+          const mlsTodo = await seedWonListingTodos(id);
+          // Let the coordinator know right away — best-effort.
+          notifyTodo({ transactionId: id, event: "listing_won", text: mlsTodo }).catch((e) =>
+            console.error("Listing Won notification failed:", e)
+          );
         } catch (e) {
           console.error("Failed to seed Won Listing to-dos:", e);
           sideEffectError = `Couldn't set up the to-do checklist: ${e.message}`;

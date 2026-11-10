@@ -4,12 +4,27 @@ import { useTodoActions } from "../lib/TodoActionsContext";
 import MentionInput from "./MentionInput";
 import { useMentionRoster, splitMentions } from "../lib/mentions";
 
+/** Plain text with any http(s) links made clickable (opens a new tab, and
+ * doesn't also trigger tap-to-edit on the to-do). */
+function Linkified({ text }) {
+  const pieces = text.split(/(https?:\/\/[^\s]+)/g);
+  return pieces.map((p, i) =>
+    /^https?:\/\//.test(p) ? (
+      <a key={i} href={p} target="_blank" rel="noreferrer" className="todo-link" onClick={(e) => e.stopPropagation()}>
+        {p}
+      </a>
+    ) : (
+      p
+    )
+  );
+}
+
 /** To-do text with @-tagged people shown bold and in the brand color. */
 function TodoText({ text }) {
   const roster = useMentionRoster();
   return splitMentions(text, roster).map((part, i) =>
     typeof part === "string" ? (
-      part
+      <Linkified key={i} text={part} />
     ) : (
       <strong key={i} className="todo-mention" title={part.agent.name}>
         {part.mention}

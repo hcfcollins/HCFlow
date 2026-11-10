@@ -229,7 +229,7 @@ async function sendClosingReminders(
 
     const cd = tx.commission_data || {};
     const townWater = tx.town_water_sewer === true || tx.utilities?.Water === "Town Water";
-    const townSewer = tx.town_water_sewer === true || tx.utilities?.Septic === "Town Septic";
+    const townSewer = tx.town_water_sewer === true || (tx.utilities?.Septic === "Town Sewer" || tx.utilities?.Septic === "Town Septic");
     const publicWaterSewer = townWater || townSewer;
     const firstDeposit = Number(cd.deposit_amount) || 0;
     const secondDeposit = cd.second_deposit === "Yes" ? Number(cd.second_deposit_amount) || 0 : 0;

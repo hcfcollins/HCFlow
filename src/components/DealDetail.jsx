@@ -24,6 +24,7 @@ import {
   NOT_SPECIFIED,
   recommendationOptionsFor,
   visibleUtilityFields,
+  normalizeUtilities,
 } from "../lib/compFieldOptions";
 
 /** Formats a "YYYY-MM-DD" date string as "Month Day, Year"; returns other formats unchanged. */
@@ -96,7 +97,8 @@ export default function DealDetail({
   const [showOpenHouse, setShowOpenHouse] = useState(false);
   // Social posts only make sense for a listing (not a buyer-side deal) that's at
   // least reached Won — that's when its Dropbox Photos folder first exists.
-  const canPostSocial = !isBuySide && Boolean(transaction.dropbox_folder_path);
+  // Never for the transaction coordinator — social media isn't part of her role.
+  const canPostSocial = !isCoordinator && !isBuySide && Boolean(transaction.dropbox_folder_path);
   const swipeStart = useRef(null);
   const swipeIntent = useRef(null);
   const showToast = useToast();
@@ -372,8 +374,9 @@ export default function DealDetail({
           ) : (
             <>
               <p className="field-help">
-                Commission's been closed out. Review the file for anything missing, then mark it closed for compliance —
-                the final step.
+                Commission's been closed out. Work through the compliance checklist in the To-Do list (review the file,
+                send the closing docs + review link to the agent, add buyer and seller to the Postable list), then mark it
+                closed for compliance — the final step.
               </p>
               <button
                 type="button"
@@ -1235,7 +1238,8 @@ function CompDetailsEditForm({ transaction, handleFieldSave, onDone }) {
  * the whole section into a form (text inputs, plus radios for Water/Septic)
  * saved in a single write — much faster for bulk entry than a pencil per
  * field. Opens straight into edit mode when nothing's been entered yet. */
-function UtilityProvidersEditor({ utilities, onSave }) {
+function UtilityProvidersEditor({ utilities: rawUtilities, onSave }) {
+  const utilities = normalizeUtilities(rawUtilities);
   const hasAny = Object.values(utilities || {}).some(Boolean);
   const [editing, setEditing] = useState(!hasAny);
   const [draft, setDraft] = useState(utilities || {});
@@ -1298,10 +1302,18 @@ function UtilityProvidersEditor({ utilities, onSave }) {
           <label key={f.key}>
             {f.key}
             <input
+              list={f.suggestions ? `utility-suggest-${f.key}` : undefined}
               value={draft[f.key] || ""}
               onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
-              placeholder="Provider name"
+              placeholder={f.suggestions ? "Pick one, or type another" : "Provider name"}
             />
+            {f.suggestions && (
+              <datalist id={`utility-suggest-${f.key}`}>
+                {f.suggestions.map((o) => (
+                  <option key={o} value={o} />
+                ))}
+              </datalist>
+            )}
           </label>
         )
       )}

@@ -50,6 +50,7 @@ export default function TransactionList({
           tx={tx}
           stages={stages}
           isBroker={isBroker}
+          hideSocial={currentAgent.role === "coordinator"}
           onStageChange={onStageChange}
           onNotesChange={onNotesChange}
           onCompsStatusChange={onCompsStatusChange}
@@ -68,6 +69,7 @@ function TxCard({
   tx,
   stages,
   isBroker,
+  hideSocial,
   onStageChange,
   onNotesChange,
   onCompsStatusChange,
@@ -90,7 +92,8 @@ function TxCard({
   // Same gate as the deal detail screen's social post menu — a listing (not a
   // buyer-side deal) that's at least reached Won, when its Dropbox Photos folder
   // first exists.
-  const canPostSocial = !isBuySide && Boolean(tx.dropbox_folder_path);
+  // Never for the transaction coordinator — social media isn't part of her role.
+  const canPostSocial = !hideSocial && !isBuySide && Boolean(tx.dropbox_folder_path);
   const statusBadge = closingStatusBadge(tx);
 
   return (

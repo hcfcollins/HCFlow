@@ -424,12 +424,50 @@ const WON_LISTING_BASELINE_TODOS = [
   "Go Live",
 ];
 
-/** Pre-populates the standard checklist when a deal first moves into Listing Won. */
+/** "@Kerry " (every active transaction coordinator's first name), so a
+ * seeded to-do shows her tagged — "" if there's no coordinator on the roster. */
+async function coordinatorTag() {
+  const { data } = await supabase.from("agents").select("name").eq("role", "coordinator").eq("is_active", true);
+  return (data || []).map((a) => `@${a.name.split(/\s+/)[0]} `).join("");
+}
+
+export const MLS_PARTIAL_TODO = "Input Partial in MLS";
+
+/** Pre-populates the standard checklist when a deal first moves into Listing
+ * Won, plus the coordinator's tagged "Input Partial in MLS" to-do. Returns
+ * that to-do's text so the caller can email her about it. */
 export async function seedWonListingTodos(transactionId) {
+  const mlsTodo = `${await coordinatorTag()}${MLS_PARTIAL_TODO}`;
   const { error } = await supabase
     .from("todos")
-    .insert(WON_LISTING_BASELINE_TODOS.map((text) => ({ transaction_id: transactionId, text })));
+    .insert([...WON_LISTING_BASELINE_TODOS, mlsTodo].map((text) => ({ transaction_id: transactionId, text })));
   if (error) throw error;
+  return mlsTodo;
+}
+
+export const REVIEW_LINK = "https://g.page/r/CQqNLCVhrYdhEBM/review";
+const COMPLIANCE_TODOS = [
+  "Review the file for any missing information",
+  `Send the closing docs to the agent and remind them to ask for a review: ${REVIEW_LINK}`,
+  "Add the buyer and seller details to the Postable list",
+];
+
+/** The coordinator's post-closing compliance checklist, created (tagged to
+ * her) the first time a broker closes the deal out. Idempotent — re-saving
+ * an existing close-out doesn't duplicate it. Returns the created texts, or
+ * [] if they already existed. */
+export async function seedComplianceTodos(transactionId) {
+  const { data: existing } = await supabase
+    .from("todos")
+    .select("id")
+    .eq("transaction_id", transactionId)
+    .ilike("text", "%Postable list%");
+  if (existing?.length) return [];
+  const tag = await coordinatorTag();
+  const texts = COMPLIANCE_TODOS.map((t) => `${tag}${t}`);
+  const { error } = await supabase.from("todos").insert(texts.map((text) => ({ transaction_id: transactionId, text })));
+  if (error) throw error;
+  return texts;
 }
 
 /** `date` (a "YYYY-MM-DD" string) minus `days` days, as another "YYYY-MM-DD"
@@ -781,6 +819,17 @@ export async function saveCloseout(transactionId, closeoutFields) {
   if (error) throw error;
 
   await updateTransactionStage(transactionId, "closed");
+
+  // Hand off to the transaction coordinator: her checklist + one email.
+  // Best-effort — the close-out itself already saved.
+  try {
+    const created = await seedComplianceTodos(transactionId);
+    if (created.length) {
+      await notifyTodo({ transactionId, event: "compliance_ready", text: created.map((t) => `• ${t.replace(/^(@\S+\s)+/, "")}`).join("\n") });
+    }
+  } catch (e) {
+    console.error("Couldn't set up the compliance checklist:", e);
+  }
 }
 
 export async function fetchSignInventory() {

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useMentionRoster, mentionTokenFor, firstName } from "../lib/mentions";
+import { useMentionRoster, mentionTokenFor, firstName, splitMentions } from "../lib/mentions";
 
 /** A text input that pops up matching people while you type "@Ra…" — pick
  * one with a click, Enter, or Tab (arrow keys move the highlight, Escape
@@ -9,6 +9,7 @@ import { useMentionRoster, mentionTokenFor, firstName } from "../lib/mentions";
 export default function MentionInput({ value, onChange, onKeyDown, className, ...rest }) {
   const roster = useMentionRoster();
   const inputRef = useRef(null);
+  const overlayRef = useRef(null);
   const [query, setQuery] = useState(null); // { text, start } of the "@word" being typed, or null
   const [highlight, setHighlight] = useState(0);
 
@@ -47,16 +48,39 @@ export default function MentionInput({ value, onChange, onKeyDown, className, ..
     });
   }
 
+  // The text you type is drawn by this overlay *behind* a transparent-text
+  // input, so a confirmed @name can show in color while you're still typing.
+  // Real bold would change letter widths and knock the caret out of line with
+  // the text, so the "bold" here is a text-stroke that keeps widths identical.
+  const syncScroll = () => {
+    if (overlayRef.current && inputRef.current) overlayRef.current.scrollLeft = inputRef.current.scrollLeft;
+  };
+
   return (
     <div className="mention-input-wrap">
+      <div ref={overlayRef} className={`${className || ""} mention-overlay`} aria-hidden="true">
+        {splitMentions(value, roster).map((part, i) =>
+          typeof part === "string" ? (
+            <span key={i}>{part}</span>
+          ) : (
+            <span key={i} className="mention-overlay-tag">
+              {part.mention}
+            </span>
+          )
+        )}
+        {"\u200b"}
+      </div>
       <input
         {...rest}
         ref={inputRef}
-        className={className}
+        className={`${className || ""} mention-input--overlaid`}
         value={value}
+        onScroll={syncScroll}
+        onSelect={syncScroll}
         onChange={(e) => {
           onChange(e.target.value);
           detect(e.target.value, e.target.selectionStart);
+          requestAnimationFrame(syncScroll);
         }}
         onKeyDown={(e) => {
           if (open) {
