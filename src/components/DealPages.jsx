@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X, Signpost } from "lucide-react";
 import TransactionList from "./TransactionList";
 import { TodoRow } from "./TodoList";
@@ -767,7 +767,23 @@ function SocialRotationFilter({ transactions, onOpenDetail }) {
   );
 }
 
-function UnderContractPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onAddTodo, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail }) {
+function UnderContractPage({ transactions: allTransactions, stages, currentAgent, onStageChange, onNotesChange, onAddTodo, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail }) {
+  // Broker/TC only — everyone else only ever sees their own deals anyway.
+  const canFilterByAgent = currentAgent?.role === "broker" || currentAgent?.role === "coordinator";
+  const [agentFilter, setAgentFilter] = useState(null); // agent id, or null = everyone
+  const agentCounts = useMemo(() => {
+    const byId = new Map();
+    for (const tx of allTransactions) {
+      if (!tx.agent_id) continue;
+      const entry = byId.get(tx.agent_id) || { id: tx.agent_id, name: tx.agent?.name || "Unknown", count: 0 };
+      entry.count++;
+      byId.set(tx.agent_id, entry);
+    }
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [allTransactions]);
+  // If the picked agent no longer has any deals here, fall back to everyone.
+  const activeFilter = agentFilter && agentCounts.some((a) => a.id === agentFilter) ? agentFilter : null;
+  const transactions = canFilterByAgent && activeFilter ? allTransactions.filter((tx) => tx.agent_id === activeFilter) : allTransactions;
   const sellers = transactions.filter((tx) => tx.side === "Sell");
   const buyers = transactions.filter((tx) => tx.side === "Buy");
   const [sellersCollapsed, setSellersCollapsed] = useAutoCollapse(sellers.length);
@@ -775,6 +791,28 @@ function UnderContractPage({ transactions, stages, currentAgent, onStageChange, 
 
   return (
     <div className="comps-page">
+      {canFilterByAgent && agentCounts.length > 1 && (
+        <div className="agent-filter-chips" role="group" aria-label="Filter by agent">
+          <button
+            type="button"
+            className={`agent-filter-chip${activeFilter ? "" : " agent-filter-chip--active"}`}
+            onClick={() => setAgentFilter(null)}
+          >
+            All <span className="agent-filter-chip-count">{allTransactions.length}</span>
+          </button>
+          {agentCounts.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              className={`agent-filter-chip${activeFilter === a.id ? " agent-filter-chip--active" : ""}`}
+              onClick={() => setAgentFilter(activeFilter === a.id ? null : a.id)}
+            >
+              {a.name.split(" ")[0]} <span className="agent-filter-chip-count">{a.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="comps-section comps-section--sellers">
         <div className="comps-section-header">
           <h2 className="comps-section-title">
