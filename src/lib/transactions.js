@@ -980,9 +980,9 @@ export function todoHasMention(text) {
  * when the transaction coordinator adds it, plus anyone @-mentioned by first
  * name. All recipient resolution happens server-side in notify-todo (it
  * verifies the caller from their own session). Returns { notified: [names] }. */
-export async function notifyTodo({ transactionId, text, dueDate, notifyOwner = false, event = "todo" }) {
+export async function notifyTodo({ transactionId, text, dueDate, notifyOwner = false, remindAgentId = null, event = "todo" }) {
   const { data, error } = await supabase.functions.invoke("notify-todo", {
-    body: { transactionId, text, dueDate: dueDate || null, notifyOwner, event, appUrl: window.location.origin },
+    body: { transactionId, text, dueDate: dueDate || null, notifyOwner, remindAgentId, event, appUrl: window.location.origin },
   });
   if (error) {
     if (error.context?.json) {

@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
     const user = await userRes.json();
     if (!userRes.ok || !user.email) return jsonResponse({ error: "Could not verify who you're signed in as" }, 401);
 
-    const { transactionId, text: rawText, dueDate, appUrl, notifyOwner, event } = await req.json();
+    const { transactionId, text: rawText, dueDate, appUrl, notifyOwner, remindAgentId, event } = await req.json();
     const isCloseoutEvent = event === "ready_for_closeout";
     // Coordinator-facing events: a comp moved to Listing Won (her "Input
     // Partial in MLS" to-do was just created), or a broker closed a deal (her
@@ -183,6 +183,10 @@ Deno.serve(async (req) => {
       for (const a of roster.filter((r) => r.role === "coordinator")) recipients.set(a.id, { agent: a, reason });
     } else if (isCloseoutEvent) {
       for (const a of roster.filter((r) => r.role === "broker")) recipients.set(a.id, { agent: a, reason: "closeout" });
+    } else if (notifyOwner && isStaff && remindAgentId) {
+      // Staff bell with a specific person picked — just them, nobody else.
+      const target = roster.find((a) => a.id === remindAgentId);
+      if (target) recipients.set(target.id, { agent: target, reason: "reminder" });
     } else {
       if (tx.agent_id && ((caller.role === "coordinator") || (notifyOwner && isStaff))) {
         const owner = roster.find((a) => a.id === tx.agent_id);

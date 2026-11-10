@@ -29,6 +29,7 @@ import {
 import { TodoActionsContext } from "./lib/TodoActionsContext";
 import { buildUtilityEmail, openGmailCompose } from "./lib/clientEmail";
 import ActiveListingForm from "./components/ActiveListingForm";
+import { useMentionRoster } from "./lib/mentions";
 import { Bell, Mail } from "lucide-react";
 // Bumped automatically on every commit by .githooks/pre-commit.
 import versionInfo from "./version.json";
@@ -77,6 +78,22 @@ export default function App() {
   const [showNewCompForm, setShowNewCompForm] = useState(false);
   const [showActiveListingForm, setShowActiveListingForm] = useState(false);
   const [notifyingTodoId, setNotifyingTodoId] = useState(null);
+  const [remindMenuTodoId, setRemindMenuTodoId] = useState(null); // which to-do's "remind who?" menu is open
+  const mentionRoster = useMentionRoster();
+
+  // Tap anywhere outside an open "remind who?" menu to close it.
+  useEffect(() => {
+    if (!remindMenuTodoId) return;
+    const close = (e) => {
+      if (!e.target.closest?.(".remind-wrap")) setRemindMenuTodoId(null);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("touchstart", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("touchstart", close);
+    };
+  }, [remindMenuTodoId]);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [closingTransaction, setClosingTransaction] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -294,10 +311,11 @@ export default function App() {
   }
 
   /** Staff bell on a to-do: email + in-app remind the deal's agent about it. */
-  async function handleNotifyTodoOwner(todo) {
+  async function handleNotifyTodoOwner(todo, remindAgentId) {
+    setRemindMenuTodoId(null);
     setNotifyingTodoId(todo.id);
     try {
-      const result = await notifyTodo({ transactionId: todo.transaction_id, text: todo.text, dueDate: todo.due_date, notifyOwner: true });
+      const result = await notifyTodo({ transactionId: todo.transaction_id, text: todo.text, dueDate: todo.due_date, notifyOwner: true, remindAgentId });
       if (result?.notified?.length) {
         const missing = result.noEmailOnFile?.length ? ` (no email on file for ${result.noEmailOnFile.join(", ")})` : "";
         showToast(`Reminded ${result.notified.join(", ")}${missing}${result.testMode ? " — test mode, email went to you" : ""}`);
@@ -335,22 +353,36 @@ export default function App() {
         </button>
       );
     }
-    if (isStaffUser && !viewAsAgent && tx.agent_id && tx.agent_id !== agent.id) {
+    if (isStaffUser && !viewAsAgent) {
+      // Anyone but yourself, the deal's own agent first.
+      const people = mentionRoster
+        .filter((p) => p.id !== agent.id)
+        .sort((a, b) => (a.id === tx.agent_id ? -1 : b.id === tx.agent_id ? 1 : a.name.localeCompare(b.name)));
+      const menuOpen = remindMenuTodoId === todo.id;
       buttons.push(
-        <button
-          key="notify"
-          type="button"
-          className="todo-action-btn"
-          disabled={notifyingTodoId === todo.id}
-          aria-label={`Remind ${tx.agent?.name || "the agent"} about this to-do`}
-          title={`Remind ${tx.agent?.name || "the agent"} about this to-do`}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleNotifyTodoOwner(todo);
-          }}
-        >
-          <Bell size={11} />
-        </button>
+        <span key="notify" className="remind-wrap" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className="todo-action-btn"
+            disabled={notifyingTodoId === todo.id}
+            aria-label="Send someone a reminder about this to-do"
+            title="Send someone a reminder about this to-do"
+            onClick={() => setRemindMenuTodoId(menuOpen ? null : todo.id)}
+          >
+            <Bell size={12} />
+          </button>
+          {menuOpen && (
+            <div className="remind-menu" role="menu">
+              <div className="remind-menu-title">Remind…</div>
+              {people.map((p) => (
+                <button key={p.id} type="button" role="menuitem" onClick={() => handleNotifyTodoOwner(todo, p.id)}>
+                  {p.name}
+                  {p.id === tx.agent_id ? <span className="remind-menu-hint"> · deal agent</span> : null}
+                </button>
+              ))}
+            </div>
+          )}
+        </span>
       );
     }
     return buttons.length ? buttons : null;
