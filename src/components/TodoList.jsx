@@ -1,6 +1,22 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { useTodoActions } from "../lib/TodoActionsContext";
+import MentionInput from "./MentionInput";
+import { useMentionRoster, splitMentions } from "../lib/mentions";
+
+/** To-do text with @-tagged people shown bold and in the brand color. */
+function TodoText({ text }) {
+  const roster = useMentionRoster();
+  return splitMentions(text, roster).map((part, i) =>
+    typeof part === "string" ? (
+      part
+    ) : (
+      <strong key={i} className="todo-mention" title={part.agent.name}>
+        {part.mention}
+      </strong>
+    )
+  );
+}
 
 function formatCompletedDate(dateStr) {
   if (!dateStr) return null;
@@ -38,11 +54,11 @@ export function TodoRow({ todo, onToggle, onEdit, onDelete, propertyLabel, onPro
   if (editing) {
     return (
       <div className="todo-item todo-item--editing">
-        <input
+        <MentionInput
           autoFocus
           className="todo-edit-input"
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={setDraft}
           onBlur={commitEdit}
           onKeyDown={(e) => {
             if (e.key === "Enter") e.target.blur();
@@ -64,7 +80,7 @@ export function TodoRow({ todo, onToggle, onEdit, onDelete, propertyLabel, onPro
       <div className="todo-item-main">
         <div className="todo-item-top-row">
           <span className="todo-text" onClick={() => setEditing(true)}>
-            {todo.text}
+            <TodoText text={todo.text} />
           </span>
           {badge && <span className={`todo-due-badge ${badge.className}`}>{badge.label}</span>}
           {todo.done && todo.completed_at && <span className="todo-completed-date">{formatCompletedDate(todo.completed_at)}</span>}
@@ -110,9 +126,9 @@ export default function TodoList({ todos = [], onAdd, onToggle, onEdit, onDelete
         <TodoRow key={t.id} todo={t} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} renderActions={renderActions} />
       ))}
       <form className="todo-add" onSubmit={handleAdd}>
-        <input
+        <MentionInput
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={setText}
           placeholder="Add a to-do… (@name to notify)"
         />
         <button
