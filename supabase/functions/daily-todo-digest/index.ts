@@ -1,3 +1,16 @@
+// ── EMAILS_LIVE ── Fran's test-mode switch for every automatic email this
+// function sends. While false, everything goes ONLY to Fran, with a yellow
+// banner naming who it would really have gone to. Flip to true (and
+// redeploy) only once Fran explicitly authorizes going live to everyone.
+// notify-todo has its own matching constant.
+const EMAILS_LIVE = false;
+
+// Runs two daily automations off the one pg_cron trigger:
+//  1. The to-do digest (below).
+//  2. Closing reminders (sendClosingReminders) — 10 days before a listing
+//     closes: order the final town water/sewer reading, send the deposit
+//     check to the attorneys.
+//
 // Daily 6:15 AM (Vermont time) to-do reminder email: one email per agent,
 // listing the open to-dos on their own active deals, grouped by property,
 // with Overdue / Due Today called out first. Agents with nothing open get no
@@ -25,6 +38,8 @@ const GMAIL_CLIENT_SECRET = Deno.env.get("GMAIL_CLIENT_SECRET")!;
 const GMAIL_REFRESH_TOKEN = Deno.env.get("GMAIL_REFRESH_TOKEN")!;
 const GMAIL_SENDER_EMAIL = Deno.env.get("GMAIL_SENDER_EMAIL") || "fran.collins@hallcollins.com";
 const FRAN_EMAIL = "fran.collins@hallcollins.com";
+const HOLLY_EMAIL = "holly.hall@hallcollins.com";
+const CLOSING_REMINDER_DAYS = 10;
 const TZ = "America/New_York";
 const APP_URL = "https://hc-flow.vercel.app";
 
@@ -105,10 +120,11 @@ function encodeSubject(subject: string): string {
   return `=?UTF-8?B?${btoa(String.fromCharCode(...new TextEncoder().encode(subject)))}?=`;
 }
 
-async function sendGmail(accessToken: string, to: string, subject: string, html: string) {
+async function sendGmail(accessToken: string, to: string, subject: string, html: string, cc: string[] = []) {
   const headers = [
     `From: Hall Collins Flow <${GMAIL_SENDER_EMAIL}>`,
     `To: ${to}`,
+    ...(cc.length ? [`Cc: ${cc.join(", ")}`] : []),
     `Subject: ${encodeSubject(subject)}`,
     "MIME-Version: 1.0",
     "Content-Type: text/html; charset=UTF-8",
@@ -151,6 +167,122 @@ function rank(t: Todo, today: string): number {
   return 2;
 }
 
+function addDays(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  return dt.toISOString().slice(0, 10);
+}
+
+/** Normalizes next_date (plain text, mixed formats) to YYYY-MM-DD, or null. */
+function normalizeYmd(v: string | null): string | null {
+  if (!v) return null;
+  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(v);
+  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(v);
+  if (m) return `${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+  return null;
+}
+
+function money(n: number): string {
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** 10 days before a listing closes: order the final town water/sewer reading
+ * (only if it's on public water/sewer) and send the deposit check to the
+ * attorneys (only if we hold a deposit). To the listing agent, cc Fran +
+ * Holly. `windowTest` (the Test button) instead covers every listing closing
+ * in the next 14 days, so there's something to look at. */
+async function sendClosingReminders(
+  accessToken: string,
+  agents: { id: string; name: string; email: string | null }[],
+  today: string,
+  testMode: boolean,
+  windowTest: boolean,
+  errors: string[]
+) {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/transactions?terminated_at=is.null&stage=eq.contract&select=` +
+      encodeURIComponent(
+        "id,address,side,agent_id,next_date,town_water_sewer,utilities," +
+          "buyer_attorney:attorneys!transactions_buyer_attorney_id_fkey(name),seller_attorney:attorneys!transactions_seller_attorney_id_fkey(name)," +
+          "commission_data(hold_deposit,deposit_amount,second_deposit,second_deposit_amount)"
+      ),
+    { headers: serviceHeaders }
+  );
+  const txs = await res.json();
+  if (!res.ok) {
+    errors.push(`Closing reminders: couldn't load deals: ${JSON.stringify(txs)}`);
+    return [];
+  }
+
+  const target = addDays(today, CLOSING_REMINDER_DAYS);
+  const windowEnd = addDays(today, 14);
+  const results: { address: string; to: string; closing: string }[] = [];
+
+  for (const tx of txs) {
+    // Listing side only — a Buy-only deal has no deposit we hold or seller
+    // utilities of ours to close out.
+    if (tx.side === "Buy") continue;
+    const closing = normalizeYmd(tx.next_date);
+    if (!closing) continue;
+    if (windowTest ? closing < today || closing > windowEnd : closing !== target) continue;
+
+    const cd = tx.commission_data || {};
+    const townWater = tx.town_water_sewer === true || tx.utilities?.Water === "Town Water";
+    const townSewer = tx.town_water_sewer === true || tx.utilities?.Septic === "Town Septic";
+    const publicWaterSewer = townWater || townSewer;
+    const firstDeposit = Number(cd.deposit_amount) || 0;
+    const secondDeposit = cd.second_deposit === "Yes" ? Number(cd.second_deposit_amount) || 0 : 0;
+    const deposit = cd.hold_deposit === "Yes" ? firstDeposit + secondDeposit : 0;
+    if (!publicWaterSewer && !deposit) continue;
+
+    const agent = agents.find((a) => a.id === tx.agent_id);
+    const realTo = agent?.email || FRAN_EMAIL;
+    const realCc = [FRAN_EMAIL, HOLLY_EMAIL].filter((e) => e !== realTo);
+
+    const waterSewerLabel = townWater && townSewer ? "water/sewer" : townWater ? "water" : "sewer";
+    const attorneys = [
+      tx.seller_attorney?.name ? `${escapeHtml(tx.seller_attorney.name)} (seller's attorney)` : null,
+      tx.buyer_attorney?.name ? `${escapeHtml(tx.buyer_attorney.name)} (buyer's attorney)` : null,
+    ].filter(Boolean);
+    const daysOut = Math.round((Date.parse(closing) - Date.parse(today)) / 86400000);
+
+    const items: string[] = [];
+    if (publicWaterSewer) {
+      items.push(`<li><strong>Order the final ${waterSewerLabel} reading</strong> from the town — the property is on public ${waterSewerLabel}.</li>`);
+    }
+    if (deposit) {
+      const breakdown = secondDeposit ? ` (${money(firstDeposit)} + ${money(secondDeposit)} second deposit)` : "";
+      const attorneyLine = attorneys.length
+        ? `<br/>Attorney${attorneys.length > 1 ? "s" : ""} on file: ${attorneys.join(", ")}`
+        : " <em>No attorney on file yet — add one in HC Flow.</em>";
+      items.push(
+        `<li><strong>Send the deposit check to the attorney${attorneys.length > 1 ? "s" : ""}</strong> — total deposit held: <strong>${money(deposit)}</strong>${breakdown}.${attorneyLine}</li>`
+      );
+    }
+
+    let html = `<p>Hi ${escapeHtml((agent?.name || "there").split(/\s+/)[0])},</p>
+<p><strong>${escapeHtml(tx.address)}</strong> closes on <strong>${escapeHtml(shortDate(closing))}</strong> — ${daysOut} day${daysOut === 1 ? "" : "s"} from now. Time to:</p>
+<ul style="padding-left:20px;">${items.join("")}</ul>
+<p><a href="${APP_URL}">Open HC Flow</a></p>
+<p><em>Love, Jeeves — your happy Hall Collins robot!</em></p>`;
+    if (testMode) {
+      const ccNote = realCc.length ? ` (cc ${escapeHtml(realCc.join(", "))})` : "";
+      const windowNote = windowTest
+        ? " Test runs include every listing closing in the next 14 days; for real it only goes out exactly 10 days before closing."
+        : "";
+      html = `<div style="background:#FBF2D5;border:1px solid #E0C23A;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:13px;">🧪 <strong>TEST MODE</strong> — this would have gone to <strong>${escapeHtml(realTo)}</strong>${ccNote}.${windowNote}</div>${html}`;
+    }
+    try {
+      await sendGmail(accessToken, testMode ? FRAN_EMAIL : realTo, `Closing in ${daysOut} days: ${tx.address}`, html, testMode ? [] : realCc);
+      results.push({ address: tx.address, to: realTo, closing });
+    } catch (e) {
+      errors.push(`Closing reminder ${tx.address}: ${String(e)}`);
+    }
+  }
+  return results;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers: CORS_HEADERS });
@@ -167,6 +299,8 @@ Deno.serve(async (req) => {
       // empty body from cron is fine
     }
     if (fromBroker) body = { force: true, testMode: true };
+    // Not live yet -> every run is a test run, the 6:15 cron included.
+    if (!EMAILS_LIVE) body.testMode = true;
     const { date: today, hour } = nowInVermont();
     if (!body.force && hour !== 6) return json({ skipped: `It's ${hour}:xx in Vermont, not 6` });
 
@@ -225,7 +359,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ today, testMode: Boolean(body.testMode), sent, errors });
+    const closingReminders = await sendClosingReminders(accessToken, agents, today, Boolean(body.testMode), fromBroker, errors);
+
+    return json({ today, testMode: Boolean(body.testMode), sent, closingReminders, errors });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

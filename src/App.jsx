@@ -219,7 +219,7 @@ export default function App() {
         const result = await notifyTodo({ transactionId: id, text, dueDate });
         if (result?.notified?.length) {
           const missing = result.noEmailOnFile?.length ? ` (no email on file for ${result.noEmailOnFile.join(", ")})` : "";
-          showToast(`Notified ${result.notified.join(", ")}${missing}`);
+          showToast(`Notified ${result.notified.join(", ")}${missing}${result.testMode ? " — test mode, email went to you" : ""}`);
         }
         if (result?.emailErrors?.length) console.error("notify-todo email errors:", result.emailErrors);
       } catch (e) {
@@ -279,7 +279,8 @@ export default function App() {
     try {
       const result = await sendTestDailyDigest();
       const n = result?.sent?.length || 0;
-      showToast(n ? `Sent ${n} test digest${n === 1 ? "" : "s"} to your inbox (${result.sent.map((x) => x.agent).join(", ")})` : "No agents have open to-dos — nothing to send");
+      const c = result?.closingReminders?.length || 0;
+      showToast(`Sent to your inbox: ${n} to-do digest${n === 1 ? "" : "s"}, ${c} closing reminder${c === 1 ? "" : "s"}`);
       if (result?.errors?.length) console.error("Digest errors:", result.errors);
     } catch (e) {
       showToast(`Couldn't send the test digest: ${e.message}`);
@@ -295,7 +296,7 @@ export default function App() {
       const result = await notifyTodo({ transactionId: todo.transaction_id, text: todo.text, dueDate: todo.due_date, notifyOwner: true });
       if (result?.notified?.length) {
         const missing = result.noEmailOnFile?.length ? ` (no email on file for ${result.noEmailOnFile.join(", ")})` : "";
-        showToast(`Reminded ${result.notified.join(", ")}${missing}`);
+        showToast(`Reminded ${result.notified.join(", ")}${missing}${result.testMode ? " — test mode, email went to you" : ""}`);
       } else {
         showToast("Nobody to notify on this deal");
       }
@@ -675,7 +676,7 @@ export default function App() {
                 for this path). Remove once the digest is dialed in. */}
             {isRealBroker && !viewAs && (
               <button disabled={sendingTestDigest} onClick={handleSendTestDigest} title="Temporary — email every agent's daily digest to you, in test mode">
-                {sendingTestDigest ? "Sending…" : "Test Daily Digest"}
+                {sendingTestDigest ? "Sending…" : "Test Daily Emails"}
               </button>
             )}
             {effectiveAgent.role === "broker" && (

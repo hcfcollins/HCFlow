@@ -26,6 +26,13 @@ const GMAIL_CLIENT_SECRET = Deno.env.get("GMAIL_CLIENT_SECRET")!;
 const GMAIL_REFRESH_TOKEN = Deno.env.get("GMAIL_REFRESH_TOKEN")!;
 const GMAIL_SENDER_EMAIL = Deno.env.get("GMAIL_SENDER_EMAIL") || "fran.collins@hallcollins.com";
 
+// ── EMAILS_LIVE ── Fran's test-mode switch (matches daily-todo-digest).
+// While false, every email this sends goes ONLY to Fran, with a banner naming
+// the real recipient. In-app bell notifications still go to the real people.
+// Flip to true (and redeploy) only once Fran authorizes going live.
+const EMAILS_LIVE = false;
+const FRAN_EMAIL = "fran.collins@hallcollins.com";
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -230,7 +237,10 @@ ${appUrl ? `<p><a href="${escapeHtml(appUrl)}">Open HC Flow</a></p>` : ""}
 <p><em>Love, Jeeves — your happy Hall Collins robot!</em></p>`;
         try {
           const subject = reason === "closeout" ? `Ready for Closeout: ${tx.address}` : `To-do: ${tx.address}`;
-          await sendGmail(accessToken, agent.email!, subject, html);
+          const banner = EMAILS_LIVE
+            ? ""
+            : `<div style="background:#FBF2D5;border:1px solid #E0C23A;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:13px;">🧪 <strong>TEST MODE</strong> — this would have gone to <strong>${escapeHtml(agent.email!)}</strong>.</div>`;
+          await sendGmail(accessToken, EMAILS_LIVE ? agent.email! : FRAN_EMAIL, subject, banner + html);
         } catch (e) {
           emailErrors.push(`${agent.name}: ${String(e)}`);
         }
@@ -238,6 +248,7 @@ ${appUrl ? `<p><a href="${escapeHtml(appUrl)}">Open HC Flow</a></p>` : ""}
     }
 
     return jsonResponse({
+      testMode: !EMAILS_LIVE,
       notified: [...recipients.values()].map(({ agent }) => agent.name),
       noEmailOnFile: [...recipients.values()].filter(({ agent }) => !agent.email).map(({ agent }) => agent.name),
       emailErrors,
