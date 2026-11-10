@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { X } from "lucide-react";
+import { useTodoActions } from "../lib/TodoActionsContext";
 
 function formatCompletedDate(dateStr) {
   if (!dateStr) return null;
@@ -20,7 +21,9 @@ export function dueBadge(dueDate) {
 /** Tap the text to edit it in place (blur/Enter saves, Escape cancels) — separate
  * from the checkbox so toggling done and editing the text don't fight over the
  * same tap target the way they would if this were still one big <label>. */
-export function TodoRow({ todo, onToggle, onEdit, onDelete, propertyLabel, onPropertyClick }) {
+export function TodoRow({ todo, onToggle, onEdit, onDelete, propertyLabel, onPropertyClick, renderActions: renderActionsProp }) {
+  const contextActions = useTodoActions();
+  const renderActions = renderActionsProp || contextActions;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(todo.text);
   const badge = !todo.done && dueBadge(todo.due_date);
@@ -72,6 +75,7 @@ export function TodoRow({ todo, onToggle, onEdit, onDelete, propertyLabel, onPro
           </button>
         )}
       </div>
+      {renderActions && renderActions(todo)}
       <button type="button" className="todo-delete-btn" onClick={() => onDelete(todo.id)} aria-label="Delete to-do" title="Delete to-do">
         <X size={13} />
       </button>
@@ -79,7 +83,9 @@ export function TodoRow({ todo, onToggle, onEdit, onDelete, propertyLabel, onPro
   );
 }
 
-export default function TodoList({ todos = [], onAdd, onToggle, onEdit, onDelete }) {
+/** `renderActions(todo)` — optional extra per-row buttons (e.g. the staff
+ * "notify agent" bell, or Generate Utility Email on the Send Utilities to-do). */
+export default function TodoList({ todos = [], onAdd, onToggle, onEdit, onDelete, renderActions }) {
   const [text, setText] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [showDueDate, setShowDueDate] = useState(false);
@@ -101,13 +107,13 @@ export default function TodoList({ todos = [], onAdd, onToggle, onEdit, onDelete
   return (
     <div className="todo-list">
       {sortedTodos.map((t) => (
-        <TodoRow key={t.id} todo={t} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} />
+        <TodoRow key={t.id} todo={t} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} renderActions={renderActions} />
       ))}
       <form className="todo-add" onSubmit={handleAdd}>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Add a to-do…"
+          placeholder="Add a to-do… (@name to notify)"
         />
         <button
           type="button"

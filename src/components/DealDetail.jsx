@@ -8,7 +8,9 @@ import CloseoutCalculator from "./CloseoutCalculator";
 import ConfirmDialog from "./ConfirmDialog";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
-import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket } from "../lib/transactions";
+import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed } from "../lib/transactions";
+import { stageSelectValue, closingStatusBadge } from "../lib/stages";
+import { formatBac, gmailComposeUrl } from "../lib/clientEmail";
 import { focusNextOnEnter } from "../lib/formKeyNav";
 import {
   PROPERTY_STYLES,
@@ -205,7 +207,9 @@ export default function DealDetail({
     );
   }
 
-  if (showCloseoutCalculator) {
+  // Broker-only, belt and braces: the buttons that open it are already hidden
+  // for everyone else.
+  if (showCloseoutCalculator && isBroker) {
     return (
       <CloseoutCalculator
         transaction={transaction}
@@ -315,17 +319,81 @@ export default function DealDetail({
       <label>
         Stage
         <select
-          value={transaction.stage}
+          value={stageSelectValue(transaction, stages)}
           onChange={(e) => onStageChange(transaction, e.target.value)}
           className="stage-select"
         >
           {stages.map((s) => (
-            <option key={s.key} value={s.key}>
+            <option key={s.key} value={s.key} disabled={s.disabled}>
               {s.label}
             </option>
           ))}
         </select>
       </label>
+
+      {(() => {
+        const badge = closingStatusBadge(transaction);
+        return badge ? (
+          <p className="compliance-status">
+            <span className={`tx-status-badge ${badge.className}`} style={{ marginLeft: 0 }}>
+              {badge.label}
+            </span>
+            {transaction.stage === "contract" && !isBroker && (
+              <span className="field-help"> — waiting on Fran's commission review. Switch back to Under Contract to undo.</span>
+            )}
+          </p>
+        ) : null;
+      })()}
+
+      {transaction.stage === "closed" && !transaction.terminated_at && isStaff && (
+        <div className="detail-section">
+          <h2 className="comps-section-title">Compliance</h2>
+          {transaction.compliance_closed_at ? (
+            <>
+              <p className="field-help">
+                Closed for compliance {formatDate(transaction.compliance_closed_at.slice(0, 10))}.
+              </p>
+              <button
+                type="button"
+                className="comps-status-btn"
+                onClick={async () => {
+                  try {
+                    await setComplianceClosed(transaction.id, null);
+                    onRefresh();
+                    showToast("Compliance review reopened");
+                  } catch (e) {
+                    showToast(`Couldn't update: ${e.message}`);
+                  }
+                }}
+              >
+                Reopen Compliance Review
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="field-help">
+                Commission's been closed out. Review the file for anything missing, then mark it closed for compliance —
+                the final step.
+              </p>
+              <button
+                type="button"
+                className="google-btn"
+                onClick={async () => {
+                  try {
+                    await setComplianceClosed(transaction.id, currentAgent.id);
+                    onRefresh();
+                    showToast("Closed for compliance");
+                  } catch (e) {
+                    showToast(`Couldn't update: ${e.message}`);
+                  }
+                }}
+              >
+                Mark Closed for Compliance
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {transaction.stage === "comps" && onCompsStatusChange && (
         <div className="comps-status-toggle">
@@ -419,7 +487,7 @@ export default function DealDetail({
             {!isBuySide && (
               <EditableText
                 label="Buyer Agency Commission"
-                value={transaction.ba_comp}
+                value={formatBac(transaction.ba_comp)}
                 placeholder="e.g. 2.5%"
                 onSave={(v) => handleFieldSave({ ba_comp: v || null })}
               />
@@ -691,7 +759,7 @@ export default function DealDetail({
             </>
           )}
 
-          {!isCoordinator && (
+          {isBroker && (
             <button type="button" className="cma-export-btn" onClick={() => setShowCloseoutCalculator(true)}>
               <FileText size={14} /> {transaction.closeouts?.commission_after_referral != null ? "Edit Close-Out" : "Run Close-Out Calculator"}
             </button>
@@ -1298,7 +1366,7 @@ function EditableEmailList({ label, values, onSave }) {
       {values.length ? (
         values.map((email) => (
           <div key={email} className="editable-filled">
-            <a href={`mailto:${email}`} className="edit-icon-btn edit-icon-btn--leading" title={`Email ${email}`}>
+            <a href={gmailComposeUrl({ to: [email] })} target="_blank" rel="noreferrer" className="edit-icon-btn edit-icon-btn--leading" title={`Email ${email}`}>
               <Mail size={12} />
             </a>
             <span className="editable-filled-text">{email}</span>

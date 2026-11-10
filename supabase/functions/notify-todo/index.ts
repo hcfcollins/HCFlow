@@ -11,7 +11,13 @@
 // to see the deal (broker/coordinator, or the deal's own agent) — so this
 // can't be used to email arbitrary people about arbitrary deals.
 //
-// Expects POST { transactionId, text, dueDate?, appUrl? }.
+// Also handles two staff-triggered variants:
+// - notifyOwner: true (broker/coordinator tapping the bell on a to-do) ->
+//   remind the deal's agent about that existing to-do.
+// - event: "ready_for_closeout" (agent/TC flags a deal) -> both brokers, so
+//   Fran knows a commission review is waiting.
+//
+// Expects POST { transactionId, text?, dueDate?, notifyOwner?, event?, appUrl? }.
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -133,8 +139,10 @@ Deno.serve(async (req) => {
     const user = await userRes.json();
     if (!userRes.ok || !user.email) return jsonResponse({ error: "Could not verify who you're signed in as" }, 401);
 
-    const { transactionId, text, dueDate, appUrl } = await req.json();
-    if (!transactionId || !text) return jsonResponse({ error: "transactionId and text required" }, 400);
+    const { transactionId, text: rawText, dueDate, appUrl, notifyOwner, event } = await req.json();
+    const isCloseoutEvent = event === "ready_for_closeout";
+    const text = rawText || "";
+    if (!transactionId || (!text && !isCloseoutEvent)) return jsonResponse({ error: "transactionId and text required" }, 400);
 
     const rosterRes = await fetch(`${SUPABASE_URL}/rest/v1/agents?is_active=eq.true&select=id,name,email,role`, {
       headers: serviceHeaders,
@@ -152,13 +160,18 @@ Deno.serve(async (req) => {
     const isStaff = caller.role === "broker" || caller.role === "coordinator";
     if (!isStaff && tx.agent_id !== caller.id) return jsonResponse({ error: "Not your deal" }, 403);
 
-    const recipients = new Map<string, { agent: Agent; reason: "assigned" | "mention" }>();
-    if (caller.role === "coordinator" && tx.agent_id) {
-      const owner = roster.find((a) => a.id === tx.agent_id);
-      if (owner) recipients.set(owner.id, { agent: owner, reason: "assigned" });
-    }
-    for (const a of mentionedAgents(text, roster)) {
-      if (!recipients.has(a.id)) recipients.set(a.id, { agent: a, reason: "mention" });
+    type Reason = "assigned" | "mention" | "reminder" | "closeout";
+    const recipients = new Map<string, { agent: Agent; reason: Reason }>();
+    if (isCloseoutEvent) {
+      for (const a of roster.filter((r) => r.role === "broker")) recipients.set(a.id, { agent: a, reason: "closeout" });
+    } else {
+      if (tx.agent_id && ((caller.role === "coordinator") || (notifyOwner && isStaff))) {
+        const owner = roster.find((a) => a.id === tx.agent_id);
+        if (owner) recipients.set(owner.id, { agent: owner, reason: notifyOwner ? "reminder" : "assigned" });
+      }
+      for (const a of mentionedAgents(text, roster)) {
+        if (!recipients.has(a.id)) recipients.set(a.id, { agent: a, reason: "mention" });
+      }
     }
     recipients.delete(caller.id);
 
@@ -168,14 +181,23 @@ Deno.serve(async (req) => {
     const firstName = caller.name.split(/\s+/)[0];
 
     // In-app notifications first — they don't depend on Gmail working.
+    const KIND: Record<Reason, string> = {
+      assigned: "todo_assigned",
+      mention: "todo_mention",
+      reminder: "todo_reminder",
+      closeout: "ready_for_closeout",
+    };
+    function plainMessage(reason: Reason): string {
+      if (reason === "closeout") return `${firstName} marked ${tx.address} Ready for Closeout`;
+      if (reason === "mention") return `${firstName} mentioned you in a to-do on ${tx.address}: "${text}"`;
+      if (reason === "reminder") return `${firstName} sent you a reminder about a to-do on ${tx.address}: "${text}"`;
+      return `${firstName} added a to-do on ${tx.address}: "${text}"`;
+    }
     const rows = [...recipients.values()].map(({ agent, reason }) => ({
       recipient_agent_id: agent.id,
       transaction_id: tx.id,
-      kind: reason === "mention" ? "todo_mention" : "todo_assigned",
-      message:
-        reason === "mention"
-          ? `${firstName} mentioned you in a to-do on ${tx.address}: "${text}"`
-          : `${firstName} added a to-do on ${tx.address}: "${text}"`,
+      kind: KIND[reason],
+      message: plainMessage(reason),
       created_by_agent_id: caller.id,
     }));
     const insRes = await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
@@ -190,18 +212,25 @@ Deno.serve(async (req) => {
     if (withEmail.length) {
       const accessToken = await getGmailAccessToken();
       for (const { agent, reason } of withEmail) {
+        const who = escapeHtml(caller.name);
+        const where = `<strong>${escapeHtml(tx.address)}</strong>`;
         const intro =
-          reason === "mention"
-            ? `${escapeHtml(caller.name)} mentioned you in a to-do on <strong>${escapeHtml(tx.address)}</strong>:`
-            : `${escapeHtml(caller.name)} added a to-do on <strong>${escapeHtml(tx.address)}</strong>:`;
+          reason === "closeout"
+            ? `${who} marked ${where} <strong>Ready for Closeout</strong> — it's waiting on your commission review.`
+            : reason === "mention"
+            ? `${who} mentioned you in a to-do on ${where}:`
+            : reason === "reminder"
+            ? `${who} sent you a reminder about a to-do on ${where}:`
+            : `${who} added a to-do on ${where}:`;
         const html = `<p>Hi ${escapeHtml(agent.name.split(/\s+/)[0])},</p>
 <p>${intro}</p>
-<blockquote style="border-left:3px solid #E8A0B4;margin:12px 0;padding:6px 12px;">${escapeHtml(text)}</blockquote>
+${text ? `<blockquote style="border-left:3px solid #E8A0B4;margin:12px 0;padding:6px 12px;">${escapeHtml(text)}</blockquote>` : ""}
 ${due ? `<p><strong>Due:</strong> ${escapeHtml(due)}</p>` : ""}
 ${appUrl ? `<p><a href="${escapeHtml(appUrl)}">Open HC Flow</a></p>` : ""}
 <p><em>Love, Jeeves — your happy Hall Collins robot!</em></p>`;
         try {
-          await sendGmail(accessToken, agent.email!, `To-do: ${tx.address}`, html);
+          const subject = reason === "closeout" ? `Ready for Closeout: ${tx.address}` : `To-do: ${tx.address}`;
+          await sendGmail(accessToken, agent.email!, subject, html);
         } catch (e) {
           emailErrors.push(`${agent.name}: ${String(e)}`);
         }

@@ -49,6 +49,7 @@ export default function DealPages({
   searchResults,
   onNewComp,
   onNewUnderContract,
+  onNewActiveListing,
 }) {
   const [dragOffset, setDragOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -130,12 +131,19 @@ export default function DealPages({
           form pre-filled with that deal's details — a blank "+ Under Contract"
           button here would just invite a manually-typed, possibly mismatched or
           duplicate address. */}
-      {currentPageKey !== "active" && currentPageKey !== "all" && (onNewComp || onNewUnderContract) && (
+      {currentPageKey !== "active" && currentPageKey !== "all" && (onCompsPage ? onNewComp : onNewUnderContract) && (
         <button
           className={`google-btn uc-launch ${onCompsPage ? "uc-launch--comps" : "uc-launch--contract"}`}
           onClick={() => (onCompsPage ? onNewComp() : onNewUnderContract())}
         >
           {onCompsPage ? "+ New Comp" : "+ Under Contract"}
+        </button>
+      )}
+      {/* For bringing listings that already exist outside the app in — a short
+          form, not the full New Comp → Won → On Market path. */}
+      {currentPageKey === "active" && onNewActiveListing && (
+        <button className="google-btn uc-launch uc-launch--comps" onClick={onNewActiveListing}>
+          + Active Listing
         </button>
       )}
 
@@ -528,13 +536,15 @@ function ActiveListingsPage({
   return (
     <div className="comps-page">
       <div className="listing-filter-toggles">
-        <button
-          type="button"
-          className="sign-inventory-toggle"
-          onClick={() => setActiveFilter((f) => (f === "signs" ? null : "signs"))}
-        >
-          <Signpost size={14} /> {activeFilter === "signs" ? "Back to Listings" : "Sign Inventory"}
-        </button>
+        {currentAgent?.role !== "coordinator" && (
+          <button
+            type="button"
+            className="sign-inventory-toggle"
+            onClick={() => setActiveFilter((f) => (f === "signs" ? null : "signs"))}
+          >
+            <Signpost size={14} /> {activeFilter === "signs" ? "Back to Listings" : "Sign Inventory"}
+          </button>
+        )}
         {/* Not ready for general use yet — limited to Fran while the feature is
             still being worked on. Remove this gate once it's ready for everyone. */}
         {currentAgent?.email === "fran.collins@hallcollins.com" && (

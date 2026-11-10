@@ -23,7 +23,12 @@ import {
   updateTransactionFields,
   notifyTodo,
   todoHasMention,
+  setReadyForCloseout,
 } from "./lib/transactions";
+import { TodoActionsContext } from "./lib/TodoActionsContext";
+import { buildUtilityEmail, openGmailCompose } from "./lib/clientEmail";
+import ActiveListingForm from "./components/ActiveListingForm";
+import { Bell, Mail } from "lucide-react";
 import { useToast } from "./lib/ToastContext";
 import NotificationBell from "./components/NotificationBell";
 import DealPages from "./components/DealPages";
@@ -48,6 +53,17 @@ const STAGES = [
   { key: "closed", label: "Closed" },
 ];
 
+// Agents and the transaction coordinator can't close a deal themselves — only
+// a broker does, after reviewing the commission in the Close-Out Calculator.
+// They get "Ready for Closeout" instead (an Under Contract deal with
+// ready_for_closeout_at set, not a real stage), and Closed stays in the list
+// only so an already-closed deal still displays correctly.
+const NON_BROKER_STAGES = [
+  ...STAGES.filter((s) => s.key !== "closed"),
+  { key: "ready_closeout", label: "Ready for Closeout" },
+  { key: "closed", label: "Closed", disabled: true },
+];
+
 export default function App() {
   const { session, agent, loading: authLoading, signInWithGoogle, signOut } = useAuth();
   const [txs, setTxs] = useState([]);
@@ -56,6 +72,8 @@ export default function App() {
   const [showUnderContractForm, setShowUnderContractForm] = useState(false);
   const [underContractPrefill, setUnderContractPrefill] = useState(null);
   const [showNewCompForm, setShowNewCompForm] = useState(false);
+  const [showActiveListingForm, setShowActiveListingForm] = useState(false);
+  const [notifyingTodoId, setNotifyingTodoId] = useState(null);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [closingTransaction, setClosingTransaction] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -240,8 +258,77 @@ export default function App() {
   }
 
   async function handleDeleteTodo(id) {
-    await deleteTodo(id);
+    try {
+      await deleteTodo(id);
+    } catch (e) {
+      console.error("Failed to delete the to-do:", e);
+      showToast(e.message);
+      return;
+    }
     loadTransactions({ silent: true });
+  }
+
+  /** Staff bell on a to-do: email + in-app remind the deal's agent about it. */
+  async function handleNotifyTodoOwner(todo) {
+    setNotifyingTodoId(todo.id);
+    try {
+      const result = await notifyTodo({ transactionId: todo.transaction_id, text: todo.text, dueDate: todo.due_date, notifyOwner: true });
+      if (result?.notified?.length) {
+        const missing = result.noEmailOnFile?.length ? ` (no email on file for ${result.noEmailOnFile.join(", ")})` : "";
+        showToast(`Reminded ${result.notified.join(", ")}${missing}`);
+      } else {
+        showToast("Nobody to notify on this deal");
+      }
+    } catch (e) {
+      showToast(`Couldn't send the reminder: ${e.message}`);
+    } finally {
+      setNotifyingTodoId(null);
+    }
+  }
+
+  // Extra buttons on each to-do row, everywhere to-dos show (see
+  // TodoActionsContext). Not rendered for completed to-dos.
+  function renderTodoActions(todo) {
+    if (todo.done) return null;
+    const tx = txs.find((t) => t.id === todo.transaction_id);
+    if (!tx) return null;
+    const isStaffUser = agent?.role === "broker" || agent?.role === "coordinator";
+    const buttons = [];
+    if (todo.text === "Send Utilities") {
+      buttons.push(
+        <button
+          key="utility"
+          type="button"
+          className="todo-action-btn"
+          title={tx.seller_emails?.length ? "Open a pre-filled utility email to the client" : "No client email on file — add one on the deal first"}
+          onClick={(e) => {
+            e.stopPropagation();
+            openGmailCompose(buildUtilityEmail(tx));
+          }}
+        >
+          <Mail size={11} /> Utility Email
+        </button>
+      );
+    }
+    if (isStaffUser && !viewAsAgent && tx.agent_id && tx.agent_id !== agent.id) {
+      buttons.push(
+        <button
+          key="notify"
+          type="button"
+          className="todo-action-btn"
+          disabled={notifyingTodoId === todo.id}
+          aria-label={`Remind ${tx.agent?.name || "the agent"} about this to-do`}
+          title={`Remind ${tx.agent?.name || "the agent"} about this to-do`}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleNotifyTodoOwner(todo);
+          }}
+        >
+          <Bell size={11} />
+        </button>
+      );
+    }
+    return buttons.length ? buttons : null;
   }
 
   async function handleMarkSocialPosted(id) {
@@ -295,15 +382,40 @@ export default function App() {
   }
 
   /** Shared by the card's inline stage select and the detail screen's stage select. */
+  async function handleReadyForCloseout(tx, ready) {
+    try {
+      await setReadyForCloseout(tx.id, ready);
+    } catch (e) {
+      setError(`Couldn't update Ready for Closeout: ${e.message}`);
+      return;
+    }
+    await loadTransactions({ silent: true });
+    if (ready) {
+      showToast("Marked Ready for Closeout — Fran and Holly have been notified");
+      notifyTodo({ transactionId: tx.id, event: "ready_for_closeout" }).catch((e) =>
+        console.error("Ready for Closeout notification failed:", e)
+      );
+    }
+  }
+
   function handleStageChangeRequest(tx, newStage) {
+    const isBrokerUser = agent?.role === "broker" && !viewAsAgent;
+    if (newStage === "ready_closeout") {
+      handleReadyForCloseout(tx, true);
+      return;
+    }
+    if (newStage === "contract" && tx.stage === "contract" && tx.ready_for_closeout_at) {
+      handleReadyForCloseout(tx, false);
+      return;
+    }
+    if (newStage === "closed" && !isBrokerUser) return; // only a broker closes a deal
     if (newStage === "contract" && tx.stage !== "contract") {
       handleRequestUnderContract(tx);
-    } else if (newStage === "closed" && tx.stage !== "closed" && agent?.role === "broker" && !viewAsAgent) {
+    } else if (newStage === "closed" && tx.stage !== "closed") {
       // Same idea as Under Contract opening its form: closing a deal goes
       // straight into the Close-Out Calculator, which marks it Closed on save
-      // (and leaves the stage alone if cancelled). Broker-only — agents and
-      // the coordinator never see the commission split, so for them this
-      // still just changes the stage directly.
+      // (and leaves the stage alone if cancelled). Brokers only reach this —
+      // everyone else was stopped above.
       // A fresh value each time (not just `true`) so picking Closed again after
       // cancelling out of the calculator still re-triggers DealDetail's effect.
       setSelectedTransaction({ ...tx, _openCloseout: Date.now() });
@@ -344,6 +456,7 @@ export default function App() {
   // Agents, the Social Scheduler, or View as Agent.
   const isCoordinator = agent.role === "coordinator";
   const effectiveAgent = viewAsAgent ? { ...agent, role: "agent" } : agent;
+  const viewerStages = effectiveAgent.role === "broker" ? STAGES : NON_BROKER_STAGES;
 
   if (showUnderContractForm) {
     return (
@@ -430,6 +543,21 @@ export default function App() {
     );
   }
 
+  if (showActiveListingForm) {
+    return (
+      <div className="app">
+        <ActiveListingForm
+          currentAgent={effectiveAgent}
+          onCancel={() => setShowActiveListingForm(false)}
+          onSubmitted={() => {
+            setShowActiveListingForm(false);
+            loadTransactions();
+          }}
+        />
+      </div>
+    );
+  }
+
   if (showNewCompForm) {
     return (
       <div className="app">
@@ -450,13 +578,14 @@ export default function App() {
 
   if (selectedTransaction) {
     return (
+      <TodoActionsContext.Provider value={renderTodoActions}>
       <div className="app">
         {error && <div className="error-banner">{error}</div>}
         <DealDetail
           key={selectedTransaction.id}
           className={closingTransaction ? "deal-detail-exit" : "deal-detail-enter"}
           transaction={selectedTransaction}
-          stages={STAGES}
+          stages={viewerStages}
           currentAgent={effectiveAgent}
           onBack={handleCloseDetail}
           onStageChange={handleStageChangeRequest}
@@ -474,6 +603,7 @@ export default function App() {
           onRelist={handleRelist}
         />
       </div>
+    </TodoActionsContext.Provider>
     );
   }
 
@@ -489,6 +619,7 @@ export default function App() {
     : [];
 
   return (
+    <TodoActionsContext.Provider value={renderTodoActions}>
     <div className="app">
       <header className="main-header">
         <div className="main-header-row">
@@ -546,7 +677,7 @@ export default function App() {
       ) : (
         <DealPages
           transactions={visibleTxs}
-          stages={STAGES}
+          stages={viewerStages}
           currentAgent={effectiveAgent}
           onStageChange={handleStageChangeRequest}
           onNotesChange={handleNotesChange}
@@ -563,10 +694,15 @@ export default function App() {
           isSearching={isSearching}
           searchResults={searchResults}
           onNewComp={() => setShowNewCompForm(true)}
-          onNewUnderContract={() => {
-            setUnderContractPrefill(null);
-            setShowUnderContractForm(true);
-          }}
+          onNewUnderContract={
+            isCoordinator
+              ? undefined
+              : () => {
+                  setUnderContractPrefill(null);
+                  setShowUnderContractForm(true);
+                }
+          }
+          onNewActiveListing={() => setShowActiveListingForm(true)}
         />
       )}
 
@@ -578,5 +714,6 @@ export default function App() {
         </div>
       )}
     </div>
+    </TodoActionsContext.Provider>
   );
 }

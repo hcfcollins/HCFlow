@@ -626,6 +626,40 @@ button { cursor: pointer; }
   border-radius: 50%;
   padding: 0;
 }
+.todo-action-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  min-width: 22px;
+  justify-content: center;
+  border: none;
+  background: var(--color-border-blue);
+  color: var(--color-navy);
+  border-radius: 999px;
+  padding: 0 6px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.todo-action-btn:disabled { opacity: 0.5; }
+/* Workflow status badges on deal cards */
+.tx-status-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.tx-status-badge--ready { background: #FEF0C7; color: #93370D; }
+.tx-status-badge--review { background: var(--color-border-blue); color: var(--color-navy); }
+.tx-status-badge--compliant { background: #D1FADF; color: #05603A; }
+.compliance-status { margin: 0 0 10px; }
 .todo-property-pill {
   align-self: flex-start;
   border: none;

@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Signpost, Percent, Lock, Mail, Share2 } from "lucide-react";
+import { Signpost, Lock, Mail, Share2 } from "lucide-react";
+import { stageSelectValue, closingStatusBadge } from "../lib/stages";
+import { formatBac, openGmailCompose } from "../lib/clientEmail";
 import TodoList from "./TodoList";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 
@@ -89,6 +91,7 @@ function TxCard({
   // buyer-side deal) that's at least reached Won, when its Dropbox Photos folder
   // first exists.
   const canPostSocial = !isBuySide && Boolean(tx.dropbox_folder_path);
+  const statusBadge = closingStatusBadge(tx);
 
   return (
     <div className={`tx-card ${tx.terminated_at ? "tx-card--terminated" : ""}`} onClick={() => onOpenDetail && onOpenDetail(tx)}>
@@ -97,6 +100,7 @@ function TxCard({
           <div className="tx-address">
             {tx.address}
             {tx.terminated_at && <span className="tx-terminated-badge">Terminated</span>}
+            {statusBadge && <span className={`tx-status-badge ${statusBadge.className}`}>{statusBadge.label}</span>}
             {!tx.terminated_at && dueTodoCount > 0 && (
               <span className="tx-due-badge">
                 {dueTodoCount} To-Do{dueTodoCount > 1 ? "s" : ""} Due
@@ -173,13 +177,13 @@ function TxCard({
             </div>
           )}
           <select
-            value={tx.stage}
+            value={stageSelectValue(tx, stages)}
             onChange={(e) => onStageChange(tx, e.target.value)}
             onClick={(e) => e.stopPropagation()}
             className="tx-stage-select"
           >
             {stages.map((s) => (
-              <option key={s.key} value={s.key}>
+              <option key={s.key} value={s.key} disabled={s.disabled}>
                 {s.label}
               </option>
             ))}
@@ -230,7 +234,7 @@ function TxCard({
           )}
           {tx.ba_comp && !isBuySide && (
             <span className="tx-icon-badge" title="Buyer agency commission">
-              <Percent size={14} /> {tx.ba_comp}
+              BAC {formatBac(tx.ba_comp)}
             </span>
           )}
           {isActiveListing && tx.has_lockbox && (
@@ -310,14 +314,17 @@ function TxCard({
       )}
 
       {tx.seller_emails?.length > 0 && (
-        <a
-          href={`mailto:${tx.seller_emails.join(",")}`}
+        <button
+          type="button"
           className="tx-email-client-btn"
           title={`Email ${tx.seller_emails.join(", ")}`}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            openGmailCompose({ to: tx.seller_emails, subject: tx.address });
+          }}
         >
           <Mail size={14} /> Email Client
-        </a>
+        </button>
       )}
     </div>
   );

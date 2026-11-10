@@ -6,6 +6,7 @@ import {
   updateCloseoutFields,
   updateTransactionAttorneys,
   fetchAllAgents,
+  fetchStaffTotalCommissions,
   fetchAttorneys,
   resolveAttorneyId,
   terminateTransaction,
@@ -166,11 +167,11 @@ const COLUMNS = [
 ];
 
 // Hidden entirely for the transaction coordinator's view (hideMoney) — she
-// sees every deal, but no commission math, actual or projected. Deposit Held
+// sees every deal, but no commission split math, actual or projected. Total
+// Commission is the one exception (she needs it), served by an RPC. Deposit Held
 // stays visible: that's trust-account money she tracks, not commission.
 const MONEY_COLUMN_KEYS = new Set([
   "commission_pct",
-  "total_commission",
   "bank_amount",
   "referral_amount",
   "agent_split_pct",
@@ -216,6 +217,10 @@ function depositHeldFor(tx) {
 // The gross commission before any referral deduction — price × commission %.
 // Same price/commission-pct fallback chain as the other computed columns.
 function totalCommissionFor(tx) {
+  // The coordinator can't read closeouts at all (RLS) — her view gets this one
+  // figure from the staff_total_commissions RPC instead, attached in
+  // SpreadsheetView below.
+  if (tx._staffTotalCommission !== undefined) return tx._staffTotalCommission;
   const co = tx.closeouts;
   const price = co?.price ?? tx.price;
   const commissionPct = co?.commission_pct;
@@ -381,8 +386,17 @@ function monthLabel(monthStr) {
   return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
-export default function SpreadsheetView({ transactions, onBack, onOpenDetail, onRefresh, hideMoney = false }) {
+export default function SpreadsheetView({ transactions: rawTransactions, onBack, onOpenDetail, onRefresh, hideMoney = false }) {
   const visibleColumns = hideMoney ? COLUMNS.filter((c) => !MONEY_COLUMN_KEYS.has(c.key)) : COLUMNS;
+  const [staffTotals, setStaffTotals] = useState({});
+  useEffect(() => {
+    if (!hideMoney) return;
+    fetchStaffTotalCommissions().then(setStaffTotals).catch((e) => console.warn("Total commission unavailable:", e.message));
+  }, [hideMoney, rawTransactions]);
+  const transactions = useMemo(
+    () => (hideMoney ? rawTransactions.map((tx) => ({ ...tx, _staffTotalCommission: staffTotals[tx.id] ?? null })) : rawTransactions),
+    [hideMoney, rawTransactions, staffTotals]
+  );
   const [agents, setAgents] = useState([]);
   const [attorneys, setAttorneys] = useState([]);
   const [search, setSearch] = useState("");

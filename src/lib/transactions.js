@@ -560,9 +560,13 @@ export async function updateTodo(id, patch) {
   if (error) throw error;
 }
 
+/** .select() so a delete that RLS silently filtered out (0 rows, no error —
+ * how Postgres reports "no permission" on DELETE) surfaces as a real error
+ * instead of the X button just appearing to do nothing. */
 export async function deleteTodo(id) {
-  const { error } = await supabase.from("todos").delete().eq("id", id);
+  const { data, error } = await supabase.from("todos").delete().eq("id", id).select("id");
   if (error) throw error;
+  if (!data?.length) throw new Error("The to-do couldn't be deleted (no permission, or it was already removed).");
 }
 
 /**
@@ -924,9 +928,9 @@ export function todoHasMention(text) {
  * when the transaction coordinator adds it, plus anyone @-mentioned by first
  * name. All recipient resolution happens server-side in notify-todo (it
  * verifies the caller from their own session). Returns { notified: [names] }. */
-export async function notifyTodo({ transactionId, text, dueDate }) {
+export async function notifyTodo({ transactionId, text, dueDate, notifyOwner = false, event = "todo" }) {
   const { data, error } = await supabase.functions.invoke("notify-todo", {
-    body: { transactionId, text, dueDate: dueDate || null, appUrl: window.location.origin },
+    body: { transactionId, text, dueDate: dueDate || null, notifyOwner, event, appUrl: window.location.origin },
   });
   if (error) {
     if (error.context?.json) {
@@ -960,4 +964,52 @@ export async function markNotificationsRead(ids) {
   if (!ids.length) return;
   const { error } = await supabase.from("notifications").update({ read_at: new Date() }).in("id", ids);
   if (error) throw error;
+}
+
+/** Agent/TC side of closing: flags the deal for Fran's commission review
+ * without changing its stage — only a broker actually closes it (via the
+ * Close-Out Calculator). Pass false to un-flag. */
+export async function setReadyForCloseout(id, ready) {
+  const { error } = await supabase
+    .from("transactions")
+    .update({ ready_for_closeout_at: ready ? new Date() : null, updated_at: new Date() })
+    .eq("id", id);
+  if (error) throw error;
+  await addActivityLog(id, ready ? "Marked Ready for Closeout" : "Ready for Closeout cleared", null);
+}
+
+/** Transaction coordinator's final step after a broker has closed the deal:
+ * file reviewed for missing info, closed for compliance. Pass null agentId to
+ * reopen. */
+export async function setComplianceClosed(id, agentId) {
+  const closed = Boolean(agentId);
+  const { error } = await supabase
+    .from("transactions")
+    .update({
+      compliance_closed_at: closed ? new Date() : null,
+      compliance_closed_by: closed ? agentId : null,
+      updated_at: new Date(),
+    })
+    .eq("id", id);
+  if (error) throw error;
+  await addActivityLog(id, closed ? "Closed for compliance" : "Compliance review reopened", null);
+}
+
+/** Broker + coordinator only (the RPC checks is_staff() itself) — the one
+ * commission figure the coordinator's Spreadsheet View shows, without giving
+ * her read access to the closeouts table. Returns { [transactionId]: amount }. */
+export async function fetchStaffTotalCommissions() {
+  const { data, error } = await supabase.rpc("staff_total_commissions");
+  if (error) throw error;
+  return Object.fromEntries((data || []).map((r) => [r.transaction_id, r.total_commission]));
+}
+
+/** Simple bulk-entry path for listings that already exist outside the app —
+ * no Dropbox folder, no seeded checklist, no social rotation side effects. */
+export async function createActiveListing(fields) {
+  const existing = await findTransactionByAddress(fields.address);
+  if (existing) throw new Error(`${fields.address} is already in the app.`);
+  const tx = await createTransaction(fields);
+  await addActivityLog(tx.id, "Added as an existing active listing", fields.address);
+  return tx;
 }
