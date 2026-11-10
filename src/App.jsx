@@ -25,6 +25,7 @@ import {
   todoHasMention,
   setReadyForCloseout,
   sendTestDailyDigest,
+  initialsFor,
 } from "./lib/transactions";
 import { TodoActionsContext } from "./lib/TodoActionsContext";
 import { buildUtilityEmail, openGmailCompose } from "./lib/clientEmail";
@@ -169,7 +170,7 @@ export default function App() {
         try {
           const goLiveTodo = tx.todos?.find((t) => t.text === "Go Live");
           if (goLiveTodo && !goLiveTodo.done) {
-            await toggleTodo(goLiveTodo.id, true);
+            await toggleTodo(goLiveTodo.id, true, initialsFor(agent?.name));
           }
           await setSocialRotation(id, true);
         } catch (e) {
@@ -256,7 +257,7 @@ export default function App() {
     // looked stuck/unresponsive with nothing visible explaining why. Now the real
     // error (RLS, network, whatever it turns out to be) actually shows up.
     try {
-      await toggleTodo(todo.id, done);
+      await toggleTodo(todo.id, done, initialsFor(agent?.name));
     } catch (e) {
       console.error("Failed to update the to-do:", e);
       setError(`Couldn't save that to-do: ${e.message}`);

@@ -14,8 +14,10 @@ const CONTRACT_CHECKS = [
   { label: "Seller Attorney", get: (tx) => tx.seller_attorney?.name },
   { label: "Buyer Attorney", get: (tx) => tx.buyer_attorney?.name },
   { label: "Inspection Date", get: (tx) => tx.commission_data?.inspection_date },
-  { label: "Financing Date", get: (tx) => tx.commission_data?.financing_date },
-  { label: "Appraiser", get: (tx) => tx.commission_data?.appraiser },
+  // No financing contingency date = treated as a cash/no-financing deal, so
+  // neither the financing date itself nor an appraiser is asked for. Once a
+  // financing date is entered, the appraiser becomes required.
+  { label: "Appraiser", get: (tx) => tx.commission_data?.appraiser, onlyIf: (tx) => has(tx.commission_data?.financing_date) },
 ];
 
 const LISTING_CHECKS = [
@@ -30,5 +32,5 @@ const LISTING_CHECKS = [
 export function missingInfoFor(tx) {
   if (!tx || tx.terminated_at) return [];
   const checks = tx.stage === "contract" ? CONTRACT_CHECKS : tx.stage === "won" || tx.stage === "market" ? LISTING_CHECKS : [];
-  return checks.filter((c) => !has(c.get(tx))).map((c) => c.label);
+  return checks.filter((c) => (!c.onlyIf || c.onlyIf(tx)) && !has(c.get(tx))).map((c) => c.label);
 }

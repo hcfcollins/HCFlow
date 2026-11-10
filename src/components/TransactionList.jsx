@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Signpost, Lock, Mail, Share2 } from "lucide-react";
 import { stageSelectValue, closingStatusBadge } from "../lib/stages";
 import { formatBac, openGmailCompose } from "../lib/clientEmail";
@@ -198,13 +199,23 @@ function TxCard({
           overlays, but they're still nested inside tx-card's onClick-to-open-detail DOM
           subtree, so a backdrop-dismiss click would otherwise bubble up and open the
           detail screen right as the panel closes. */}
-      <div onClick={(e) => e.stopPropagation()}>
-        {showBoostPost && <BoostPostPanel transaction={tx} onClose={() => setShowBoostPost(false)} />}
-        {graphicPostType && (
-          <ListingGraphicPanel transaction={tx} postType={graphicPostType} onClose={() => setGraphicPostType(null)} />
+      {/* Portaled to <body>: these are position: fixed overlays, and the page
+          swiper (DealPages) slides its track with a CSS transform — which makes
+          any fixed-position descendant position relative to the track instead
+          of the screen, so the panel opened off-screen and the menu buttons
+          looked like they did nothing. React events still bubble through the
+          React tree from a portal, hence the stopPropagation wrapper. */}
+      {(showBoostPost || graphicPostType || showOpenHouse) &&
+        createPortal(
+          <div onClick={(e) => e.stopPropagation()}>
+            {showBoostPost && <BoostPostPanel transaction={tx} onClose={() => setShowBoostPost(false)} />}
+            {graphicPostType && (
+              <ListingGraphicPanel transaction={tx} postType={graphicPostType} onClose={() => setGraphicPostType(null)} />
+            )}
+            {showOpenHouse && <OpenHousePanel transaction={tx} onClose={() => setShowOpenHouse(false)} />}
+          </div>,
+          document.body
         )}
-        {showOpenHouse && <OpenHousePanel transaction={tx} onClose={() => setShowOpenHouse(false)} />}
-      </div>
 
       {isActiveListing && PROPERTY_STYLE_TAGS[tx.property_style] && (
         <div className="tx-tag-row" onClick={(e) => e.stopPropagation()}>

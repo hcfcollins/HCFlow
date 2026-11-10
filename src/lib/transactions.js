@@ -587,9 +587,26 @@ export async function uploadCompPdf(transactionId, pdfBytes, fileName) {
   return data;
 }
 
-export async function toggleTodo(id, done) {
-  const { error } = await supabase.from("todos").update({ done, completed_at: done ? new Date() : null }).eq("id", id);
+/** `initials` (e.g. "FC") is recorded alongside the completion date so the
+ * to-do shows who checked it off. */
+export async function toggleTodo(id, done, initials = null) {
+  const patch = { done, completed_at: done ? new Date() : null, completed_by_initials: done ? initials : null };
+  let { error } = await supabase.from("todos").update(patch).eq("id", id);
+  if (error && /completed_by_initials/.test(error.message || "")) {
+    // Column migration not run yet — still check the to-do off.
+    delete patch.completed_by_initials;
+    ({ error } = await supabase.from("todos").update(patch).eq("id", id));
+  }
   if (error) throw error;
+}
+
+export function initialsFor(name) {
+  return (name || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((p) => p[0].toUpperCase())
+    .join("")
+    .slice(0, 3);
 }
 
 /** Edits a to-do's text and/or due date (whatever's in patch, e.g. {text} or {due_date}). */

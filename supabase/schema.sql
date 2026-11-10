@@ -151,6 +151,7 @@ create table todos (
   text text not null,
   done boolean not null default false,
   completed_at timestamptz, -- set when done is checked, cleared when unchecked
+  completed_by_initials text, -- e.g. 'FC' — who checked it off, shown next to the completion date
   due_date date, -- optional, set when the to-do is created; drives the Due Today/Overdue badge on the card
   created_at timestamptz not null default now()
 );

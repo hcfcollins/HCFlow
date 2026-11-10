@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X, Signpost } from "lucide-react";
 import TransactionList from "./TransactionList";
 import { TodoRow } from "./TodoList";
+import { STANDING_REMINDERS } from "../lib/onboarding";
 
 /** Starts collapsed only while a section is empty, then auto-opens the moment
  * something first lands in it — `useState(length === 0)` alone only looks at the
@@ -224,6 +225,7 @@ export default function DealPages({
                   ) : p.key === "todos" ? (
                     <AllTodosPage
                       transactions={activeTransactions}
+                      currentAgent={currentAgent}
                       onToggleTodo={onToggleTodo}
                       onEditTodo={onEditTodo}
                       onDeleteTodo={onDeleteTodo}
@@ -311,8 +313,9 @@ function CollapsibleSection({ title, count, colorClass, onTitleClick, children, 
  * to-dos are deliberately left out of every summary view (this one and each
  * deal's card) — they only show, with their completion date, inside that
  * deal's own detail screen. */
-function AllTodosPage({ transactions, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail }) {
+function AllTodosPage({ transactions, currentAgent, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail }) {
   const [groupByProperty, setGroupByProperty] = useState(true);
+  const reminders = STANDING_REMINDERS.filter((r) => r.forEmail === currentAgent?.email && r.active());
   const pending = transactions.flatMap((tx) => (tx.todos || []).filter((t) => !t.done).map((t) => ({ ...t, tx })));
 
   const urgency = (t) => (t.due_date ? new Date(`${t.due_date}T00:00:00`).getTime() : Infinity);
@@ -346,6 +349,17 @@ function AllTodosPage({ transactions, onToggleTodo, onEditTodo, onDeleteTodo, on
 
   return (
     <div className="all-todos-page">
+      {reminders.length > 0 && (
+        <div className="standing-reminders">
+          <h2 className="comps-section-title">My Reminders</h2>
+          {reminders.map((r) => (
+            <div key={r.key} className="missing-info-todo standing-reminder" title="Clears itself once it's done">
+              <span>📌</span>
+              <span>{r.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="tutorial-tabs">
         <button type="button" className={!groupByProperty ? "tutorial-tab tutorial-tab--active" : "tutorial-tab"} onClick={() => setGroupByProperty(false)}>
           Sort by Date

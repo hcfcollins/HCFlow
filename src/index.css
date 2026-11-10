@@ -1400,3 +1400,5 @@ button { cursor: pointer; }
 .onboarding-item input { margin-top: 2px; flex-shrink: 0; }
 .onboarding-item--done .onboarding-item { color: var(--color-text-muted); text-decoration: line-through; }
 .onboarding-draft-btn { margin-top: 1px; }
+.standing-reminders { margin-bottom: 14px; }
+.standing-reminder { cursor: default; background: #EEF3FA; border-color: var(--color-border-blue); color: var(--color-navy); }

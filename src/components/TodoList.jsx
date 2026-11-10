@@ -99,7 +99,12 @@ export function TodoRow({ todo, onToggle, onEdit, onDelete, propertyLabel, onPro
             <TodoText text={todo.text} />
           </span>
           {badge && <span className={`todo-due-badge ${badge.className}`}>{badge.label}</span>}
-          {todo.done && todo.completed_at && <span className="todo-completed-date">{formatCompletedDate(todo.completed_at)}</span>}
+          {todo.done && todo.completed_at && (
+            <span className="todo-completed-date" title={todo.completed_by_initials ? `Checked off by ${todo.completed_by_initials}` : undefined}>
+              {formatCompletedDate(todo.completed_at)}
+              {todo.completed_by_initials ? ` · ${todo.completed_by_initials}` : ""}
+            </span>
+          )}
         </div>
         {propertyLabel && (
           <button type="button" className="todo-property-pill" onClick={onPropertyClick} title="Open this deal">

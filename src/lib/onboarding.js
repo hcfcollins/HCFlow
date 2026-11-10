@@ -40,6 +40,22 @@ export function onboardingItemsFor(agent) {
   ];
 }
 
+/** Flip to true once Fran's real links / standard contract language /
+ * signature format are in buildWelcomeEmail below — clears her standing
+ * reminder on the To-Dos page (STANDING_REMINDERS). */
+export const WELCOME_EMAIL_CONTENT_READY = false;
+
+/** Fran's pinned, non-deal reminders on the To-Dos page — each shows until
+ * its `active` check turns false (i.e. until the thing actually gets done). */
+export const STANDING_REMINDERS = [
+  {
+    key: "welcome_email_content",
+    forEmail: "fran.collins@hallcollins.com",
+    text: "Send Claude the welcome email content: important links, standard contract language, and how the email signature should read",
+    active: () => !WELCOME_EMAIL_CONTENT_READY,
+  },
+];
+
 /** Plain-text welcome email body — the HC Flow orientation plus the sections
  * Fran asked for. The bracketed sections are placeholders until Fran provides
  * the real links/contract language; she reviews the Gmail draft before
