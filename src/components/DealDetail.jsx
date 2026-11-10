@@ -529,6 +529,21 @@ export default function DealDetail({
                   <div>{transaction.side}</div>
                 </div>
 
+                {transaction.side === "Split" && (
+                  <div className="detail-grid-full">
+                    <div className="detail-label">Your Clients Are The</div>
+                    <RadioGroup
+                      name="splitClientSide"
+                      value={transaction.split_client_side || ""}
+                      onChange={(v) => handleFieldSave({ split_client_side: v })}
+                      options={[
+                        { value: "Sell", label: "Sellers" },
+                        { value: "Buy", label: "Buyers" },
+                      ]}
+                    />
+                  </div>
+                )}
+
                 {isStaff && (
                   <div>
                     <div className="detail-label">Agent</div>

@@ -578,7 +578,7 @@ export async function deleteTodo(id) {
  */
 export async function submitUnderContract(fields) {
   const {
-    region, agentId, side, sellerName, buyerName, address, propertyStyle, price,
+    region, agentId, side, splitClientSide, sellerName, buyerName, address, propertyStyle, price,
     buyerAttorneyId, sellerAttorneyId, closingDate, leadType, commissionPct,
     inspectionDate, financingDate, appraiser, holdDeposit, depositAmount, depositDueDate,
     secondDeposit, secondDepositAmount, secondDepositDueDate,
@@ -589,6 +589,7 @@ export async function submitUnderContract(fields) {
   const txPatch = {
     region,
     side,
+    split_client_side: side === "Split" ? splitClientSide || null : null,
     agent_id: agentId,
     seller_name: sellerName,
     buyer_name: buyerName,

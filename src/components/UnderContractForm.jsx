@@ -53,6 +53,9 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
   const [selectedAgentId, setSelectedAgentId] = useState(initialData?.agent_id || draft?.selectedAgentId || (defaultsToSelf ? currentAgent.id : null));
   const [selectedAgentName, setSelectedAgentName] = useState(initialData?.agent?.name || draft?.selectedAgentName || (defaultsToSelf ? currentAgent.name : null));
   const [side, setSide] = useState(initialData?.side || draft?.side || "Sell");
+  // On a Split deal, which side are *your* clients on — decides whether it's
+  // grouped under Sellers or Buyers on the Under Contract page.
+  const [splitClientSide, setSplitClientSide] = useState(initialData?.split_client_side || draft?.splitClientSide || "");
   const [leadType, setLeadType] = useState(initialData?.commission_data?.lead_type || draft?.leadType || "Organic");
   const [sellerName, setSellerName] = useState(initialData?.seller_name || draft?.sellerName || "");
   const [buyerName, setBuyerName] = useState(initialData?.buyer_name || draft?.buyerName || "");
@@ -92,7 +95,7 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
   const [townWaterSewer, setTownWaterSewer] = useState(initialData?.town_water_sewer ?? draft?.townWaterSewer ?? false);
 
   const { clearDraft } = useDraftPersistence(draftKey, {
-    region, selectedAgentId, selectedAgentName, side, leadType, sellerName, buyerName, address,
+    region, selectedAgentId, selectedAgentName, side, splitClientSide, leadType, sellerName, buyerName, address,
     propertyStyle, price, buyerAttorney, buyerAttorneyTbd, sellerAttorney, sellerAttorneyTbd,
     commissionPct, closingDate, inspectionDate, financingDate, appraiser, appraiserOther,
     holdDeposit, depositAmount, depositDueDate, secondDeposit, secondDepositAmount, secondDepositDueDate, tcFeeType,
@@ -141,6 +144,10 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
       setError("Pick which agent this deal belongs to.");
       return;
     }
+    if (side === "Split" && !splitClientSide) {
+      setError("On a Split deal, pick whether your clients are the buyers or the sellers.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -153,6 +160,7 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
         region,
         agentId: selectedAgentId,
         side,
+        splitClientSide: side === "Split" ? splitClientSide : null,
         leadType,
         sellerName,
         buyerName,
@@ -242,6 +250,22 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
           ]}
         />
       </fieldset>
+
+      {side === "Split" && (
+        <fieldset>
+          <legend>Are your clients the buyers or the sellers?</legend>
+          <p className="field-help">Decides whether this deal is grouped under Sellers or Buyers on the Under Contract page.</p>
+          <RadioGroup
+            name="splitClientSide"
+            value={splitClientSide}
+            onChange={setSplitClientSide}
+            options={[
+              { value: "Sell", label: "Sellers" },
+              { value: "Buy", label: "Buyers" },
+            ]}
+          />
+        </fieldset>
+      )}
 
       <fieldset>
         <legend>Lead Type</legend>

@@ -784,8 +784,11 @@ function UnderContractPage({ transactions: allTransactions, stages, currentAgent
   // If the picked agent no longer has any deals here, fall back to everyone.
   const activeFilter = agentFilter && agentCounts.some((a) => a.id === agentFilter) ? agentFilter : null;
   const transactions = canFilterByAgent && activeFilter ? allTransactions.filter((tx) => tx.agent_id === activeFilter) : allTransactions;
-  const sellers = transactions.filter((tx) => tx.side === "Sell");
-  const buyers = transactions.filter((tx) => tx.side === "Buy");
+  // Split deals go wherever *our* clients are (split_client_side, asked on the
+  // Under Contract form) — Sellers if that hasn't been answered yet.
+  const isBuyerGroup = (tx) => tx.side === "Buy" || (tx.side === "Split" && tx.split_client_side === "Buy");
+  const sellers = transactions.filter((tx) => !isBuyerGroup(tx));
+  const buyers = transactions.filter(isBuyerGroup);
   const [sellersCollapsed, setSellersCollapsed] = useAutoCollapse(sellers.length);
   const [buyersCollapsed, setBuyersCollapsed] = useAutoCollapse(buyers.length);
 
