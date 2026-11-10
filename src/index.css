@@ -1287,3 +1287,13 @@ button { cursor: pointer; }
 .mention-menu .mention-option--active, .mention-menu .mention-option:hover { background: rgba(var(--pink-rgb), 0.1); color: rgb(var(--pink-rgb)); }
 .todo-mention { color: rgb(var(--pink-rgb)); font-weight: 700; }
 .todo-item.done .todo-mention { color: inherit; }
+
+/* Utility Providers — Edit All form */
+.utility-edit-form { display: flex; flex-direction: column; gap: 10px; }
+.utility-edit-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; }
+.utility-edit-actions { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+.utility-edit-all-btn { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; }
+@media (min-width: 700px) {
+  .utility-edit-form { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; }
+  .utility-edit-radio, .utility-edit-actions { grid-column: 1 / -1; }
+}

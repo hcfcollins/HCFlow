@@ -23,7 +23,7 @@ import {
   SOLAR_OPTIONS,
   NOT_SPECIFIED,
   recommendationOptionsFor,
-  UTILITY_TYPES,
+  visibleUtilityFields,
 } from "../lib/compFieldOptions";
 
 /** Formats a "YYYY-MM-DD" date string as "Month Day, Year"; returns other formats unchanged. */
@@ -625,30 +625,19 @@ export default function DealDetail({
             <h2 className="comps-section-title">
               Utility Providers
               {(() => {
-                const filled = UTILITY_TYPES.filter((u) => transaction.utilities?.[u]).length;
-                return filled ? <span className="field-help"> ({filled} of {UTILITY_TYPES.length})</span> : null;
+                const fields = visibleUtilityFields(transaction.utilities);
+                const filled = fields.filter((f) => transaction.utilities?.[f.key]).length;
+                return filled ? <span className="field-help"> ({filled} of {fields.length})</span> : null;
               })()}
             </h2>
             <ChevronDown size={18} className={`collapse-chevron ${utilitiesCollapsed ? "" : "collapse-chevron--open"}`} />
           </button>
           {!utilitiesCollapsed && (
-            <div className="detail-grid">
-              {UTILITY_TYPES.map((u) => (
-                <EditableText
-                  key={u}
-                  label={u}
-                  value={transaction.utilities?.[u] || ""}
-                  placeholder="Not set"
-                  editableWhenSet
-                  onSave={(v) => {
-                    const next = { ...(transaction.utilities || {}) };
-                    if (v.trim()) next[u] = v.trim();
-                    else delete next[u];
-                    handleFieldSave({ utilities: next });
-                  }}
-                />
-              ))}
-            </div>
+            <UtilityProvidersEditor
+              key={JSON.stringify(transaction.utilities || {})}
+              utilities={transaction.utilities}
+              onSave={(next) => handleFieldSave({ utilities: next })}
+            />
           )}
         </div>
       )}
@@ -1239,6 +1228,102 @@ function CompDetailsEditForm({ transaction, handleFieldSave, onDone }) {
         </button>
       </div>
     </div>
+  );
+}
+
+/** Read view of every provider at once, with one "Edit All" button that turns
+ * the whole section into a form (text inputs, plus radios for Water/Septic)
+ * saved in a single write — much faster for bulk entry than a pencil per
+ * field. Opens straight into edit mode when nothing's been entered yet. */
+function UtilityProvidersEditor({ utilities, onSave }) {
+  const hasAny = Object.values(utilities || {}).some(Boolean);
+  const [editing, setEditing] = useState(!hasAny);
+  const [draft, setDraft] = useState(utilities || {});
+  const [saving, setSaving] = useState(false);
+
+  if (!editing) {
+    return (
+      <>
+        <div className="detail-grid">
+          {visibleUtilityFields(utilities).map((f) => (
+            <div key={f.key}>
+              <div className="detail-label">{f.key}</div>
+              <div className={utilities?.[f.key] ? "" : "editable-missing"}>{utilities?.[f.key] || "Not set"}</div>
+            </div>
+          ))}
+        </div>
+        <button type="button" className="comps-status-btn utility-edit-all-btn" onClick={() => setEditing(true)}>
+          <Pencil size={12} /> Edit All
+        </button>
+      </>
+    );
+  }
+
+  async function save() {
+    const next = {};
+    for (const f of visibleUtilityFields(draft)) {
+      const v = String(draft[f.key] ?? "").trim();
+      if (v) next[f.key] = v;
+    }
+    setSaving(true);
+    try {
+      await onSave(next);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form
+      className="utility-edit-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        save();
+      }}
+      onKeyDown={focusNextOnEnter}
+    >
+      {visibleUtilityFields(draft).map((f) =>
+        f.options ? (
+          <div key={f.key} className="utility-edit-radio">
+            <div className="detail-label">{f.key}</div>
+            <RadioGroup
+              name={`utility-${f.key}`}
+              value={draft[f.key] || ""}
+              onChange={(v) => setDraft((d) => ({ ...d, [f.key]: v }))}
+              options={f.options}
+            />
+          </div>
+        ) : (
+          <label key={f.key}>
+            {f.key}
+            <input
+              value={draft[f.key] || ""}
+              onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
+              placeholder="Provider name"
+            />
+          </label>
+        )
+      )}
+      <div className="utility-edit-actions">
+        <button type="submit" className="google-btn" disabled={saving}>
+          {saving ? "Saving…" : "Save Utilities"}
+        </button>
+        {hasAny && (
+          <button
+            type="button"
+            className="comps-status-btn"
+            disabled={saving}
+            onClick={() => {
+              setDraft(utilities || {});
+              setEditing(false);
+            }}
+          >
+            Cancel
+          </button>
+        )}
+      </div>
+    </form>
   );
 }
 

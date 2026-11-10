@@ -48,18 +48,27 @@ export const SOLAR_OPTIONS = [NOT_SPECIFIED, "No", "Yes — Owned", "Yes — Lea
 
 // Utility Providers section on DealDetail — stored as one jsonb object on
 // transactions.utilities, keyed by these exact labels (e.g.
-// { "Electricity": "Green Mountain Power" }), so adding a type later is just
-// another entry here, no migration needed.
-export const UTILITY_TYPES = [
-  "Electricity",
-  "Oil",
-  "Propane",
-  "Internet",
-  "Trash",
-  "Plowing",
-  "Property Management",
-  "Solar Maintenance",
-  "Septic Maintenance",
-  "Water",
-  "Sewer",
+// { "Electricity": "Green Mountain Power", "Water": "Town Water" }), so
+// adding a type later is just another entry here, no migration needed.
+// `options` = a two-choice radio instead of a free-text provider name;
+// `showIf` hides a field that doesn't apply (no septic maintenance on town
+// sewer).
+export const UTILITY_FIELDS = [
+  { key: "Electricity" },
+  { key: "Oil" },
+  { key: "Propane" },
+  { key: "Internet" },
+  { key: "Trash" },
+  { key: "Plowing" },
+  { key: "Property Management" },
+  { key: "Solar Maintenance" },
+  { key: "Water", options: ["Town Water", "Private"] },
+  { key: "Septic", options: ["Town Septic", "Private"] },
+  { key: "Septic Maintenance", showIf: (u) => u?.Septic !== "Town Septic" },
 ];
+
+export const UTILITY_TYPES = UTILITY_FIELDS.map((f) => f.key);
+
+export function visibleUtilityFields(utilities) {
+  return UTILITY_FIELDS.filter((f) => !f.showIf || f.showIf(utilities || {}));
+}
