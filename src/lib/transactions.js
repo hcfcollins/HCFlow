@@ -382,6 +382,18 @@ export async function unlinkTransaction(id, otherId) {
   if (e1 || e2) throw e1 || e2;
 }
 
+/** Permanently deletes a deal and everything attached to it (to-dos, docs,
+ * activity, commission data, close-out, notifications all cascade). Broker
+ * only (RLS transactions_delete). Does NOT touch its Dropbox folder. */
+export async function deleteTransaction(id) {
+  // Another deal may point at this one (relist/linked pair) — unlink first or
+  // the foreign key blocks the delete.
+  await supabase.from("transactions").update({ linked_id: null }).eq("linked_id", id);
+  const { data, error } = await supabase.from("transactions").delete().eq("id", id).select("id");
+  if (error) throw error;
+  if (!data?.length) throw new Error("Couldn't delete this deal — only Fran or Holly can delete deals.");
+}
+
 export async function createTransaction(fields) {
   const { data, error } = await supabase.from("transactions").insert(fields).select().single();
   if (error) throw error;

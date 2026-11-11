@@ -8,7 +8,7 @@ import CloseoutCalculator from "./CloseoutCalculator";
 import ConfirmDialog from "./ConfirmDialog";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
-import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed } from "../lib/transactions";
+import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction } from "../lib/transactions";
 import { stageSelectValue, closingStatusBadge } from "../lib/stages";
 import { formatBac, gmailComposeUrl } from "../lib/clientEmail";
 import { focusNextOnEnter } from "../lib/formKeyNav";
@@ -89,6 +89,7 @@ export default function DealDetail({
   const [utilitiesCollapsed, setUtilitiesCollapsed] = useState(true);
   const [showTerminateConfirm, setShowTerminateConfirm] = useState(false);
   const [showRelistConfirm, setShowRelistConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [relisting, setRelisting] = useState(false);
   const [relistError, setRelistError] = useState(null);
   const [showSocialMenu, setShowSocialMenu] = useState(false);
@@ -886,6 +887,38 @@ export default function DealDetail({
           )}
         </div>
       )}
+
+      {isBroker && (
+        <div className="detail-section danger-zone">
+          <button type="button" className="comps-status-btn delete-deal-btn" onClick={() => setShowDeleteConfirm(true)}>
+            Delete Deal
+          </button>
+          <p className="field-help">
+            Permanently removes this deal and everything on it — for test entries or mistakes. To keep a record of a
+            deal that fell through, use Terminate instead.
+          </p>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title={`Permanently delete ${transaction.address}?`}
+        message="This deletes the deal and all of its to-dos, notes, activity, and commission info. It can't be undone. Its Dropbox folder (if any) is left alone."
+        confirmLabel="Delete Forever"
+        danger
+        onConfirm={async () => {
+          setShowDeleteConfirm(false);
+          try {
+            await deleteTransaction(transaction.id);
+            showToast(`Deleted ${transaction.address}`);
+            onBack();
+            onRefresh();
+          } catch (e) {
+            showToast(e.message);
+          }
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
 
       <ConfirmDialog
         open={showRelistConfirm}

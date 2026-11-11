@@ -1402,3 +1402,4 @@ button { cursor: pointer; }
 .onboarding-draft-btn { margin-top: 1px; }
 .standing-reminders { margin-bottom: 14px; }
 .standing-reminder { cursor: default; background: #EEF3FA; border-color: var(--color-border-blue); color: var(--color-navy); }
+.delete-deal-btn { color: #B42318; border-color: #F4C7C3; }
