@@ -5,6 +5,7 @@ import { useToast } from "../lib/ToastContext";
 import { createPortal } from "react-dom";
 import { Signpost, Lock, Mail, Instagram, Send, User, Users } from "lucide-react";
 import { SHOWING_ACCESS_TAGS } from "../lib/showingAccess";
+import { useMentionRoster } from "../lib/mentions";
 import { stageSelectValue, closingStatusBadge, terminatedLabel } from "../lib/stages";
 import { formatBac, openEmailCompose } from "../lib/clientEmail";
 import TodoList, { MissingInfoTodo } from "./TodoList";
@@ -116,6 +117,8 @@ function TxCard({
   const canPostSocial = !hideSocial && !isBuySide && Boolean(tx.dropbox_folder_path);
   const statusBadge = closingStatusBadge(tx);
   const [sendingPacket, setSendingPacket] = useState(false);
+  const roster = useMentionRoster();
+  const colistName = tx.colist_agent_id ? roster.find((a) => a.id === tx.colist_agent_id)?.name : null;
   const showToast = useToast();
   // Listing-side deals with a Dropbox folder — that's where the "- Packet" file lives.
   const canSendPacket = !isBuySide && Boolean(tx.dropbox_folder_url) && ["won", "market", "contract"].includes(tx.stage) && !tx.terminated_at;
@@ -138,6 +141,7 @@ function TxCard({
             {tx.town}
             {isActiveListing ? "" : ` · ${tx.side} side`}
             {isBroker && tx.agent ? ` · ${tx.agent.name}` : ""}
+            {colistName ? ` · Co-list: ${colistName}` : ""}
           </div>
         </div>
         <div className="tx-card-top-right">

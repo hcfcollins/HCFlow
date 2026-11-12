@@ -698,7 +698,7 @@ export default function App() {
 
   // A broker previewing "as agent" should see exactly what that agent would see —
   // just their own deals — same as RLS would actually enforce for a real agent.
-  const visibleTxs = viewAsAgent ? txs.filter((tx) => tx.agent_id === agent.id) : txs;
+  const visibleTxs = viewAsAgent ? txs.filter((tx) => tx.agent_id === agent.id || tx.colist_agent_id === agent.id) : txs;
   const trimmedQuery = searchQuery.trim().toLowerCase();
   const isSearching = trimmedQuery.length > 0;
   const searchResults = isSearching

@@ -922,19 +922,24 @@ function UnderContractPage({ transactions: allTransactions, stages, currentAgent
   // Broker/TC only — everyone else only ever sees their own deals anyway.
   const canFilterByAgent = currentAgent?.role === "broker" || currentAgent?.role === "coordinator";
   const [agentFilter, setAgentFilter] = useState(null); // agent id, or null = everyone
+  const roster = useMentionRoster();
+  // Co-listed deals count (and filter) under both agents.
   const agentCounts = useMemo(() => {
     const byId = new Map();
-    for (const tx of allTransactions) {
-      if (!tx.agent_id) continue;
-      const entry = byId.get(tx.agent_id) || { id: tx.agent_id, name: tx.agent?.name || "Unknown", count: 0 };
+    const bump = (id, name) => {
+      const entry = byId.get(id) || { id, name: name || roster.find((a) => a.id === id)?.name || "Unknown", count: 0 };
       entry.count++;
-      byId.set(tx.agent_id, entry);
+      byId.set(id, entry);
+    };
+    for (const tx of allTransactions) {
+      if (tx.agent_id) bump(tx.agent_id, tx.agent?.name);
+      if (tx.colist_agent_id && tx.colist_agent_id !== tx.agent_id) bump(tx.colist_agent_id);
     }
     return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [allTransactions]);
+  }, [allTransactions, roster]);
   // If the picked agent no longer has any deals here, fall back to everyone.
   const activeFilter = agentFilter && agentCounts.some((a) => a.id === agentFilter) ? agentFilter : null;
-  const transactions = canFilterByAgent && activeFilter ? allTransactions.filter((tx) => tx.agent_id === activeFilter) : allTransactions;
+  const transactions = canFilterByAgent && activeFilter ? allTransactions.filter((tx) => tx.agent_id === activeFilter || tx.colist_agent_id === activeFilter) : allTransactions;
   // Split deals go wherever *our* clients are (split_client_side, asked on the
   // Under Contract form) — Sellers if that hasn't been answered yet.
   const isBuyerGroup = (tx) => tx.side === "Buy" || (tx.side === "Split" && tx.split_client_side === "Buy");

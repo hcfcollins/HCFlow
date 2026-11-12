@@ -167,14 +167,14 @@ Deno.serve(async (req) => {
     const caller = roster.find((a) => a.email?.toLowerCase() === String(user.email).toLowerCase());
     if (!caller) return jsonResponse({ error: "No active agent record matches your sign-in email" }, 403);
 
-    const txRes = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}&select=id,address,agent_id`, {
+    const txRes = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}&select=*`, {
       headers: serviceHeaders,
     });
     const [tx] = await txRes.json();
     if (!tx) return jsonResponse({ error: "Deal not found" }, 404);
 
     const isStaff = caller.role === "broker" || caller.role === "coordinator";
-    if (!isStaff && tx.agent_id !== caller.id) return jsonResponse({ error: "Not your deal" }, 403);
+    if (!isStaff && tx.agent_id !== caller.id && tx.colist_agent_id !== caller.id) return jsonResponse({ error: "Not your deal" }, 403);
 
     type Reason = "assigned" | "mention" | "reminder" | "closeout" | "listing_won" | "compliance";
     const recipients = new Map<string, { agent: Agent; reason: Reason }>();
@@ -191,6 +191,9 @@ Deno.serve(async (req) => {
       if (tx.agent_id && ((caller.role === "coordinator") || (notifyOwner && isStaff))) {
         const owner = roster.find((a) => a.id === tx.agent_id);
         if (owner) recipients.set(owner.id, { agent: owner, reason: notifyOwner ? "reminder" : "assigned" });
+        // The co-list agent hears about the deal's to-dos too.
+        const colist = tx.colist_agent_id && roster.find((a) => a.id === tx.colist_agent_id);
+        if (colist && !recipients.has(colist.id)) recipients.set(colist.id, { agent: colist, reason: notifyOwner ? "reminder" : "assigned" });
       }
       for (const a of mentionedAgents(text, roster)) {
         if (!recipients.has(a.id)) recipients.set(a.id, { agent: a, reason: "mention" });

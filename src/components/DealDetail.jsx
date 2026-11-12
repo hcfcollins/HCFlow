@@ -624,6 +624,18 @@ export default function DealDetail({
                 }}
               />
             )}
+            {/* Co-list agent — a second (usually newer) agent on the listing to
+                learn the ropes. They see the listing and its to-dos as their own. */}
+            {!clientIsBuyer && "colist_agent_id" in transaction && (
+              <CoListPicker
+                transaction={transaction}
+                canEdit={isBroker || transaction.agent_id === currentAgent.id}
+                onSave={async (agentId, agentName) => {
+                  await handleFieldSave({ colist_agent_id: agentId });
+                  showToast(agentId ? `${agentName} added as co-list agent` : "Co-list agent removed");
+                }}
+              />
+            )}
             {isCoordinator && (
               <div data-field="agent">
                 <div className="detail-label">Agent</div>
@@ -1981,6 +1993,60 @@ function AgentPicker({ transaction, onSave }) {
             {a.name}
           </option>
         ))}
+      </select>
+    </div>
+  );
+}
+
+/** The listing's optional second ("co-list") agent. */
+function CoListPicker({ transaction, canEdit, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [agents, setAgents] = useState(null);
+
+  useEffect(() => {
+    if (!agents) fetchAgents().then(setAgents).catch(() => setAgents([]));
+  }, [agents]);
+
+  const current = agents?.find((a) => a.id === transaction.colist_agent_id);
+
+  if (!editing) {
+    return (
+      <div data-field="colist_agent">
+        <div className="detail-label">Co-List Agent</div>
+        <div className={transaction.colist_agent_id ? "editable-missing editable-set" : "editable-missing"}>
+          {transaction.colist_agent_id ? current?.name || "…" : "None"}
+          {canEdit && (
+            <button type="button" className="edit-icon-btn" onClick={() => setEditing(true)} aria-label="Change co-list agent" title="Add or change a co-listing agent">
+              <Pencil size={12} />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div data-field="colist_agent">
+      <div className="detail-label">Co-List Agent</div>
+      <select
+        autoFocus
+        defaultValue={transaction.colist_agent_id || ""}
+        disabled={!agents}
+        onChange={async (e) => {
+          const id = e.target.value || null;
+          setEditing(false);
+          if (id !== (transaction.colist_agent_id || null)) await onSave(id, agents.find((a) => a.id === id)?.name);
+        }}
+        onBlur={() => setEditing(false)}
+      >
+        <option value="">None</option>
+        {agents
+          ?.filter((a) => a.id !== transaction.agent_id)
+          .map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
       </select>
     </div>
   );

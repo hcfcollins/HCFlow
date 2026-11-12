@@ -449,3 +449,54 @@ notify pgrst, 'reload schema';
 -- Migration (2026-11-11): whether one of us needs to attend showings.
 alter table transactions add column if not exists showing_access text check (showing_access in ('Solo', 'Accompanied'));
 notify pgrst, 'reload schema';
+
+-- Migration (2026-11-11): co-list agent + shared deal-access check.
+-- Co-list agent: a second agent on a listing, who sees it like their own.
+alter table transactions add column if not exists colist_agent_id uuid references agents(id) on delete set null;
+
+-- One place that answers "can the signed-in person work on this deal?"
+-- (security definer so the child-table policies don't trip over the
+-- transactions table's own row security).
+create or replace function can_access_transaction(tx_id uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from transactions t
+    where t.id = tx_id
+      and (is_staff() or t.agent_id = current_agent_id() or t.colist_agent_id = current_agent_id())
+  )
+$$;
+
+drop policy if exists transactions_select on transactions;
+create policy transactions_select on transactions for select
+  using (is_staff() or agent_id = current_agent_id() or colist_agent_id = current_agent_id());
+drop policy if exists transactions_update on transactions;
+create policy transactions_update on transactions for update
+  using (is_staff() or agent_id = current_agent_id() or colist_agent_id = current_agent_id());
+
+drop policy if exists todos_select on todos;
+create policy todos_select on todos for select using (can_access_transaction(transaction_id));
+drop policy if exists todos_insert on todos;
+create policy todos_insert on todos for insert with check (can_access_transaction(transaction_id));
+drop policy if exists todos_update on todos;
+create policy todos_update on todos for update using (can_access_transaction(transaction_id));
+drop policy if exists todos_delete on todos;
+create policy todos_delete on todos for delete using (can_access_transaction(transaction_id));
+
+drop policy if exists activity_select on activity_log;
+create policy activity_select on activity_log for select using (can_access_transaction(transaction_id));
+drop policy if exists activity_insert on activity_log;
+create policy activity_insert on activity_log for insert with check (can_access_transaction(transaction_id));
+
+drop policy if exists commission_select on commission_data;
+create policy commission_select on commission_data for select using (can_access_transaction(transaction_id));
+drop policy if exists commission_update on commission_data;
+create policy commission_update on commission_data for update using (can_access_transaction(transaction_id));
+
+drop policy if exists documents_select on documents;
+create policy documents_select on documents for select using (can_access_transaction(transaction_id));
+drop policy if exists documents_insert on documents;
+create policy documents_insert on documents for insert with check (can_access_transaction(transaction_id));
+drop policy if exists documents_update on documents;
+create policy documents_update on documents for update using (can_access_transaction(transaction_id));
+
+notify pgrst, 'reload schema';

@@ -326,7 +326,7 @@ Deno.serve(async (req) => {
     const agents: { id: string; name: string; email: string | null }[] = await agentsRes.json();
 
     const txRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/transactions?terminated_at=is.null&select=id,address,agent_id,stage,terminated_at,compliance_closed_at,todos(text,done,due_date)`,
+      `${SUPABASE_URL}/rest/v1/transactions?terminated_at=is.null&select=*,todos(text,done,due_date)`,
       { headers: serviceHeaders }
     );
     const txs: Tx[] = await txRes.json();
@@ -345,7 +345,8 @@ Deno.serve(async (req) => {
       const deals = txs
         .filter((tx) => !tx.compliance_closed_at)
         .map((tx) => {
-          const isOwn = tx.agent_id === agent.id;
+          // Co-list agents get the deal's due to-dos too.
+          const isOwn = tx.agent_id === agent.id || (tx as { colist_agent_id?: string }).colist_agent_id === agent.id;
           const open = (tx.todos || [])
             .filter((t) => !t.done)
             .filter((t) => (isOwn && t.due_date && t.due_date <= tomorrow) || tagsAgent(t.text, agent.name))
