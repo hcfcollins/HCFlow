@@ -613,7 +613,8 @@ export default function DealDetail({
               onSave={(v) => handleFieldSave({ price: v ? Number(v) : null })}
             />
 
-            {isStaff && (
+            {/* Brokers only — Kerry (TC) sees the agent but can't reassign. */}
+            {isBroker && (
               <AgentPicker
                 transaction={transaction}
                 onSave={async (agentId, agentName) => {
@@ -621,6 +622,12 @@ export default function DealDetail({
                   showToast(`Now ${agentName}'s deal`);
                 }}
               />
+            )}
+            {isCoordinator && (
+              <div data-field="agent">
+                <div className="detail-label">Agent</div>
+                <div>{transaction.agent?.name || "—"}</div>
+              </div>
             )}
 
             {!isBuySide && (
@@ -1904,7 +1911,7 @@ function AddressEditor({ transaction, onSave, onCancel }) {
   );
 }
 
-/** Staff-only: reassign the deal to a different agent (e.g. picked the wrong
+/** Broker-only: reassign the deal to a different agent (e.g. picked the wrong
  * one on a quick add). The Dropbox folder stays where it is — if the new agent
  * keeps listings in their own Dropbox space, move it there and re-pair it. */
 function AgentPicker({ transaction, onSave }) {
