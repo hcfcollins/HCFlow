@@ -108,6 +108,7 @@ export default function App() {
   const [pageIndex, setPageIndex] = useState(2); // Under Contract — see PAGES in DealPages.jsx
   const [searchQuery, setSearchQuery] = useState("");
   const [showManageAgents, setShowManageAgents] = useState(false);
+  const [focusAgentId, setFocusAgentId] = useState(null); // open Manage Agents on this agent
   const [showSocialScheduler, setShowSocialScheduler] = useState(false);
   const [showSpreadsheetView, setShowSpreadsheetView] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -683,7 +684,13 @@ export default function App() {
   if (showManageAgents) {
     return (
       <div className="app">
-        <ManageAgents onBack={() => setShowManageAgents(false)} />
+        <ManageAgents
+          focusAgentId={focusAgentId}
+          onBack={() => {
+            setShowManageAgents(false);
+            setFocusAgentId(null);
+          }}
+        />
       </div>
     );
   }
@@ -961,6 +968,10 @@ export default function App() {
                 }
           }
           onNewActiveListing={() => setShowActiveListingForm(true)}
+          onOpenAgent={(agentId) => {
+            setFocusAgentId(agentId);
+            setShowManageAgents(true);
+          }}
           onDeadLead={async (tx, reason) => {
             try {
               await handleTerminate(tx.id, reason?.trim() ? `Dead lead: ${reason.trim()}` : "Dead lead");

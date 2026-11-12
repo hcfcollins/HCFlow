@@ -8,6 +8,8 @@ import { TodoRow } from "./TodoList";
 import MentionInput from "./MentionInput";
 import { STANDING_REMINDERS } from "../lib/onboarding";
 import { useMentionRoster, splitMentions } from "../lib/mentions";
+import { agentMissingItems } from "../lib/agentMissingInfo";
+import { fetchAllAgents } from "../lib/transactions";
 
 /** Starts collapsed only while a section is empty, then auto-opens the moment
  * something first lands in it — `useState(length === 0)` alone only looks at the
@@ -60,6 +62,7 @@ export default function DealPages({
   onNewActiveListing,
   onDeadLead,
   onReviveLead,
+  onOpenAgent,
 }) {
   const [dragOffset, setDragOffset] = useState(0);
   const [quickTodoOpen, setQuickTodoOpen] = useState(false);
@@ -258,6 +261,7 @@ export default function DealPages({
                       onEditTodo={onEditTodo}
                       onDeleteTodo={onDeleteTodo}
                       onOpenDetail={onOpenDetail}
+                      onOpenAgent={onOpenAgent}
                     />
                   )}
                 </div>
@@ -377,8 +381,22 @@ function QuickTodoForm({ transactions, onAdd, onDone }) {
   );
 }
 
-function AllTodosPage({ transactions, currentAgent, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail, quickTodoOpen, onCloseQuickTodo, onAddTodo }) {
+function AllTodosPage({ transactions, currentAgent, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail, quickTodoOpen, onCloseQuickTodo, onAddTodo, onOpenAgent }) {
   const [groupByProperty, setGroupByProperty] = useState(true);
+  // Brokers: what's still missing on each agent's profile (licenses, cover
+  // sheet, Dropbox folders) — tap to jump to that agent on Manage Agents.
+  const isBroker = currentAgent?.role === "broker";
+  const [agentGaps, setAgentGaps] = useState([]);
+  useEffect(() => {
+    if (!isBroker) return;
+    let live = true;
+    fetchAllAgents()
+      .then((agents) => live && setAgentGaps(agents.map((a) => ({ agent: a, items: agentMissingItems(a) })).filter((g) => g.items.length)))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [isBroker]);
   const reminders = STANDING_REMINDERS.filter((r) => r.forEmail === currentAgent?.email && r.active());
   const pending = transactions.flatMap((tx) => (tx.todos || []).filter((t) => !t.done).map((t) => ({ ...t, tx })));
 
@@ -428,6 +446,31 @@ function AllTodosPage({ transactions, currentAgent, onToggleTodo, onEditTodo, on
             <div key={r.key} className="missing-info-todo standing-reminder" title="Clears itself once it's done">
               <span>📌</span>
               <span>{r.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {isBroker && agentGaps.length > 0 && (
+        <div className="comps-section comps-section--agent-gaps">
+          <div className="comps-section-header">
+            <h2 className="comps-section-title">
+              Agent Info Missing <span className="comps-section-count">{agentGaps.length}</span>
+            </h2>
+          </div>
+          {agentGaps.map(({ agent, items }) => (
+            <div
+              key={agent.id}
+              role="button"
+              tabIndex={0}
+              className="missing-info-todo agent-gap"
+              title={`Open ${agent.name} on Manage Agents`}
+              onClick={() => onOpenAgent?.(agent.id)}
+              onKeyDown={(e) => e.key === "Enter" && onOpenAgent?.(agent.id)}
+            >
+              <span>🪪</span>
+              <span>
+                <strong>{agent.name}:</strong> {items.join(" · ")}
+              </span>
             </div>
           ))}
         </div>

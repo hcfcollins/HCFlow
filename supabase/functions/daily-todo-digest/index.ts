@@ -252,6 +252,7 @@ async function sendLicenseReminders(accessToken: string, today: string, testMode
     const sentLog: Record<string, number[]> = agent.license_reminders || {};
     let changed = false;
     for (const st of ["VT", "NH"]) {
+      if (st === "NH" && agent.nh_not_licensed) continue; // NH is optional
       const expires = agent[`${st.toLowerCase()}_license_expires`];
       if (!expires) continue;
       const left = daysBetween(today, expires);

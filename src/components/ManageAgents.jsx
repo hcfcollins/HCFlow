@@ -9,6 +9,7 @@ import { useToast } from "../lib/ToastContext";
 import { loadDraft, useDraftPersistence } from "../lib/useDraftPersistence";
 import { fetchAllAgents, addAgent, updateAgentFields, removeAgent, uploadAgentCoverSheet, uploadAgentLicense, agentLicenseUrl } from "../lib/transactions";
 import { focusNextOnEnter } from "../lib/formKeyNav";
+import { agentMissingItems } from "../lib/agentMissingInfo";
 
 /** Uses the app's actual current URL — never a guessed/hardcoded domain, so the
  * sign-in link is always correct even if the deployment domain ever changes. */
@@ -37,7 +38,7 @@ Quick orientation:
 Questions? Just ask Fran or Holly.`;
 }
 
-export default function ManageAgents({ onBack }) {
+export default function ManageAgents({ onBack, focusAgentId = null }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -85,7 +86,7 @@ export default function ManageAgents({ onBack }) {
         ) : (
           <div className="agent-list">
             {agents.map((agent) => (
-              <AgentRow key={agent.id} agent={agent} onChanged={load} />
+              <AgentRow key={agent.id} agent={agent} onChanged={load} focused={agent.id === focusAgentId} />
             ))}
           </div>
         )}
@@ -394,8 +395,17 @@ function OnboardingTodos({ agents, onChanged }) {
   );
 }
 
-function AgentRow({ agent, onChanged }) {
-  const [expanded, setExpanded] = useState(false);
+function AgentRow({ agent, onChanged, focused = false }) {
+  // Opened from "Agent Info Missing" on the To-Dos tab → start open and scroll here.
+  const [expanded, setExpanded] = useState(focused);
+  const rowRef = useRef(null);
+  useEffect(() => {
+    if (!focused || !rowRef.current) return;
+    setExpanded(true);
+    const t = setTimeout(() => rowRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
+    return () => clearTimeout(t);
+  }, [focused]);
+  const missing = agentMissingItems(agent);
   const [email, setEmail] = useState(agent.email || "");
   const [dropboxListingPath, setDropboxListingPath] = useState(agent.dropbox_listing_path || "");
   const [dropboxBuyerPath, setDropboxBuyerPath] = useState(agent.dropbox_buyer_path || "");
@@ -458,7 +468,7 @@ function AgentRow({ agent, onChanged }) {
   }
 
   return (
-    <div className={`tx-card uc-form agent-row ${agent.is_active ? "" : "agent-row--inactive"}`}>
+    <div ref={rowRef} className={`tx-card uc-form agent-row ${agent.is_active ? "" : "agent-row--inactive"}`}>
       <div className="tx-card-top agent-row-header" onClick={() => setExpanded((x) => !x)}>
         <div>
           <div className="tx-address">{agent.name}</div>
@@ -466,6 +476,7 @@ function AgentRow({ agent, onChanged }) {
             {agent.role} {agent.is_active ? "" : "· inactive"}
           </div>
           {"vt_license_expires" in agent && agent.role !== "coordinator" && <LicenseBadges agent={agent} />}
+          {missing.length > 0 && <div className="agent-missing-line">Missing: {missing.join(" · ")}</div>}
         </div>
         <button title={agent.is_active ? "Turn off this agent's access (keeps their deals)" : "Turn this agent's access back on"} type="button" className="agent-deactivate-btn" onClick={handleToggleActive} disabled={saving}>
           {agent.is_active ? "Deactivate" : "Reactivate"}
@@ -505,8 +516,26 @@ function AgentRow({ agent, onChanged }) {
                 Reminders go to {agent.name.split(" ")[0]} and Fran 3 months before expiration (for continuing education), then 1 month,
                 2 weeks, and 1 day before.
               </p>
-              <LicenseEditor agent={agent} state="vt" label="Vermont" onChanged={onChanged} />
-              <LicenseEditor agent={agent} state="nh" label="New Hampshire" onChanged={onChanged} />
+              <LicenseEditor agent={agent} state="vt" label="Vermont (required)" onChanged={onChanged} />
+              {"nh_not_licensed" in agent && (
+                <label className="inspection-waived-check" title="New Hampshire is optional — stops asking for an NH license">
+                  <input
+                    type="checkbox"
+                    checked={agent.nh_not_licensed === true}
+                    onChange={async (e) => {
+                      try {
+                        await updateAgentFields(agent.id, { nh_not_licensed: e.target.checked });
+                        onChanged();
+                        showToast(e.target.checked ? `${agent.name.split(" ")[0]} marked not licensed in NH` : "NH license back on");
+                      } catch (err) {
+                        setError(err.message);
+                      }
+                    }}
+                  />
+                  Not licensed in NH
+                </label>
+              )}
+              {!agent.nh_not_licensed && <LicenseEditor agent={agent} state="nh" label="New Hampshire" onChanged={onChanged} />}
             </div>
           )}
 

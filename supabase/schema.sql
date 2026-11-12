@@ -536,3 +536,8 @@ notify pgrst, 'reload schema';
 -- asking for an inspection deadline.
 alter table commission_data add column if not exists inspection_waived boolean not null default false;
 notify pgrst, 'reload schema';
+
+-- Everyone must hold a VT license; NH is optional. Checked = stop asking
+-- for an NH license (Manage Agents, broker To-Dos, renewal reminders).
+alter table agents add column if not exists nh_not_licensed boolean not null default false;
+notify pgrst, 'reload schema';
