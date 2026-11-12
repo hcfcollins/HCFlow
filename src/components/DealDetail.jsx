@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Pencil, Mail, FileText, FolderOpen, ChevronDown, ChevronLeft, Share2 } from "lucide-react";
+import { Pencil, Mail, FileText, FolderOpen, ChevronDown, ChevronLeft, Instagram } from "lucide-react";
 import TodoList, { MissingInfoTodo } from "./TodoList";
 import RadioGroup from "./RadioGroup";
 import CheckboxGroup from "./CheckboxGroup";
@@ -12,7 +12,8 @@ import { useToast } from "../lib/ToastContext";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode } from "../lib/transactions";
 import { clientIsBuyer as isClientBuyer } from "../lib/missingInfo";
 import { stageSelectValue, closingStatusBadge } from "../lib/stages";
-import { formatBac, emailComposeUrl, emailLinkTarget, gmailComposeUrl, mailtoUrl, isMobileDevice } from "../lib/clientEmail";
+import { formatBac, emailComposeUrl, emailLinkTarget } from "../lib/clientEmail";
+import { sendShowingPacket } from "../lib/showingPacket";
 import { focusNextOnEnter } from "../lib/formKeyNav";
 import {
   PROPERTY_STYLES,
@@ -248,38 +249,12 @@ export default function DealDetail({
     showToast("Saved");
   }
 
-  /** Opens a pre-filled email from YOUR OWN account (phone mail app, or a
-   * Gmail tab on a computer) with a Dropbox link to the newest file in this
-   * listing's "3) Showing Docs" folder — the recipient is left blank for you. */
   async function handleEmailShowingPacket() {
     setEmailingPacket(true);
-    // Desktop: open the tab right on the click and point it at Gmail once the
-    // link is ready — a window.open() after the await gets popup-blocked. Not
-    // "noopener" (that makes window.open return null — the old blank page).
-    const mobile = isMobileDevice();
-    const composeTab = mobile ? null : window.open("", "_blank");
-    if (composeTab) {
-      try {
-        composeTab.opener = null;
-        composeTab.document.title = "Getting the showing packet…";
-        composeTab.document.body.innerHTML =
-          '<p style="font-family:Montserrat,Arial,sans-serif;color:#173348;padding:24px">Getting the showing packet link…</p>';
-      } catch {
-        /* cosmetic only */
-      }
-    }
     try {
-      const { fileName, url } = await emailShowingPacket(transaction.id);
-      const email = {
-        to: [],
-        subject: `Listing Packet - ${transaction.address}`,
-        body: `Hi,\n\nHere is the listing packet for ${transaction.address}:\n${url}\n\nLet me know if you have any questions!`,
-      };
-      if (composeTab) composeTab.location.href = gmailComposeUrl(email);
-      else window.location.href = mobile ? mailtoUrl(email) : gmailComposeUrl(email);
+      const fileName = await sendShowingPacket(transaction);
       showToast(`Email ready with a link to "${fileName}"`);
     } catch (e) {
-      if (composeTab) composeTab.close();
       showToast(`Couldn't get the showing packet: ${e.message}`);
     } finally {
       setEmailingPacket(false);
@@ -336,7 +311,7 @@ export default function DealDetail({
                 aria-label="Social media post"
                 title="Social media post"
               >
-                <Share2 size={18} />
+                <Instagram size={18} />
               </button>
               {showSocialMenu && (
                 <div className="detail-social-menu">
@@ -998,7 +973,7 @@ export default function DealDetail({
                 Change folder
               </button>
               {transaction.side !== "Buy" && (
-                <button title="Open an email from your own account with a link to the latest file in Showing Docs" type="button" className="cma-export-btn" disabled={emailingPacket} onClick={handleEmailShowingPacket}>
+                <button title="Open an email from your own account with a view-only link to the “- Packet” file in Showing Docs" type="button" className="cma-export-btn" disabled={emailingPacket} onClick={handleEmailShowingPacket}>
                   <Mail size={14} /> {emailingPacket ? "Getting packet…" : "Email Showing Packet"}
                 </button>
               )}

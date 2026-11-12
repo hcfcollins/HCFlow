@@ -1,14 +1,15 @@
-// Finds the most recently modified file in a listing's "3) Showing Docs"
-// Dropbox subfolder and returns a Dropbox share link to it. The app then
-// opens a pre-filled email FROM THE AGENT'S OWN ACCOUNT (their phone's mail
-// app, or a Gmail tab on a computer) with that link in the body.
+// "Email Showing Packet": finds the listing's packet — the file in
+// "3) Showing Docs" whose name ends in "- Packet" (e.g. "1) 99 Sunset Lane
+// - Packet.pdf"; the newest if there are several) — and returns a VIEW-ONLY
+// Dropbox link to it. The app then opens a pre-filled email from the
+// agent's own account (phone mail app, or a Gmail tab on a computer) with
+// the link in the body; they add the recipient and send.
 //
-// It used to download the file and build a Gmail draft with it attached, in
-// the one Gmail account the app is connected to — that (a) put every agent's
-// draft in Fran's mailbox, and (b) ran out of memory on big packet PDFs
-// (WORKER_RESOURCE_LIMIT). A link has neither problem, and has no size limit.
+// (It once built a Gmail draft with the PDF attached, in the app's one
+// connected Gmail account — that ran out of memory on big packets and put
+// every agent's draft in Fran's mailbox. Fran chose the link instead.)
 //
-// Expects POST { transactionId: string } → { fileName, url, address }.
+// POST { transactionId } (signed-in user) → { fileName, url, address }
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -20,6 +21,8 @@ const DROPBOX_TEAM_ROOT_NAMESPACE_ID = Deno.env.get("DROPBOX_TEAM_ROOT_NAMESPACE
 const dropboxPathRootHeader = JSON.stringify({ ".tag": "root", root: DROPBOX_TEAM_ROOT_NAMESPACE_ID });
 
 const SHOWING_DOCS_SUBFOLDER = "3) Showing Docs";
+
+const svc = { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` };
 
 // ----- Rename-proof folder lookup (same helper in each function that uses a
 // deal's Dropbox folder — see pair-dropbox-folder). Looks the folder up by its
@@ -73,27 +76,23 @@ async function getDropboxAccessToken(): Promise<string> {
   return data.access_token;
 }
 
-async function findLatestShowingDoc(accessToken: string, listingFolderPath: string) {
+/** The packet: a file directly in Showing Docs whose name (before the
+ * extension) ends in "- Packet". Newest one wins if there are several. */
+async function findPacket(accessToken: string, listingFolderPath: string) {
   const path = `${listingFolderPath}/${SHOWING_DOCS_SUBFOLDER}`;
   const res = await fetch("https://api.dropboxapi.com/2/files/list_folder", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "Dropbox-API-Path-Root": dropboxPathRootHeader,
-    },
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
     body: JSON.stringify({ path, recursive: false }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(`Couldn't list Showing Docs: ${JSON.stringify(data)}`);
-
-  const files = (data.entries || []).filter((e: { [".tag"]: string }) => e[".tag"] === "file");
-  if (!files.length) throw new Error(`No file found in "${SHOWING_DOCS_SUBFOLDER}" — add the packet there first.`);
-
-  files.sort((a: { server_modified: string }, b: { server_modified: string }) =>
-    b.server_modified.localeCompare(a.server_modified)
+  if (!res.ok) throw new Error(`Couldn't open the "${SHOWING_DOCS_SUBFOLDER}" folder in Dropbox`);
+  const packets = (data.entries || []).filter(
+    (e: { [".tag"]: string; name: string }) => e[".tag"] === "file" && /-\s*packet$/i.test(e.name.replace(/\.[^.]+$/, "").trim())
   );
-  return files[0] as { name: string; path_lower: string };
+  if (!packets.length) throw new Error(`No file ending in "- Packet" in "${SHOWING_DOCS_SUBFOLDER}" — name the packet like "123 Main St - Packet.pdf".`);
+  packets.sort((a: { server_modified: string }, b: { server_modified: string }) => b.server_modified.localeCompare(a.server_modified));
+  return packets[0] as { name: string; path_lower: string; size: number };
 }
 
 /** A view-only share link to the file. Uses an existing link if there is one
@@ -119,6 +118,18 @@ async function getOrCreateFileLink(accessToken: string, path: string): Promise<s
   throw new Error(`Couldn't create a Dropbox link for the packet: ${JSON.stringify(createdData)}`);
 }
 
+async function getCaller(req: Request) {
+  const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  if (!jwt) return null;
+  const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${jwt}` } });
+  if (!userRes.ok) return null;
+  const user = await userRes.json();
+  if (!user?.email) return null;
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/agents?email=ilike.${encodeURIComponent(user.email)}&select=id,name,email,role,is_active`, { headers: svc });
+  const [agent] = await res.json();
+  return agent && agent.is_active !== false ? agent : null;
+}
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -134,19 +145,21 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers: CORS_HEADERS });
 
   try {
+    const caller = await getCaller(req);
+    if (!caller) return jsonResponse({ error: "Sign in first" }, 401);
     const { transactionId } = await req.json();
     if (!transactionId) return jsonResponse({ error: "transactionId required" }, 400);
 
-    const txRes = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}&select=address,dropbox_folder_path`, {
-      headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
-    });
+    const txRes = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}&select=address,agent_id,dropbox_folder_path`, { headers: svc });
     const [tx] = await txRes.json();
     if (!tx) return jsonResponse({ error: "Transaction not found" }, 404);
+    const staff = caller.role === "broker" || caller.role === "coordinator";
+    if (!staff && caller.id !== tx.agent_id) return jsonResponse({ error: "Not allowed" }, 403);
     if (!tx.dropbox_folder_path) return jsonResponse({ error: "No Dropbox folder on record for this listing yet" }, 400);
 
     const dropboxToken = await getDropboxAccessToken();
     const dealFolder = (await resolveDealFolderPath(dropboxToken, transactionId, tx.dropbox_folder_path)) || tx.dropbox_folder_path;
-    const file = await findLatestShowingDoc(dropboxToken, dealFolder);
+    const file = await findPacket(dropboxToken, dealFolder);
     const url = await getOrCreateFileLink(dropboxToken, file.path_lower);
 
     return jsonResponse({ fileName: file.name, url, address: tx.address });

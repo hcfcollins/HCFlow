@@ -787,10 +787,8 @@ export default function App() {
                 Manage Agents
               </button>
             )}
-            {/* Not ready for general use yet — limited to Fran while the feature is
-                still being worked on, not every broker. Remove this extra gate
-                (leave the role check) once it's ready for everyone. */}
-            {effectiveAgent.role === "broker" && session.user.email === "fran.collins@hallcollins.com" && (
+            {/* Both brokers — Holly runs the social rotation. */}
+            {effectiveAgent.role === "broker" && (
               <button onClick={() => setShowSocialScheduler(true)} title="Broker only — manage the daily social media rotation">
                 Social Scheduler
               </button>
@@ -849,7 +847,7 @@ export default function App() {
           onDeadLead={async (tx, reason) => {
             try {
               await handleTerminate(tx.id, reason?.trim() ? `Dead lead: ${reason.trim()}` : "Dead lead");
-              showToast(`${tx.address} moved to Dead Leads`);
+              showToast(`🪦 ${tx.address} moved to Dead/Lost`);
             } catch (e) {
               showToast(`Couldn't update: ${e.message}`);
             }

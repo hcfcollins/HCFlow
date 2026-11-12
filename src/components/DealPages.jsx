@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X, Signpost } from "lucide-react";
 import TransactionList from "./TransactionList";
 import ConfirmDialog from "./ConfirmDialog";
+import Tombstone from "./icons/Tombstone";
 import { TodoRow } from "./TodoList";
 import MentionInput from "./MentionInput";
 import { STANDING_REMINDERS } from "../lib/onboarding";
@@ -538,7 +539,7 @@ export function AllPage({ transactions, stages, currentAgent, onStageChange, onN
     },
     {
       key: "dead",
-      title: "Dead Leads",
+      title: "Dead/Lost",
       colorClass: "comps-section--dead",
       items: deadLeads,
     },
@@ -646,10 +647,10 @@ function ActiveListingsPage({
             <Signpost size={14} /> {activeFilter === "signs" ? "Back to Listings" : "Sign Inventory"}
           </button>
         )}
-        {/* Brokers only — agents and the TC never see the social schedule.
-            Also still limited to Fran while it's being worked on. The role
-            check (not just the email) is what hides it in "View as Agent". */}
-        {currentAgent?.email === "fran.collins@hallcollins.com" && currentAgent?.role === "broker" && (
+        {/* Brokers only (Fran + Holly — Holly runs the social rotation).
+            Agents and the TC never see the social schedule; checking the
+            role is what hides it in "View as Agent" / "TC View" too. */}
+        {currentAgent?.role === "broker" && (
           <button title="See where each listing is in the social media rotation"
             type="button"
             className="sign-inventory-toggle"
@@ -1002,9 +1003,9 @@ function CompsPage({
     <div className="comps-page">
       <ConfirmDialog
         open={Boolean(confirmDeadTx)}
-        title="Mark as a dead lead?"
-        message={confirmDeadTx ? `${confirmDeadTx.address} moves to Dead Leads at the bottom of this page. You can revive it anytime.` : ""}
-        confirmLabel="Dead Lead"
+        title="Dead/Lost? 🪦"
+        message={confirmDeadTx ? `${confirmDeadTx.address} gets laid to rest in Dead/Lost at the bottom of this page. You can revive it anytime.` : ""}
+        confirmLabel="Dead/Lost"
         promptLabel="What happened? (optional)"
         promptPlaceholder="e.g. Listed with another brokerage, decided not to sell…"
         onConfirm={(reason) => {
@@ -1088,7 +1089,7 @@ function CompsPage({
         <div className="comps-section comps-section--dead">
           <div className="comps-section-header">
             <h2 className="comps-section-title">
-              Dead Leads <span className="comps-section-count">{sortedDead.length}</span>
+              <Tombstone size={18} /> Dead/Lost <span className="comps-section-count">{sortedDead.length}</span>
             </h2>
             <button title={deadCollapsed ? "Show this section" : "Collapse this section"} type="button" className="comps-minimize-btn" onClick={() => setDeadCollapsed((c) => !c)}>
               {deadCollapsed ? "Show" : "Minimize"}

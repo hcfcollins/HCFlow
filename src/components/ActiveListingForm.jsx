@@ -182,29 +182,39 @@ export default function ActiveListingForm({ currentAgent, onCancel, onSubmitted 
         <input value={lockboxCode} onChange={(e) => setLockboxCode(e.target.value)} placeholder="Leave blank if none" />
       </label>
       <fieldset>
-        <legend>Dropbox Folder (optional)</legend>
-        {folder ? (
+        <legend>Existing Dropbox Folder (optional)</legend>
+        {folder?.folderId ? (
           <div className="dbx-chosen">
-            <FolderOpen size={14} /> <span>{folder.name || folder.link}</span>
+            <FolderOpen size={14} /> <span>{folder.name}</span>
             <button type="button" onClick={() => setFolder(null)} title="Don't pair a folder">
               Remove
             </button>
           </div>
-        ) : pickingFolder ? (
-          <DropboxFolderPicker
-            agentId={agentId}
-            side="Sell"
-            address={address}
-            onPick={(choice) => {
-              setFolder(choice);
-              setPickingFolder(false);
-            }}
-            onCancel={() => setPickingFolder(false)}
-          />
         ) : (
-          <button type="button" className="cma-export-btn" onClick={() => setPickingFolder(true)} title="Link this listing's folder that's already in Dropbox">
-            <FolderOpen size={14} /> Pair Existing Folder
-          </button>
+          <>
+            <input
+              value={folder?.link || ""}
+              onChange={(e) => setFolder(e.target.value.trim() ? { link: e.target.value } : null)}
+              placeholder="Paste the Dropbox folder link (or path)"
+              title="Paste a link to this listing's existing Dropbox folder — it gets paired when you save"
+            />
+            {pickingFolder ? (
+              <DropboxFolderPicker
+                agentId={agentId}
+                side="Sell"
+                address={address}
+                onPick={(choice) => {
+                  setFolder(choice);
+                  setPickingFolder(false);
+                }}
+                onCancel={() => setPickingFolder(false)}
+              />
+            ) : (
+              <button type="button" className="dbx-change-link" onClick={() => setPickingFolder(true)} title="Pick from the agent's listing folders instead of pasting a link">
+                or browse the agent's Dropbox folders
+              </button>
+            )}
+          </>
         )}
       </fieldset>
       <label>

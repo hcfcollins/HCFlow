@@ -1555,3 +1555,16 @@ button { cursor: pointer; }
 /* All Deals button: white with a pink outline */
 .my-earnings-cta.all-deals-cta { background: var(--color-white); color: var(--color-pink); border: 2px solid var(--color-pink); padding: 7px; }
 .my-earnings-cta.all-deals-cta:hover { background: rgba(var(--pink-rgb), 0.06); opacity: 1; }
+
+/* Card footer: Email Client on the left, Send Packet on the right */
+.tx-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
+.tx-card-footer .tx-email-client-btn { margin-top: 0; }
+.tx-packet-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: none; border-radius: 50%; background: rgba(var(--pink-rgb), 0.1); color: var(--color-pink); cursor: pointer; flex-shrink: 0; }
+.tx-packet-btn:hover { background: rgba(var(--pink-rgb), 0.18); }
+.tx-packet-btn:disabled { opacity: 0.5; cursor: wait; }
+@media (min-width: 700px) {
+  .tx-list > .tx-card > .tx-card-footer { margin-top: auto; padding-top: 10px; }
+}
+/* Dead/Lost button + section title with the RIP stone */
+.comps-status-btn--dead { display: inline-flex; align-items: center; gap: 4px; }
+.comps-section--dead .comps-section-title { display: inline-flex; align-items: center; gap: 6px; }

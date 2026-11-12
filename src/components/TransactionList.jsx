@@ -1,6 +1,9 @@
 import { useState } from "react";
+import Tombstone from "./icons/Tombstone";
+import { sendShowingPacket } from "../lib/showingPacket";
+import { useToast } from "../lib/ToastContext";
 import { createPortal } from "react-dom";
-import { Signpost, Lock, Mail, Share2 } from "lucide-react";
+import { Signpost, Lock, Mail, Instagram, Send } from "lucide-react";
 import { stageSelectValue, closingStatusBadge } from "../lib/stages";
 import { formatBac, openEmailCompose } from "../lib/clientEmail";
 import TodoList, { MissingInfoTodo } from "./TodoList";
@@ -116,6 +119,10 @@ function TxCard({
   // Never for the transaction coordinator — social media isn't part of her role.
   const canPostSocial = !hideSocial && !isBuySide && Boolean(tx.dropbox_folder_path);
   const statusBadge = closingStatusBadge(tx);
+  const [sendingPacket, setSendingPacket] = useState(false);
+  const showToast = useToast();
+  // Listing-side deals with a Dropbox folder — that's where the "- Packet" file lives.
+  const canSendPacket = !isBuySide && Boolean(tx.dropbox_folder_url) && ["won", "market", "contract"].includes(tx.stage) && !tx.terminated_at;
 
   return (
     <div className={`tx-card ${tx.terminated_at ? "tx-card--terminated" : ""}`} onClick={() => onOpenDetail && onOpenDetail(tx)}>
@@ -160,7 +167,7 @@ function TxCard({
                 aria-label="Social media post"
                 title="Social media post"
               >
-                <Share2 size={16} />
+                <Instagram size={16} />
               </button>
               {showSocialMenu && (
                 <div className="detail-social-menu">
@@ -335,8 +342,8 @@ function TxCard({
             Won Listing
           </button>
           {onDeadLead && (
-            <button type="button" className="comps-status-btn comps-status-btn--dead" onClick={() => onDeadLead(tx)} title="We didn't get this one — archive it as a dead lead">
-              Dead Lead
+            <button type="button" className="comps-status-btn comps-status-btn--dead" onClick={() => onDeadLead(tx)} title="We didn't get this one — lay it to rest (you can revive it later)">
+              <Tombstone size={15} /> Dead/Lost
             </button>
           )}
         </div>
@@ -369,18 +376,47 @@ function TxCard({
         )
       )}
 
-      {tx.seller_emails?.length > 0 && (
-        <button
-          type="button"
-          className="tx-email-client-btn"
-          title={`Email ${tx.seller_emails.join(", ")}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            openEmailCompose({ to: tx.seller_emails, subject: tx.address });
-          }}
-        >
-          <Mail size={14} /> Email Client
-        </button>
+      {(tx.seller_emails?.length > 0 || canSendPacket) && (
+        <div className="tx-card-footer">
+          {tx.seller_emails?.length > 0 ? (
+            <button
+              type="button"
+              className="tx-email-client-btn"
+              title={`Email ${tx.seller_emails.join(", ")}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                openEmailCompose({ to: tx.seller_emails, subject: tx.address });
+              }}
+            >
+              <Mail size={14} /> Email Client
+            </button>
+          ) : (
+            <span />
+          )}
+          {canSendPacket && (
+            <button
+              type="button"
+              className="tx-packet-btn"
+              disabled={sendingPacket}
+              aria-label="Email the showing packet"
+              title="Email the showing packet (view-only Dropbox link) from your own account"
+              onClick={async (e) => {
+                e.stopPropagation();
+                setSendingPacket(true);
+                try {
+                  const fileName = await sendShowingPacket(tx);
+                  showToast(`Email ready with a link to "${fileName}"`);
+                } catch (err) {
+                  showToast(`Couldn't get the showing packet: ${err.message}`);
+                } finally {
+                  setSendingPacket(false);
+                }
+              }}
+            >
+              <Send size={14} />
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
