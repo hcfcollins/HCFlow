@@ -1,6 +1,6 @@
 // Saves deals parsed by dealImportParse.js (the old Google Sheet Deal Tracker).
 import { supabase } from "./supabaseClient";
-import { resolveAttorneyId, fetchAttorneys, fillAllZipCodes, linkDealSides } from "./transactions";
+import { resolveAttorneyId, fetchAttorneys, fillAllZipCodes, linkDealSides, addUpcomingContractTodos, addActivityLog, upsertCommissionData } from "./transactions";
 
 export { parseDealTracker, addressKey, yearOf, IMPORT_SHEET_NAME } from "./dealImportParse";
 export const IMPORT_ACTIVITY_LABEL = "Imported from Deal Tracker";
@@ -96,4 +96,39 @@ export async function importDeals(deals, onProgress) {
   // Zip + town from the address, in the background (can take a minute).
   fillAllZipCodes().catch((e) => console.error("ZIP/town lookup after import failed:", e));
   return { created, failed };
+}
+
+const TODOS_ADDED_LABEL = "Upcoming to-dos added";
+
+/** Finishing touches for imported deals — run after an import and once per
+ * broker session (so the deals imported before this existed get it too):
+ *  - Under Contract: add the dated to-dos (closing, walkthrough, contingency
+ *    deadlines…) whose dates haven't passed yet. Once per deal, so a to-do
+ *    someone deleted on purpose doesn't come back.
+ *  - A blank inspection date in the Deal Tracker means there was no
+ *    inspection → "Waived / no inspection" (once that column exists).
+ * Returns true if anything changed. */
+export async function finishImportedDeals(transactions) {
+  const imported = (transactions || []).filter(
+    (t) => !t.terminated_at && (t.activity_log || []).some((a) => a.label === IMPORT_ACTIVITY_LABEL)
+  );
+  let changed = false;
+  for (const tx of imported) {
+    const cd = tx.commission_data;
+    try {
+      if (cd && "inspection_waived" in cd && !cd.inspection_date && !cd.inspection_waived) {
+        await upsertCommissionData(tx.id, { inspection_waived: true });
+        cd.inspection_waived = true;
+        changed = true;
+      }
+      if (tx.stage === "contract" && !(tx.activity_log || []).some((a) => a.label === TODOS_ADDED_LABEL)) {
+        const added = await addUpcomingContractTodos(tx);
+        await addActivityLog(tx.id, TODOS_ADDED_LABEL, added ? `${added} to-do${added === 1 ? "" : "s"} with upcoming due dates` : "Nothing upcoming");
+        changed = true;
+      }
+    } catch (e) {
+      console.error(`Couldn't finish setting up imported deal ${tx.address}:`, e);
+    }
+  }
+  return changed;
 }

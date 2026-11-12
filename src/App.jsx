@@ -49,6 +49,7 @@ import ManageAgents from "./components/ManageAgents";
 import SocialScheduler from "./components/SocialScheduler";
 import SpreadsheetView from "./components/SpreadsheetView";
 import DealImport from "./components/DealImport";
+import { finishImportedDeals } from "./lib/dealImport";
 import { clientIsBuyer } from "./lib/missingInfo";
 import TutorialGuide from "./components/TutorialGuide";
 import AgentSpreadsheetView from "./components/AgentSpreadsheetView";
@@ -154,6 +155,17 @@ export default function App() {
       .catch((e) => console.error("ZIP backfill failed:", e));
   }
 
+  // Deals from the Deal Tracker import: upcoming to-dos + "no inspection"
+  // for blank inspection dates — once per broker session.
+  const importFinishStarted = useRef(false);
+  function maybeFinishImports(data) {
+    if (importFinishStarted.current || agent?.role !== "broker") return;
+    importFinishStarted.current = true;
+    finishImportedDeals(data)
+      .then((changed) => changed && loadTransactions({ silent: true }))
+      .catch((e) => console.error("Finishing imported deals failed:", e));
+  }
+
   async function loadTransactions({ silent = false } = {}) {
     if (!silent) setLoadingTxs(true);
     try {
@@ -163,6 +175,7 @@ export default function App() {
       setError(null);
       maybeBackfillFolderIds(data);
       maybeBackfillZips(data);
+      maybeFinishImports(data);
       return data;
     } catch (e) {
       setError(e.message);
@@ -801,7 +814,10 @@ export default function App() {
         <DealImport
           transactions={txs}
           onBack={() => setShowImport(false)}
-          onImported={() => loadTransactions({ silent: true })}
+          onImported={async () => {
+            const data = await loadTransactions({ silent: true });
+            if (data && (await finishImportedDeals(data))) await loadTransactions({ silent: true });
+          }}
           onStartReview={(ids) => goToReview(ids, 0)}
         />
       </TodoActionsContext.Provider>

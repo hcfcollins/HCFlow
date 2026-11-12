@@ -573,6 +573,45 @@ async function syncContingencyTodo(transactionId, text, dueDate) {
   }
 }
 
+/** The same dated to-dos an Under Contract submission creates, for a deal
+ * that came in another way (the Deal Tracker import) — only the ones whose
+ * date hasn't passed yet, and never a duplicate of one already there.
+ * Returns how many were added. */
+export async function addUpcomingContractTodos(tx) {
+  const cd = tx.commission_data || {};
+  const closing = /^\d{4}-\d{2}-\d{2}$/.test(tx.next_date || "") ? tx.next_date : null;
+  const financing = cd.financing_date?.slice(0, 10) || null;
+  const inspection = cd.inspection_waived ? null : cd.inspection_date?.slice(0, 10) || null;
+  const isListingSide = clientSideOf(tx.side, tx.split_client_side) !== "Buy";
+  const planned = [
+    ["Financing Contingency Deadline", financing],
+    ["Inspection Contingency Deadline", inspection],
+    ["Financing Check-In", dateMinusDays(financing, 7)],
+    ["Closing", closing],
+    ["Schedule Final Walkthrough", dateMinusDays(closing, 7)],
+    ["Send Utilities", dateMinusDays(closing, 10)],
+    ["Deposit Due", cd.hold_deposit === "Yes" ? cd.deposit_due_date || null : null],
+    ["Second Deposit Due", cd.second_deposit === "Yes" ? cd.second_deposit_due_date || null : null],
+    ...(isListingSide
+      ? [
+          ["Send the Deposit", dateMinusDays(closing, 5)],
+          ["Final Oil/Water/Sewer Reading", dateMinusDays(closing, tx.town_water_sewer ? 14 : 7)],
+        ]
+      : []),
+  ];
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const have = new Set((tx.todos || []).map((t) => t.text));
+  const rows = planned
+    .filter(([text, due]) => due && due >= today && !have.has(text))
+    .map(([text, due]) => ({ transaction_id: tx.id, text, due_date: due }));
+  if (rows.length) {
+    const { error } = await supabase.from("todos").insert(rows);
+    if (error) throw error;
+  }
+  return rows.length;
+}
+
 /** Creates the agent's Dropbox listing folder via the create-dropbox-folder Edge Function. */
 export async function createDropboxFolderForListing(transactionId) {
   const { data, error } = await supabase.functions.invoke("create-dropbox-folder", {
