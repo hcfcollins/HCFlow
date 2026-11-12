@@ -508,3 +508,26 @@ notify pgrst, 'reload schema';
 -- ============================================================
 alter table transactions add column if not exists other_side_id uuid references transactions(id) on delete set null;
 notify pgrst, 'reload schema';
+
+-- ============================================================
+-- Agent real estate licenses (Manage Agents): a copy of each VT/NH license
+-- in the PRIVATE agent-licenses bucket (path "<agent id>/VT-license-….pdf"),
+-- its expiration date, and which renewal reminders already went out
+-- (daily-todo-digest: 90 / 30 / 14 / 1 days before).
+-- ============================================================
+alter table agents add column if not exists vt_license_path text;
+alter table agents add column if not exists vt_license_expires date;
+alter table agents add column if not exists nh_license_path text;
+alter table agents add column if not exists nh_license_expires date;
+alter table agents add column if not exists license_reminders jsonb not null default '{}'::jsonb;
+
+insert into storage.buckets (id, name, public) values ('agent-licenses', 'agent-licenses', false)
+  on conflict (id) do nothing;
+drop policy if exists agent_licenses_broker_all on storage.objects;
+create policy agent_licenses_broker_all on storage.objects for all
+  using (bucket_id = 'agent-licenses' and is_broker())
+  with check (bucket_id = 'agent-licenses' and is_broker());
+drop policy if exists agent_licenses_own_read on storage.objects;
+create policy agent_licenses_own_read on storage.objects for select
+  using (bucket_id = 'agent-licenses' and (storage.foldername(name))[1] = current_agent_id()::text);
+notify pgrst, 'reload schema';

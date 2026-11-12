@@ -5,7 +5,10 @@
 // notify-todo has its own matching constant.
 const EMAILS_LIVE = false;
 
-// Runs two daily automations off the one pg_cron trigger:
+// Runs three daily automations off the one pg_cron trigger:
+//  3. License renewal reminders (sendLicenseReminders) — VT/NH real estate
+//     licenses, to the agent + Fran: 3 months out (continuing education),
+//     1 month, 2 weeks, 1 day.
 //  1. The to-do digest (below).
 //  2. Closing reminders (sendClosingReminders) — 10 days before a listing
 //     closes: order the final town water/sewer reading, send the deposit
@@ -210,6 +213,102 @@ function money(n: number): string {
  * attorneys (only if we hold a deposit). To the listing agent, cc Fran +
  * Holly. `windowTest` (the Test button) instead covers every listing closing
  * in the next 14 days, so there's something to look at. */
+// ── License renewal reminders ──
+// Days before expiration → what the email says. Each one is sent once per
+// license per expiration date (agents.license_reminders remembers), so a new
+// expiration date after renewing starts the schedule over.
+const LICENSE_STEPS: { days: number; when: string; note: string }[] = [
+  { days: 90, when: "in 3 months", note: "Now's the time to get your continuing education done so you can renew on time." },
+  { days: 30, when: "in 1 month", note: "If your continuing education isn't finished yet, please wrap it up and renew." },
+  { days: 14, when: "in 2 weeks", note: "Please renew as soon as possible." },
+  { days: 1, when: "tomorrow", note: "Please renew today — you can't practice on an expired license." },
+];
+const STATE_NAME: Record<string, string> = { VT: "Vermont", NH: "New Hampshire" };
+
+function daysBetween(fromYmd: string, toYmd: string) {
+  const [a, b] = [fromYmd, toYmd].map((d) => {
+    const [y, m, dd] = d.split("-").map(Number);
+    return Date.UTC(y, m - 1, dd);
+  });
+  return Math.round((b - a) / 86400000);
+}
+function longDate(ymd: string) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
+async function sendLicenseReminders(accessToken: string, today: string, testMode: boolean, record: boolean, errors: string[]) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/agents?is_active=eq.true&select=*`, { headers: serviceHeaders });
+  const agents = await res.json();
+  if (!res.ok) {
+    errors.push(`License reminders: couldn't load agents: ${JSON.stringify(agents)}`);
+    return [];
+  }
+  if (!agents.length || !("vt_license_expires" in agents[0])) return []; // columns not added yet
+  const fran = agents.find((a: { email: string | null }) => (a.email || "").toLowerCase() === FRAN_EMAIL);
+  const results: { agent: string; state: string; step: number }[] = [];
+
+  for (const agent of agents) {
+    const sentLog: Record<string, number[]> = agent.license_reminders || {};
+    let changed = false;
+    for (const st of ["VT", "NH"]) {
+      const expires = agent[`${st.toLowerCase()}_license_expires`];
+      if (!expires) continue;
+      const left = daysBetween(today, expires);
+      if (left < 1) continue;
+      const key = `${st}:${expires}`;
+      const already = sentLog[key] || [];
+      // The closest step we've reached that hasn't gone out yet. Earlier
+      // (bigger) steps that were skipped — e.g. the date was only entered
+      // last week — are marked done so they don't all fire at once.
+      const due = LICENSE_STEPS.filter((s) => left <= s.days && !already.includes(s.days));
+      if (!due.length) continue;
+      const step = due[due.length - 1];
+
+      const first = agent.name.split(/\s+/)[0];
+      const stateName = STATE_NAME[st];
+      const subject = `License reminder: your ${stateName} license expires ${step.when}`;
+      const html = `<p>Hi ${escapeHtml(first)},</p>
+<p>Your <strong>${stateName} real estate license</strong> expires <strong>${step.when}</strong>, on <strong>${longDate(expires)}</strong>.</p>
+<p>${step.note}</p>
+<p>Once you've renewed, send Fran a copy of your new license so it can be updated in HC Flow.</p>
+<p><em>Love, Jeeves — your happy Hall Collins robot!</em></p>`;
+      const realTo = agent.email || FRAN_EMAIL;
+      const cc = realTo.toLowerCase() === FRAN_EMAIL ? [] : [FRAN_EMAIL];
+      const to = testMode ? FRAN_EMAIL : realTo;
+      const finalHtml = testMode
+        ? `<div style="background:#FBF2D5;border:1px solid #E0C23A;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:13px;">🧪 <strong>TEST MODE</strong> — this would have gone to <strong>${escapeHtml(agent.email || `${agent.name} (no email on file)`)}</strong>${cc.length ? `, cc Fran` : ""}.</div>${html}`
+        : html;
+      try {
+        await sendGmail(accessToken, to, subject, finalHtml, testMode ? [] : cc);
+        results.push({ agent: agent.name, state: st, step: step.days });
+        if (record) {
+          // In-app bell for the agent and Fran too.
+          const message = `${st} license for ${agent.name} expires ${step.when} (${longDate(expires)}).`;
+          const recipients = [...new Set([agent.id, fran?.id].filter(Boolean))];
+          await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
+            method: "POST",
+            headers: { ...serviceHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+            body: JSON.stringify(recipients.map((id) => ({ recipient_agent_id: id, transaction_id: null, kind: "todo_assigned", message }))),
+          });
+          sentLog[key] = [...new Set([...already, ...LICENSE_STEPS.filter((s) => s.days >= step.days).map((s) => s.days)])];
+          changed = true;
+        }
+      } catch (e) {
+        errors.push(`License reminder ${agent.name} ${st}: ${String(e)}`);
+      }
+    }
+    if (changed) {
+      await fetch(`${SUPABASE_URL}/rest/v1/agents?id=eq.${agent.id}`, {
+        method: "PATCH",
+        headers: { ...serviceHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ license_reminders: sentLog }),
+      });
+    }
+  }
+  return results;
+}
+
 async function sendClosingReminders(
   accessToken: string,
   agents: { id: string; name: string; email: string | null }[],
@@ -397,8 +496,11 @@ Deno.serve(async (req) => {
     }
 
     const closingReminders = await sendClosingReminders(accessToken, agents, today, Boolean(body.testMode), fromBroker, errors);
+    // Only the real 6:15 run records a reminder as sent — the test button
+    // just previews, so it never uses up a real reminder.
+    const licenseReminders = await sendLicenseReminders(accessToken, today, Boolean(body.testMode), fromCron, errors);
 
-    return json({ today, testMode: Boolean(body.testMode), sent, closingReminders, errors });
+    return json({ today, testMode: Boolean(body.testMode), sent, closingReminders, licenseReminders, errors });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

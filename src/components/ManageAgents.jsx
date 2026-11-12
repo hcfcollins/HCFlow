@@ -7,7 +7,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import { SkeletonList } from "./Skeleton";
 import { useToast } from "../lib/ToastContext";
 import { loadDraft, useDraftPersistence } from "../lib/useDraftPersistence";
-import { fetchAllAgents, addAgent, updateAgentFields, removeAgent, uploadAgentCoverSheet } from "../lib/transactions";
+import { fetchAllAgents, addAgent, updateAgentFields, removeAgent, uploadAgentCoverSheet, uploadAgentLicense, agentLicenseUrl } from "../lib/transactions";
 import { focusNextOnEnter } from "../lib/formKeyNav";
 
 /** Uses the app's actual current URL — never a guessed/hardcoded domain, so the
@@ -465,6 +465,7 @@ function AgentRow({ agent, onChanged }) {
           <div className="tx-sub">
             {agent.role} {agent.is_active ? "" : "· inactive"}
           </div>
+          {"vt_license_expires" in agent && agent.role !== "coordinator" && <LicenseBadges agent={agent} />}
         </div>
         <button title={agent.is_active ? "Turn off this agent's access (keeps their deals)" : "Turn this agent's access back on"} type="button" className="agent-deactivate-btn" onClick={handleToggleActive} disabled={saving}>
           {agent.is_active ? "Deactivate" : "Reactivate"}
@@ -495,6 +496,18 @@ function AgentRow({ agent, onChanged }) {
             <a href={agent.cover_sheet_url} target="_blank" rel="noreferrer" className="cma-export-btn">
               <FileText size={14} /> Current Cover Sheet
             </a>
+          )}
+
+          {"vt_license_expires" in agent && agent.role !== "coordinator" && (
+            <div className="license-section">
+              <div className="license-section-title">Real Estate Licenses</div>
+              <p className="field-help">
+                Reminders go to {agent.name.split(" ")[0]} and Fran 3 months before expiration (for continuing education), then 1 month,
+                2 weeks, and 1 day before.
+              </p>
+              <LicenseEditor agent={agent} state="vt" label="Vermont" onChanged={onChanged} />
+              <LicenseEditor agent={agent} state="nh" label="New Hampshire" onChanged={onChanged} />
+            </div>
           )}
 
           {isDirty && (
@@ -536,6 +549,122 @@ function AgentRow({ agent, onChanged }) {
         }}
         onCancel={() => setShowDeactivateConfirm(false)}
       />
+    </div>
+  );
+}
+
+/** Days from today (local) until a YYYY-MM-DD date; negative once past. */
+function daysUntil(ymd) {
+  if (!ymd) return null;
+  const [y, m, d] = ymd.split("-").map(Number);
+  const today = new Date();
+  const t0 = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  return Math.round((Date.UTC(y, m - 1, d) - t0) / 86400000);
+}
+const shortExp = (ymd) => {
+  const [y, m, d] = ymd.split("-");
+  return `${Number(m)}/${Number(d)}/${y.slice(2)}`;
+};
+
+/** "VT exp 3/31/27" chips on the agent row — amber within 3 months, red when expired. */
+function LicenseBadges({ agent }) {
+  const chips = [
+    ["VT", agent.vt_license_expires],
+    ["NH", agent.nh_license_expires],
+  ].filter(([, d]) => d);
+  if (!chips.length) return null;
+  return (
+    <div className="license-badges">
+      {chips.map(([st, d]) => {
+        const left = daysUntil(d);
+        const cls = left < 0 ? "license-badge--expired" : left <= 90 ? "license-badge--soon" : "";
+        return (
+          <span key={st} className={`license-badge ${cls}`} title={left < 0 ? `${st} license expired` : `${st} license expires in ${left} day${left === 1 ? "" : "s"}`}>
+            {st} {left < 0 ? "expired" : "exp"} {shortExp(d)}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+/** One state's license: expiration date (saves on change) + upload/view a copy. */
+function LicenseEditor({ agent, state, label, onChanged }) {
+  const expKey = `${state}_license_expires`;
+  const pathKey = `${state}_license_path`;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const showToast = useToast();
+  const left = daysUntil(agent[expKey]);
+
+  async function saveDate(value) {
+    setBusy(true);
+    setError(null);
+    try {
+      await updateAgentFields(agent.id, { [expKey]: value || null });
+      onChanged();
+      showToast(value ? `${label} expiration saved` : `${label} expiration cleared`);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function upload(file) {
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await uploadAgentLicense(agent.id, state, file);
+      onChanged();
+      showToast(`${label} license uploaded`);
+    } catch (e) {
+      setError(e.message.includes("Bucket not found") ? "The license storage isn't set up yet — run the license SQL first." : e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function view() {
+    // Open the tab inside the click so it isn't popup-blocked.
+    const tab = window.open("", "_blank");
+    try {
+      const url = await agentLicenseUrl(agent[pathKey]);
+      if (tab) tab.location.href = url;
+      else window.location.href = url;
+    } catch (e) {
+      if (tab) tab.close();
+      setError(e.message);
+    }
+  }
+
+  return (
+    <div className="license-editor">
+      <div className="license-editor-head">
+        <strong>{label}</strong>
+        {left != null && (
+          <span className={`license-badge ${left < 0 ? "license-badge--expired" : left <= 90 ? "license-badge--soon" : ""}`}>
+            {left < 0 ? "Expired" : left === 0 ? "Expires today" : `${left} day${left === 1 ? "" : "s"} left`}
+          </span>
+        )}
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      <label>
+        Expiration date
+        <input type="date" defaultValue={agent[expKey] || ""} disabled={busy} onChange={(e) => saveDate(e.target.value)} />
+      </label>
+      <div className="license-editor-actions">
+        <label className="license-upload-btn" title={`Upload a copy of the ${label} license (PDF or photo)`}>
+          {busy ? "Saving…" : agent[pathKey] ? "Replace copy" : "Upload copy"}
+          <input type="file" accept="application/pdf,image/*" hidden disabled={busy} onChange={(e) => upload(e.target.files?.[0])} />
+        </label>
+        {agent[pathKey] && (
+          <button type="button" className="cma-export-btn" onClick={view} title={`View the ${label} license copy`}>
+            <FileText size={14} /> View license
+          </button>
+        )}
+      </div>
     </div>
   );
 }

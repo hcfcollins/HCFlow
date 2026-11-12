@@ -1116,6 +1116,28 @@ export async function uploadAgentCoverSheet(file, agentName) {
   return data.publicUrl;
 }
 
+/** Uploads a copy of an agent's VT or NH real estate license to the PRIVATE
+ * agent-licenses bucket (brokers can see all; an agent only their own) and
+ * saves its path on the agent. state: "vt" | "nh". */
+export async function uploadAgentLicense(agentId, state, file) {
+  const ext = (file.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "") || "pdf";
+  const path = `${agentId}/${state.toUpperCase()}-license-${Date.now()}.${ext}`;
+  const { error } = await supabase.storage.from("agent-licenses").upload(path, file, {
+    contentType: file.type || "application/octet-stream",
+    upsert: true,
+  });
+  if (error) throw error;
+  await updateAgentFields(agentId, { [`${state}_license_path`]: path });
+  return path;
+}
+
+/** A short-lived (5 minute) link to view a license copy. */
+export async function agentLicenseUrl(path) {
+  const { data, error } = await supabase.storage.from("agent-licenses").createSignedUrl(path, 300);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
 export async function fetchAttorneys() {
   const { data, error } = await supabase.from("attorneys").select("*").order("name");
   if (error) throw error;
