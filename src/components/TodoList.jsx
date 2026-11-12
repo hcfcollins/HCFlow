@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { X, AlertTriangle } from "lucide-react";
-import { missingInfoFor } from "../lib/missingInfo";
+import { missingInfoItems } from "../lib/missingInfo";
 import { useTodoActions } from "../lib/TodoActionsContext";
 import MentionInput from "./MentionInput";
 import { useMentionRoster, splitMentions } from "../lib/mentions";
@@ -125,24 +125,47 @@ export function TodoRow({ todo, onToggle, onEdit, onDelete, propertyLabel, onPro
 /** The "standing to-do" for a deal's missing info — highlighted, can't be
  * checked off or deleted, and vanishes by itself once every field is filled
  * in (see lib/missingInfo.js). Tapping it opens the deal to fill things in. */
-export function MissingInfoTodo({ tx, onOpen }) {
-  const missing = missingInfoFor(tx);
+export function MissingInfoTodo({ tx, onOpen, onPick }) {
+  const missing = missingInfoItems(tx);
   if (!missing.length) return null;
+  // On a card: open the deal and jump to the field. On the deal screen
+  // itself: just jump (onPick scrolls + flashes it).
+  const go = (field) => (onPick ? onPick(field) : onOpen?.({ ...tx, _focusField: field }));
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       className="missing-info-todo"
       onClick={(e) => {
         e.stopPropagation();
-        onOpen?.(tx);
+        go(missing[0].field);
       }}
-      title={onOpen ? "Open the deal to fill these in" : undefined}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") go(missing[0].field);
+      }}
+      title="Take me to the missing info"
     >
       <AlertTriangle size={14} className="missing-info-todo-icon" />
       <span>
-        <strong>Add missing info:</strong> {missing.join(", ")}
+        <strong>Add missing info:</strong>{" "}
+        {missing.map((m, i) => (
+          <span key={m.field}>
+            <button
+              type="button"
+              className="missing-info-link"
+              title={`Go to ${m.label}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                go(m.field);
+              }}
+            >
+              {m.label}
+            </button>
+            {i < missing.length - 1 ? ", " : ""}
+          </span>
+        ))}
       </span>
-    </button>
+    </div>
   );
 }
 
@@ -155,7 +178,6 @@ const dueSortKey = (t) => (t.due_date ? new Date(`${t.due_date}T00:00:00`).getTi
 export default function TodoList({ todos = [], onAdd, onToggle, onEdit, onDelete, renderActions, maxVisible, onShowMore, emptyHint }) {
   const [text, setText] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [showDueDate, setShowDueDate] = useState(false);
 
   function handleAdd(e) {
     e.preventDefault();
@@ -163,7 +185,6 @@ export default function TodoList({ todos = [], onAdd, onToggle, onEdit, onDelete
     onAdd(text.trim(), dueDate || undefined);
     setText("");
     setDueDate("");
-    setShowDueDate(false);
   }
 
   // Open items first (front and center), completed ones pushed to the bottom —
@@ -194,25 +215,35 @@ export default function TodoList({ todos = [], onAdd, onToggle, onEdit, onDelete
           onChange={setText}
           placeholder="Add a to-do… (@name to notify)"
         />
-        <button
-          type="button"
-          className={`todo-due-toggle ${dueDate ? "todo-due-toggle--active" : ""}`}
-          onClick={() => setShowDueDate((v) => !v)}
-          aria-label="Set a due date"
-          title="Set a due date"
-        >
+        {/* The real date input sits invisibly on top of the 📅, so a tap opens
+            the phone's date picker straight away; showPicker() covers desktop
+            browsers, where clicking a date field's text doesn't open it. */}
+        <label className={`todo-due-toggle ${dueDate ? "todo-due-toggle--active" : ""}`} title="Set a due date">
           📅
-        </button>
+          <input
+            type="date"
+            className="todo-due-native"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            onClick={(e) => {
+              try {
+                e.currentTarget.showPicker?.();
+              } catch {
+                /* already open, or not supported — the native tap still works */
+              }
+            }}
+            aria-label="Set a due date"
+          />
+        </label>
         <button title="Add this to-do (anyone you @tag gets notified)" type="submit">Add</button>
       </form>
-      {showDueDate && (
-        <input
-          type="date"
-          className="todo-add-date-row"
-          value={dueDate}
-          onChange={(e) => setDueDate(e.target.value)}
-          aria-label="Due date (optional)"
-        />
+      {dueDate && (
+        <div className="todo-due-chip">
+          Due {new Date(`${dueDate}T00:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+          <button type="button" onClick={() => setDueDate("")} aria-label="Clear due date" title="Clear due date">
+            <X size={11} />
+          </button>
+        </div>
       )}
     </div>
   );

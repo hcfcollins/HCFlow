@@ -28,7 +28,7 @@ import {
   initialsFor,
 } from "./lib/transactions";
 import { TodoActionsContext } from "./lib/TodoActionsContext";
-import { buildUtilityEmail, openGmailCompose } from "./lib/clientEmail";
+import { buildUtilityEmail, openEmailCompose } from "./lib/clientEmail";
 import ActiveListingForm from "./components/ActiveListingForm";
 import { useMentionRoster } from "./lib/mentions";
 import { Bell, Mail } from "lucide-react";
@@ -348,7 +348,7 @@ export default function App() {
           title={tx.seller_emails?.length ? "Open a pre-filled utility email to the client" : "No client email on file — add one on the deal first"}
           onClick={(e) => {
             e.stopPropagation();
-            openGmailCompose(buildUtilityEmail(tx));
+            openEmailCompose(buildUtilityEmail(tx));
           }}
         >
           <Mail size={11} /> Utility Email

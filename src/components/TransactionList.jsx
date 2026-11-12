@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Signpost, Lock, Mail, Share2 } from "lucide-react";
 import { stageSelectValue, closingStatusBadge } from "../lib/stages";
-import { formatBac, openGmailCompose } from "../lib/clientEmail";
+import { formatBac, openEmailCompose } from "../lib/clientEmail";
 import TodoList, { MissingInfoTodo } from "./TodoList";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 
@@ -343,7 +343,7 @@ function TxCard({
           title={`Email ${tx.seller_emails.join(", ")}`}
           onClick={(e) => {
             e.stopPropagation();
-            openGmailCompose({ to: tx.seller_emails, subject: tx.address });
+            openEmailCompose({ to: tx.seller_emails, subject: tx.address });
           }}
         >
           <Mail size={14} /> Email Client

@@ -23,6 +23,7 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
   const draft = useRef(loadDraft("new-comp")).current;
   const [address, setAddress] = useState(draft?.address || "");
   const [town, setTown] = useState(draft?.town || "");
+  const [region, setRegion] = useState(draft?.region || "VT");
   const [sellerName, setSellerName] = useState(draft?.sellerName || "");
   const [sellerEmails, setSellerEmails] = useState(draft?.sellerEmails || [""]);
   const [timeframe, setTimeframe] = useState(draft?.timeframe || TIMEFRAMES[0]);
@@ -59,7 +60,7 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
   const [error, setError] = useState(null);
 
   const { clearDraft } = useDraftPersistence("new-comp", {
-    address, town, sellerName, sellerEmails, timeframe, propertyStyle, electrical,
+    address, town, region, sellerName, sellerEmails, timeframe, propertyStyle, electrical,
     heatingSystem, heatingOther, basement, waterSource, septic, recommendations,
     referralNote, notes, leadType, clientSource, referralOwedTo, referralPctChoice, referralPct,
     beds, baths, garageSpaces, lotAcres, yearBuilt, featuresNotes, finishesNote,
@@ -91,6 +92,7 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
         agentId: currentAgent.id,
         address,
         town,
+        region,
         side: "Sell",
         notes,
         sellerName,
@@ -164,6 +166,10 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
         Town
         <input value={town} onChange={(e) => setTown(e.target.value)} />
       </label>
+      <fieldset>
+        <legend>VT or NH</legend>
+        <RadioGroup name="ncRegion" value={region} onChange={setRegion} options={["VT", "NH"]} />
+      </fieldset>
 
       <label>
         Seller Name(s)

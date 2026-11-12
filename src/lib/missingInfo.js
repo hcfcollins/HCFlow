@@ -5,32 +5,47 @@
 
 const has = (v) => (Array.isArray(v) ? v.some((x) => String(x || "").trim()) : v != null && String(v).trim() !== "");
 
+// Our client is the buyer on a Buy deal, or on a Split where we represent the
+// buyers — used for labels ("Buyer Email") and hiding listing-only sections.
+export const clientIsBuyer = (tx) => tx.side === "Buy" || (tx.side === "Split" && tx.split_client_side === "Buy");
+
+// `field` matches a data-field="…" on the deal screen (DealDetail) — that's
+// where tapping the item jumps to and flashes.
 const CONTRACT_CHECKS = [
-  { label: "Closing Date", get: (tx) => tx.next_date },
-  { label: "Price", get: (tx) => tx.price },
-  { label: "Seller Name", get: (tx) => tx.seller_name },
-  { label: "Buyer Name", get: (tx) => tx.buyer_name },
-  { label: "Client Email", get: (tx) => tx.seller_emails },
-  { label: "Seller Attorney", get: (tx) => tx.seller_attorney?.name },
-  { label: "Buyer Attorney", get: (tx) => tx.buyer_attorney?.name },
-  { label: "Inspection Date", get: (tx) => tx.commission_data?.inspection_date },
+  { field: "region", label: "State (VT/NH)", get: (tx) => tx.region },
+  { field: "next_date", label: "Closing Date", get: (tx) => tx.next_date },
+  { field: "price", label: "Price", get: (tx) => tx.price },
+  { field: "seller_name", label: "Seller Name", get: (tx) => tx.seller_name },
+  { field: "buyer_name", label: "Buyer Name", get: (tx) => tx.buyer_name },
+  { field: "seller_emails", label: "Client Email", get: (tx) => tx.seller_emails },
+  { field: "seller_attorney", label: "Seller Attorney", get: (tx) => tx.seller_attorney?.name },
+  { field: "buyer_attorney", label: "Buyer Attorney", get: (tx) => tx.buyer_attorney?.name },
+  { field: "inspection_date", label: "Inspection Date", get: (tx) => tx.commission_data?.inspection_date },
   // No financing contingency date = treated as a cash/no-financing deal, so
   // neither the financing date itself nor an appraiser is asked for. Once a
   // financing date is entered, the appraiser becomes required.
-  { label: "Appraiser", get: (tx) => tx.commission_data?.appraiser, onlyIf: (tx) => has(tx.commission_data?.financing_date) },
+  { field: "appraiser", label: "Appraiser", get: (tx) => tx.commission_data?.appraiser, onlyIf: (tx) => has(tx.commission_data?.financing_date) },
 ];
 
 const LISTING_CHECKS = [
-  { label: "Price", get: (tx) => tx.price },
-  { label: "Town", get: (tx) => tx.town },
-  { label: "Seller Name", get: (tx) => tx.seller_name },
-  { label: "Seller Email", get: (tx) => tx.seller_emails },
-  { label: "Property Style", get: (tx) => tx.property_style },
+  { field: "region", label: "State (VT/NH)", get: (tx) => tx.region },
+  { field: "price", label: "Price", get: (tx) => tx.price },
+  { field: "town", label: "Town", get: (tx) => tx.town },
+  { field: "seller_name", label: "Seller Name", get: (tx) => tx.seller_name },
+  { field: "seller_emails", label: "Seller Email", get: (tx) => tx.seller_emails },
+  { field: "property_style", label: "Property Style", get: (tx) => tx.property_style },
 ];
 
-/** Labels of what's missing on this deal (empty array if nothing). */
-export function missingInfoFor(tx) {
+/** [{ field, label }] of what's missing on this deal (empty if nothing). */
+export function missingInfoItems(tx) {
   if (!tx || tx.terminated_at) return [];
   const checks = tx.stage === "contract" ? CONTRACT_CHECKS : tx.stage === "won" || tx.stage === "market" ? LISTING_CHECKS : [];
-  return checks.filter((c) => (!c.onlyIf || c.onlyIf(tx)) && !has(c.get(tx))).map((c) => c.label);
+  return checks
+    .filter((c) => (!c.onlyIf || c.onlyIf(tx)) && !has(c.get(tx)))
+    .map((c) => ({ field: c.field, label: c.field === "seller_emails" && clientIsBuyer(tx) ? "Buyer Email" : c.label }));
+}
+
+/** Labels only. */
+export function missingInfoFor(tx) {
+  return missingInfoItems(tx).map((m) => m.label);
 }

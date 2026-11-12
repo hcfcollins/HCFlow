@@ -8,9 +8,10 @@ import CloseoutCalculator from "./CloseoutCalculator";
 import ConfirmDialog from "./ConfirmDialog";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
-import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction } from "../lib/transactions";
+import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData } from "../lib/transactions";
+import { clientIsBuyer as isClientBuyer } from "../lib/missingInfo";
 import { stageSelectValue, closingStatusBadge } from "../lib/stages";
-import { formatBac, gmailComposeUrl } from "../lib/clientEmail";
+import { formatBac, emailComposeUrl, emailLinkTarget } from "../lib/clientEmail";
 import { focusNextOnEnter } from "../lib/formKeyNav";
 import {
   PROPERTY_STYLES,
@@ -67,6 +68,10 @@ export default function DealDetail({
   const isStaff = isBroker || isCoordinator;
   const isActiveListing = transaction.stage === "won" || transaction.stage === "market";
   const isBuySide = transaction.side === "Buy";
+  // Buy deals, plus Split deals where we represent the buyers — no comp data,
+  // and the client email list is labeled as the buyers'.
+  const clientIsBuyer = isClientBuyer(transaction);
+  const isUnderContractOrClosed = transaction.stage === "contract" || transaction.stage === "closed";
   // A freshly-Won listing doesn't necessarily have a signed Listing Agreement yet —
   // that's tracked via the "Send Listing Agreement" to-do seeded on Won, not a
   // separate field. Compliance-wise, terminating requires that agreement to exist
@@ -103,6 +108,47 @@ export default function DealDetail({
   const swipeStart = useRef(null);
   const swipeIntent = useRef(null);
   const showToast = useToast();
+  const [editingAddress, setEditingAddress] = useState(false);
+  const [scrolledPastTitle, setScrolledPastTitle] = useState(false);
+  const titleRef = useRef(null);
+
+  // Once the big address title scrolls away, show it small in the sticky
+  // back bar so you still know which deal you're on.
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const obs = new IntersectionObserver(([entry]) => setScrolledPastTitle(!entry.isIntersecting), { rootMargin: "-50px 0px 0px 0px" });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [showGenerateComp, showCloseoutCalculator]);
+
+  /** Scroll to a field (data-field="…") and pulse it — used by the Missing
+   * Info box. Town/State live in the address editor, so that opens first. */
+  function focusField(field) {
+    const open = field === "town" || field === "region" || field === "address";
+    if (open) setEditingAddress(true);
+    // Wait a frame (two, if the editor just opened) for it to be on screen.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const el = document.querySelector(`[data-field="${field}"]`);
+        if (!el) return;
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.remove("field-flash");
+        void el.offsetWidth; // restart the animation if it's tapped twice
+        el.classList.add("field-flash");
+        setTimeout(() => el.classList.remove("field-flash"), 1700);
+      })
+    );
+  }
+
+  // Arrived here from a card's Missing Info box — jump to that field.
+  useEffect(() => {
+    if (transaction._focusField) {
+      const t = setTimeout(() => focusField(transaction._focusField), 250);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transaction._focusField]);
 
   useEffect(() => {
     fetchAttorneys().then(setAttorneys).catch(() => {});
@@ -172,6 +218,12 @@ export default function DealDetail({
     showToast("Saved");
   }
 
+  async function handleCommissionSave(patch) {
+    await upsertCommissionData(transaction.id, patch);
+    onRefresh();
+    showToast("Saved");
+  }
+
   async function handleAttorneySave(side, name) {
     const id = await resolveAttorneyId(name, attorneys);
     await updateTransactionAttorneys(transaction.id, side === "buyer" ? { buyerAttorneyId: id } : { sellerAttorneyId: id });
@@ -232,11 +284,13 @@ export default function DealDetail({
       onTouchMove={handleSwipeTouchMove}
       onTouchEnd={handleSwipeTouchEnd}
     >
-      <header className="detail-header">
-        <div className="detail-header-top-row">
-          <button type="button" className="detail-back-btn" onClick={onBack} aria-label="Back" title="Back">
+      {/* Its own bar (not inside <header>) so it can stay stuck to the top
+          of the screen the whole way down this long page. */}
+      <div className="detail-sticky-bar">
+          <button type="button" className="detail-back-btn" onClick={onBack} aria-label="Back" title="Back to the main screen">
             <ChevronLeft size={22} />
           </button>
+          <span className={`detail-sticky-title ${scrolledPastTitle ? "detail-sticky-title--shown" : ""}`}>{transaction.address}</span>
           {canPostSocial && (
             <div className="detail-social-menu-wrap">
               <button
@@ -299,11 +353,37 @@ export default function DealDetail({
               )}
             </div>
           )}
-        </div>
-        <div>
-          <div className="brand-eyebrow">{transaction.town || transaction.side}</div>
-          <h1>{transaction.address}</h1>
-        </div>
+      </div>
+      <header className="detail-header" ref={titleRef}>
+        {editingAddress ? (
+          <AddressEditor
+            transaction={transaction}
+            onCancel={() => setEditingAddress(false)}
+            onSave={async (patch) => {
+              await handleFieldSave(patch);
+              setEditingAddress(false);
+            }}
+          />
+        ) : (
+          <div>
+            <div className="brand-eyebrow" data-field="town">
+              {[transaction.town, transaction.region].filter(Boolean).join(", ") || transaction.side}
+              {!transaction.region && <span className="field-help"> · VT/NH not set</span>}
+            </div>
+            <div className="detail-title-row">
+              <h1 data-field="address">{transaction.address}</h1>
+              <button
+                type="button"
+                className="edit-icon-btn"
+                onClick={() => setEditingAddress(true)}
+                aria-label="Edit address, town, or state"
+                title="Edit address, town, or state (VT/NH)"
+              >
+                <Pencil size={13} />
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {showBoostPost && <BoostPostPanel transaction={transaction} onClose={() => setShowBoostPost(false)} />}
@@ -450,7 +530,7 @@ export default function DealDetail({
         </div>
       )}
 
-      {transaction.stage !== "comps" && (
+      {transaction.stage !== "comps" && !clientIsBuyer && (
         <div className="detail-section">
           <button title="Show or hide the comp data"
             type="button"
@@ -478,9 +558,10 @@ export default function DealDetail({
 
       {transaction.stage !== "comps" && (
         <div className="detail-section">
-          <h2 className="comps-section-title">Listing Details</h2>
+          <h2 className="comps-section-title">{clientIsBuyer ? "Deal Details" : "Listing Details"}</h2>
           <div className="detail-grid">
             <EditableText
+              field="price"
               label="Price"
               value={transaction.price ? `$${Number(transaction.price).toLocaleString()}` : ""}
               type="number"
@@ -498,6 +579,7 @@ export default function DealDetail({
             )}
 
             <EditableSelect
+              field="property_style"
               label="Property Style"
               value={transaction.property_style}
               options={PROPERTY_STYLES}
@@ -520,8 +602,30 @@ export default function DealDetail({
               </div>
             )}
 
+            {(!clientIsBuyer || isUnderContractOrClosed) && (
+              <EditableText
+                field="seller_name"
+                label="Seller Name(s)"
+                value={transaction.seller_name}
+                placeholder="—"
+                editableWhenSet
+                onSave={(v) => handleFieldSave({ seller_name: v || null })}
+              />
+            )}
+            {(clientIsBuyer || isUnderContractOrClosed) && (
+              <EditableText
+                field="buyer_name"
+                label="Buyer Name(s)"
+                value={transaction.buyer_name}
+                placeholder="—"
+                editableWhenSet
+                onSave={(v) => handleFieldSave({ buyer_name: v || null })}
+              />
+            )}
+
             <EditableEmailList
-              label={isBuySide ? "Buyer Email(s)" : "Seller Email(s)"}
+              field="seller_emails"
+              label={clientIsBuyer ? "Buyer Email(s)" : "Seller Email(s)"}
               values={transaction.seller_emails || []}
               onSave={(emails) => handleFieldSave({ seller_emails: emails })}
             />
@@ -556,6 +660,7 @@ export default function DealDetail({
                 )}
 
                 <EditableText
+                  field="buyer_attorney"
                   label="Buyer Attorney"
                   value={transaction.buyer_attorney?.name}
                   placeholder="TBD"
@@ -565,6 +670,7 @@ export default function DealDetail({
                 />
 
                 <EditableText
+                  field="seller_attorney"
                   label="Seller Attorney"
                   value={transaction.seller_attorney?.name}
                   placeholder="TBD"
@@ -610,7 +716,7 @@ export default function DealDetail({
 
       <div className="detail-section">
         <h2 className="comps-section-title">To-Do</h2>
-        <MissingInfoTodo tx={transaction} />
+        <MissingInfoTodo tx={transaction} onPick={focusField} />
         <TodoList
           todos={transaction.todos}
           onAdd={(text, dueDate) => onAddTodo(transaction.id, text, dueDate)}
@@ -705,22 +811,74 @@ export default function DealDetail({
                   : "No"}
               </div>
             </div>
-            <div>
-              <div className="detail-label">Closing Date</div>
-              <div>{formatDate(transaction.next_date) || "—"}</div>
-            </div>
-            <div>
-              <div className="detail-label">Inspection Deadline</div>
-              <div>{formatDate(transaction.commission_data?.inspection_date) || "—"}</div>
-            </div>
-            <div>
-              <div className="detail-label">Financing Date</div>
-              <div>{formatDate(transaction.commission_data?.financing_date) || "—"}</div>
-            </div>
-            <div>
-              <div className="detail-label">Appraiser</div>
-              <div>{transaction.commission_data?.appraiser || "—"}</div>
-            </div>
+            {isStaff ? (
+              <EditableText
+                field="next_date"
+                label="Closing Date"
+                type="date"
+                value={formatDate(transaction.next_date)}
+                rawValue={transaction.next_date?.slice(0, 10)}
+                placeholder="—"
+                editableWhenSet
+                onSave={(v) => handleFieldSave({ next_date: v || null })}
+              />
+            ) : (
+              <div data-field="next_date">
+                <div className="detail-label">Closing Date</div>
+                <div>{formatDate(transaction.next_date) || "—"}</div>
+              </div>
+            )}
+            {isStaff ? (
+              <EditableText
+                field="inspection_date"
+                label="Inspection Deadline"
+                type="date"
+                value={formatDate(transaction.commission_data?.inspection_date)}
+                rawValue={transaction.commission_data?.inspection_date?.slice(0, 10)}
+                placeholder="—"
+                editableWhenSet
+                onSave={(v) => handleCommissionSave({ inspection_date: v || null })}
+              />
+            ) : (
+              <div data-field="inspection_date">
+                <div className="detail-label">Inspection Deadline</div>
+                <div>{formatDate(transaction.commission_data?.inspection_date) || "—"}</div>
+              </div>
+            )}
+            {isStaff ? (
+              <EditableText
+                field="financing_date"
+                label="Financing Date"
+                type="date"
+                value={formatDate(transaction.commission_data?.financing_date)}
+                rawValue={transaction.commission_data?.financing_date?.slice(0, 10)}
+                placeholder="—"
+                editableWhenSet
+                onSave={(v) => handleCommissionSave({ financing_date: v || null })}
+              />
+            ) : (
+              <div data-field="financing_date">
+                <div className="detail-label">Financing Date</div>
+                <div>{formatDate(transaction.commission_data?.financing_date) || "—"}</div>
+              </div>
+            )}
+            {isStaff ? (
+              <EditableText
+                field="appraiser"
+                label="Appraiser"
+                type="text"
+                value={transaction.commission_data?.appraiser}
+                rawValue={transaction.commission_data?.appraiser}
+                placeholder="—"
+                editableWhenSet
+                onSave={(v) => handleCommissionSave({ appraiser: v || null })}
+              />
+            ) : (
+              <div data-field="appraiser">
+                <div className="detail-label">Appraiser</div>
+                <div>{transaction.commission_data?.appraiser || "—"}</div>
+              </div>
+            )}
           </div>
 
           {isBroker && transaction.closeouts?.commission_after_referral != null && (
@@ -1378,18 +1536,22 @@ function UtilityProvidersEditor({ utilities: rawUtilities, onSave }) {
  * attorneys, which do change occasionally) — off by default because some
  * callers pass a formatted display value (like "$350,000") that can't be
  * edited back as-is. */
-function EditableText({ label, value, placeholder, type = "text", attorneyList, onSave, editableWhenSet = false }) {
+/** `rawValue`: what goes in the input when it differs from the display
+ * `value` (e.g. a date shown as "October 1, 2026" but edited as 2026-10-01).
+ * `field`: data-field for the Missing Info jump. */
+function EditableText({ label, value, rawValue, placeholder, type = "text", attorneyList, onSave, editableWhenSet = false, field }) {
+  const editValue = (rawValue !== undefined ? rawValue : value) || "";
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value || "");
+  const [draft, setDraft] = useState(editValue);
 
   function startEditing() {
-    setDraft(value || "");
+    setDraft(editValue);
     setEditing(true);
   }
 
   if (!value && !editing) {
     return (
-      <div>
+      <div data-field={field}>
         <div className="detail-label">{label}</div>
         <div className="editable-missing">
           {placeholder}
@@ -1404,7 +1566,7 @@ function EditableText({ label, value, placeholder, type = "text", attorneyList, 
   if (editing) {
     const listId = attorneyList ? `attorney-list-${label.replace(/\s+/g, "-")}` : undefined;
     return (
-      <div>
+      <div data-field={field}>
         <div className="detail-label">{label}</div>
         <input
           type={type}
@@ -1414,12 +1576,12 @@ function EditableText({ label, value, placeholder, type = "text", attorneyList, 
           onChange={(e) => setDraft(e.target.value)}
           onBlur={() => {
             setEditing(false);
-            if (draft !== (value || "")) onSave(draft);
+            if (draft !== editValue) onSave(draft);
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") e.currentTarget.blur();
             if (e.key === "Escape") {
-              setDraft(value || "");
+              setDraft(editValue);
               setEditing(false);
             }
           }}
@@ -1436,7 +1598,7 @@ function EditableText({ label, value, placeholder, type = "text", attorneyList, 
   }
 
   return (
-    <div>
+    <div data-field={field}>
       <div className="detail-label">{label}</div>
       {editableWhenSet ? (
         <div className="editable-missing editable-set">
@@ -1454,7 +1616,7 @@ function EditableText({ label, value, placeholder, type = "text", attorneyList, 
 
 /** Read-only list of mailto pills with a single pencil that reveals an add/remove/edit
  * form for all of them at once — any number of emails, not just one. */
-function EditableEmailList({ label, values, onSave }) {
+function EditableEmailList({ label, values, onSave, field }) {
   const [editing, setEditing] = useState(false);
   const [drafts, setDrafts] = useState(values.length ? values : [""]);
 
@@ -1479,7 +1641,7 @@ function EditableEmailList({ label, values, onSave }) {
 
   if (editing) {
     return (
-      <div className="detail-grid-full">
+      <div className="detail-grid-full" data-field={field}>
         <div className="detail-label">{label}</div>
         {drafts.map((v, i) => (
           <div key={i} className="email-list-input-row">
@@ -1507,12 +1669,12 @@ function EditableEmailList({ label, values, onSave }) {
   }
 
   return (
-    <div>
+    <div data-field={field}>
       <div className="detail-label">{label}</div>
       {values.length ? (
         values.map((email) => (
           <div key={email} className="editable-filled">
-            <a href={gmailComposeUrl({ to: [email] })} target="_blank" rel="noreferrer" className="edit-icon-btn edit-icon-btn--leading" title={`Email ${email}`}>
+            <a href={emailComposeUrl({ to: [email] })} target={emailLinkTarget()} rel="noreferrer" className="edit-icon-btn edit-icon-btn--leading" title={`Email ${email}`}>
               <Mail size={12} />
             </a>
             <span className="editable-filled-text">{email}</span>
@@ -1528,12 +1690,12 @@ function EditableEmailList({ label, values, onSave }) {
   );
 }
 
-function EditableSelect({ label, value, options, onSave }) {
+function EditableSelect({ label, value, options, onSave, field }) {
   const [editing, setEditing] = useState(false);
 
   if (!value && !editing) {
     return (
-      <div>
+      <div data-field={field}>
         <div className="detail-label">{label}</div>
         <div className="editable-missing">
           —
@@ -1547,7 +1709,7 @@ function EditableSelect({ label, value, options, onSave }) {
 
   if (editing) {
     return (
-      <div>
+      <div data-field={field}>
         <div className="detail-label">{label}</div>
         <select
           autoFocus
@@ -1572,9 +1734,58 @@ function EditableSelect({ label, value, options, onSave }) {
   }
 
   return (
-    <div>
+    <div data-field={field}>
       <div className="detail-label">{label}</div>
       <div>{value}</div>
     </div>
+  );
+}
+
+/** Fix a typo'd address, the town, or VT/NH (which decides the Xero trust
+ * account for deposits and which state the commission income lands under). */
+function AddressEditor({ transaction, onSave, onCancel }) {
+  const [address, setAddress] = useState(transaction.address || "");
+  const [town, setTown] = useState(transaction.town || "");
+  const [region, setRegion] = useState(transaction.region || "");
+  const [saving, setSaving] = useState(false);
+  const hasFolder = Boolean(transaction.dropbox_folder_path);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!address.trim()) return;
+    setSaving(true);
+    try {
+      await onSave({ address: address.trim(), town: town.trim() || null, region: region || null });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form className="address-edit-form" onSubmit={submit}>
+      <div data-field="address">
+        <div className="detail-label">Address</div>
+        <input autoFocus value={address} onChange={(e) => setAddress(e.target.value)} required />
+      </div>
+      <div data-field="town">
+        <div className="detail-label">Town</div>
+        <input value={town} onChange={(e) => setTown(e.target.value)} />
+      </div>
+      <div data-field="region">
+        <div className="detail-label">State</div>
+        <RadioGroup name={`region-${transaction.id}`} value={region} onChange={setRegion} options={["VT", "NH"]} />
+      </div>
+      {hasFolder && address.trim() !== (transaction.address || "") && (
+        <div className="address-dropbox-note">Heads up: this doesn't rename the Dropbox folder — rename that in Dropbox if you want them to match.</div>
+      )}
+      <div className="address-edit-actions">
+        <button type="submit" disabled={saving} title="Save address, town, and state">
+          {saving ? "Saving…" : "Save"}
+        </button>
+        <button type="button" onClick={onCancel} disabled={saving} title="Discard changes">
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }

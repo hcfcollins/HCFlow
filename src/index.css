@@ -717,7 +717,10 @@ button { cursor: pointer; }
 .todo-add .mention-input-wrap { flex: 1; min-width: 0; }
 .todo-add input, .todo-add .mention-overlay { width: 100%; box-sizing: border-box; flex: 1; min-width: 0; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--color-border-input); font-family: 'Montserrat', sans-serif; font-size: 13px; }
 .todo-add button { border: none; background: var(--color-navy); color: var(--color-white); border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 700; flex-shrink: 0; }
-.todo-due-toggle { background: var(--color-border); color: var(--color-text-muted); padding: 6px 10px; font-size: 14px; }
+.todo-due-toggle { position: relative; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 8px; background: var(--color-border); color: var(--color-text-muted); padding: 6px 10px; font-size: 14px; cursor: pointer; overflow: hidden; }
+.todo-add .todo-due-native { position: absolute; inset: 0; width: 100%; height: 100%; min-width: 0; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; font-size: 16px; }
+.todo-due-chip { display: inline-flex; align-self: flex-start; align-items: center; gap: 4px; margin-top: 4px; padding: 3px 4px 3px 9px; border-radius: 12px; background: rgba(var(--pink-rgb), 0.12); color: var(--color-pink); font-size: 11px; font-weight: 700; }
+.todo-due-chip button { display: inline-flex; border: none; background: none; color: inherit; padding: 2px; cursor: pointer; }
 .todo-due-toggle--active { background: rgba(var(--pink-rgb), 0.12); }
 .todo-add-date-row {
   display: block;
@@ -740,7 +743,9 @@ button { cursor: pointer; }
 .deal-detail-exit { animation: deal-detail-slide-in 0.2s ease-out reverse; }
 .deal-detail .stage-select { width: 100%; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--color-border-input); font-family: 'Montserrat', sans-serif; }
 .detail-section { background: var(--color-white); border: 1px solid var(--color-border); border-radius: 14px; padding: 14px 16px; }
-.detail-section input:not([type="checkbox"]) { width: 100%; margin-top: 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--color-border-input); font-family: 'Montserrat', sans-serif; font-size: 13px; }
+/* Radios excluded: width:100% on a radio stretched the dot across its own
+   label text (comp Edit All, utility Water/Septic) on narrow screens. */
+.detail-section input:not([type="checkbox"]):not([type="radio"]) { width: 100%; margin-top: 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--color-border-input); font-family: 'Montserrat', sans-serif; font-size: 13px; }
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 10px; font-size: 13px; }
 .detail-grid > div { min-width: 0; }
 .detail-grid-full { grid-column: 1 / -1; min-width: 0; }
@@ -755,7 +760,7 @@ button { cursor: pointer; }
 }
 .detail-grid .radio-option input { margin: 2px 0 0; }
 .detail-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); margin-bottom: 2px; }
-.detail-grid input:not([type="checkbox"]),
+.detail-grid input:not([type="checkbox"]):not([type="radio"]),
 .detail-grid select { width: 100%; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--color-border-input); font-family: 'Montserrat', sans-serif; font-size: 13px; }
 .editable-missing { display: flex; align-items: center; gap: 6px; color: var(--color-tan); }
 .editable-missing.editable-set { color: inherit; }
@@ -1443,3 +1448,48 @@ button { cursor: pointer; }
 }
 .app-tooltip--below { transform: translateY(-3px); }
 .app-tooltip--shown { opacity: 1; transform: none; }
+.radio-option input[type="radio"] { width: auto; padding: 0; flex-shrink: 0; }
+.missing-info-todo { cursor: pointer; }
+.missing-info-link { border: none; background: none; padding: 0; font: inherit; color: inherit; text-decoration: underline; text-decoration-color: rgba(122, 75, 0, 0.4); text-underline-offset: 2px; cursor: pointer; }
+.missing-info-link:hover { color: var(--color-pink); }
+
+/* Missing-info jump target — a quick pulse so your eye lands on the field. */
+@keyframes field-flash {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 194, 107, 0); background-color: transparent; }
+  20%, 60% { box-shadow: 0 0 0 4px rgba(245, 194, 107, 0.9); background-color: #FEF6E4; }
+}
+.field-flash { animation: field-flash 1.6s ease-in-out; border-radius: 8px; }
+
+/* ===== Always-visible Back: every sub-screen's header (and the deal
+   screen's back bar) sticks to the top while you scroll. Negative side
+   margins match .app's 18px gutter so content doesn't peek past the edges. */
+.app-header,
+.detail-sticky-bar {
+  position: sticky;
+  top: 0;
+  z-index: 45;
+  margin-left: -18px;
+  margin-right: -18px;
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 18px 8px;
+  background: var(--color-cream-bg);
+  box-shadow: 0 1px 0 var(--color-border);
+}
+@media (min-width: 1000px) {
+  .app.sv-app-wrap .app-header { margin-left: -24px; margin-right: -24px; padding-left: 24px; padding-right: 24px; }
+}
+.detail-sticky-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: -6px; }
+.detail-sticky-title { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; color: var(--color-navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity 0.15s ease; }
+.detail-sticky-title--shown { opacity: 1; }
+.detail-back-btn { padding: 4px 6px 4px 0; }
+
+/* Address / town / state editor in the deal header */
+.address-edit-form { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.address-edit-form input { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--color-border-input); font-family: 'Montserrat', sans-serif; font-size: 15px; }
+.address-edit-row { display: flex; gap: 8px; align-items: center; }
+.address-edit-actions { display: flex; gap: 8px; }
+.address-edit-actions button { border: none; border-radius: 8px; padding: 7px 14px; font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 12px; background: var(--color-border); color: var(--color-navy); }
+.address-edit-actions button[type="submit"] { background: var(--color-navy); color: var(--color-white); }
+.detail-title-row { display: flex; align-items: flex-start; gap: 8px; }
+.detail-title-row h1 { margin: 0; }
+.detail-title-row .edit-icon-btn { margin-top: 6px; }
+.address-dropbox-note { font-size: 11px; color: var(--color-text-muted); }

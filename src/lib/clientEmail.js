@@ -1,8 +1,17 @@
 import { UTILITY_TYPES } from "./compFieldOptions";
 
-/** Gmail's web compose screen, pre-filled — used instead of a mailto: link,
- * which silently does nothing on a computer with no desktop mail app set up
- * (the team works in Gmail on the web). Opens in a new tab. */
+/** Phones and tablets (including iPads, which report themselves as a Mac but
+ * have a touch screen) — these get the device's own mail app via mailto:. */
+export function isMobileDevice() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) return true;
+  return /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+}
+
+/** Gmail's web compose screen, pre-filled — used on a computer instead of a
+ * mailto: link, which silently does nothing there with no desktop mail app set
+ * up (the team works in Gmail on the web). */
 export function gmailComposeUrl({ to = [], subject = "", body = "" }) {
   const params = new URLSearchParams({ view: "cm", fs: "1", to: to.join(",") });
   if (subject) params.set("su", subject);
@@ -10,8 +19,28 @@ export function gmailComposeUrl({ to = [], subject = "", body = "" }) {
   return `https://mail.google.com/mail/?${params.toString()}`;
 }
 
-export function openGmailCompose(opts) {
-  window.open(gmailComposeUrl(opts), "_blank", "noopener,noreferrer");
+/** mailto: with %20-style encoding (URLSearchParams' "+" for spaces shows up
+ * literally in iOS Mail). */
+export function mailtoUrl({ to = [], subject = "", body = "" }) {
+  const q = [];
+  if (subject) q.push(`subject=${encodeURIComponent(subject)}`);
+  if (body) q.push(`body=${encodeURIComponent(body)}`);
+  return `mailto:${to.map(encodeURIComponent).join(",")}${q.length ? `?${q.join("&")}` : ""}`;
+}
+
+/** The right compose link for this device: native mail app on mobile, a
+ * Gmail tab on desktop. For <a href>, pair with emailLinkTarget(). */
+export function emailComposeUrl(opts) {
+  return isMobileDevice() ? mailtoUrl(opts) : gmailComposeUrl(opts);
+}
+
+export function emailLinkTarget() {
+  return isMobileDevice() ? undefined : "_blank";
+}
+
+export function openEmailCompose(opts) {
+  if (isMobileDevice()) window.location.href = mailtoUrl(opts);
+  else window.open(gmailComposeUrl(opts), "_blank", "noopener,noreferrer");
 }
 
 /** "3" or "3.0" -> "3%"; anything already containing % (or freeform text like

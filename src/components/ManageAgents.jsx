@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FileText, Copy, Check, ArrowLeft, Mail } from "lucide-react";
 import { isTrackingOnboarding, onboardingItemsFor, buildWelcomeEmail } from "../lib/onboarding";
-import { openGmailCompose } from "../lib/clientEmail";
+import { openEmailCompose } from "../lib/clientEmail";
 import RadioGroup from "./RadioGroup";
 import ConfirmDialog from "./ConfirmDialog";
 import { SkeletonList } from "./Skeleton";
@@ -368,7 +368,7 @@ function OnboardingTodos({ agents, onChanged }) {
                           type="button"
                           className="todo-action-btn onboarding-draft-btn"
                           title={agent.email ? `Open a pre-filled Gmail draft to ${agent.email}` : "Add their email first"}
-                          onClick={() => openGmailCompose(buildWelcomeEmail(agent))}
+                          onClick={() => openEmailCompose(buildWelcomeEmail(agent))}
                         >
                           <Mail size={11} /> Draft Email
                         </button>
