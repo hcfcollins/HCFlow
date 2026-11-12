@@ -6,7 +6,9 @@ export function showingPacketEmail(address, url) {
   return {
     to: [],
     subject: `Listing Packet - ${address}`,
-    body: `Hello,\n\nHere is the listing packet for ${address}:\n${url}\n\nLet me know if you have any questions!`,
+    // Extra spacing per Fran: +2 returns after "Hello,", +1 after the address
+    // line, +2 after the link, and 2 after the last line (room to sign off).
+    body: `Hello,\n\n\n\nHere is the listing packet for ${address}:\n\n${url}\n\n\n\nLet me know if you have any questions!\n\n`,
   };
 }
 
