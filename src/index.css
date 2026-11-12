@@ -1559,7 +1559,7 @@ button { cursor: pointer; }
 /* Card footer: Email Client on the left, Send Packet on the right */
 .tx-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
 .tx-card-footer .tx-email-client-btn { margin-top: 0; }
-.tx-packet-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: none; border-radius: 50%; background: rgba(var(--pink-rgb), 0.1); color: var(--color-pink); cursor: pointer; flex-shrink: 0; }
+.tx-packet-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 12px; border: none; border-radius: 20px; font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 600; background: rgba(var(--pink-rgb), 0.1); color: var(--color-pink); cursor: pointer; flex-shrink: 0; }
 .tx-packet-btn:hover { background: rgba(var(--pink-rgb), 0.18); }
 .tx-packet-btn:disabled { opacity: 0.5; cursor: wait; }
 @media (min-width: 700px) {

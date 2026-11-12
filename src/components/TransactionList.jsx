@@ -413,7 +413,7 @@ function TxCard({
                 }
               }}
             >
-              <Send size={14} />
+              <Send size={14} /> Packet
             </button>
           )}
         </div>
