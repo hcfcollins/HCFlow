@@ -9,7 +9,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import DropboxFolderPicker from "./DropboxFolderPicker";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
-import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents } from "../lib/transactions";
+import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents, fetchOtherSideAgentName } from "../lib/transactions";
 import { clientIsBuyer as isClientBuyer, missingInfoItems } from "../lib/missingInfo";
 import { stageSelectValue, closingStatusBadge, isExpiredListing, terminatedLabel, EXPIRED_REASON } from "../lib/stages";
 import { formatBac, bacWarning, emailComposeUrl, emailLinkTarget } from "../lib/clientEmail";
@@ -662,6 +662,7 @@ export default function DealDetail({
                 }}
               />
             )}
+            {transaction.other_side_id && <OtherSideInfo otherSideId={transaction.other_side_id} />}
             {isCoordinator && (
               <div data-field="agent">
                 <div className="detail-label">Agent</div>
@@ -2074,6 +2075,30 @@ function CoListPicker({ transaction, canEdit, onSave }) {
             </option>
           ))}
       </select>
+    </div>
+  );
+}
+
+/** Split / in-house deal: who has the other side. Each side is its own deal
+ * with its own close-out — this is just so everyone knows. */
+function OtherSideInfo({ otherSideId }) {
+  const [name, setName] = useState(null);
+  useEffect(() => {
+    let live = true;
+    fetchOtherSideAgentName(otherSideId)
+      .then((n) => live && setName(n))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [otherSideId]);
+  return (
+    <div className="detail-grid-full">
+      <div className="detail-label">Other Side</div>
+      <div>
+        🤝 In-house deal{name ? ` — ${name}` : " — another Hall Collins agent"}
+        <div className="field-help">Each side has its own agent, commission, referral and close-out.</div>
+      </div>
     </div>
   );
 }

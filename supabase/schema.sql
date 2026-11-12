@@ -500,3 +500,11 @@ drop policy if exists documents_update on documents;
 create policy documents_update on documents for update using (can_access_transaction(transaction_id));
 
 notify pgrst, 'reload schema';
+
+-- ============================================================
+-- Split / in-house deals: each side is its own transaction (own agent,
+-- commission %, referral, close-out). other_side_id just points each side at
+-- the other — set by the link-deal-sides Edge Function. Nothing is merged.
+-- ============================================================
+alter table transactions add column if not exists other_side_id uuid references transactions(id) on delete set null;
+notify pgrst, 'reload schema';

@@ -1,6 +1,6 @@
 // Saves deals parsed by dealImportParse.js (the old Google Sheet Deal Tracker).
 import { supabase } from "./supabaseClient";
-import { resolveAttorneyId, fetchAttorneys, fillAllZipCodes, linkTransactions } from "./transactions";
+import { resolveAttorneyId, fetchAttorneys, fillAllZipCodes, linkDealSides } from "./transactions";
 
 export { parseDealTracker, addressKey, yearOf, IMPORT_SHEET_NAME } from "./dealImportParse";
 export const IMPORT_ACTIVITY_LABEL = "Imported from Deal Tracker";
@@ -86,7 +86,7 @@ export async function importDeals(deals, onProgress) {
   for (const ids of pairIds.values()) {
     if (ids.length === 2) {
       try {
-        await linkTransactions(ids[0], ids[1]);
+        await linkDealSides(ids[0], ids[1]);
       } catch (e) {
         console.error("Couldn't link the two sides of a Split deal:", e);
       }

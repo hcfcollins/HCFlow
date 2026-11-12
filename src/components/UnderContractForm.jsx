@@ -185,8 +185,12 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
         referralPct: clientSource === "Referral" && referralPct ? Number(referralPct) : null,
         tcFeeType: tcFeeType || null,
         townWaterSewer: side !== "Buy" ? townWaterSewer : null,
+        existingId: initialData?.id || null,
       });
 
+      if (submitted._otherSide) {
+        showToast(`Linked as an in-house deal with ${submitted._otherSide.agentName || "the other agent"}'s side — each side closes out separately`);
+      }
       if (submitted._xeroWarning) showToast(submitted._xeroWarning);
       if (submitted._dropboxWarning) showToast(submitted._dropboxWarning);
       clearDraft();

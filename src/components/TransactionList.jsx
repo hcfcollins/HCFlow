@@ -130,6 +130,11 @@ function TxCard({
           <div className="tx-address">
             {tx.address}
             {tx.terminated_at && <span className="tx-terminated-badge">{terminatedLabel(tx)}</span>}
+            {tx.other_side_id && !tx.terminated_at && (
+              <span className="tx-inhouse-badge" title="In-house deal: the other side is also Hall Collins. Each side has its own agent, commission, referral and close-out.">
+                🤝 In-house
+              </span>
+            )}
             {statusBadge && <span className={`tx-status-badge ${statusBadge.className}`}>{statusBadge.label}</span>}
             {!tx.terminated_at && dueTodoCount > 0 && (
               <span className="tx-due-badge">

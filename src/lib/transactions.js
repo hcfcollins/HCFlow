@@ -648,6 +648,54 @@ export async function deleteTodo(id) {
  * with lead source/referral info) — still insert-with-swallowed-conflict for
  * closeouts, which really is only ever written once, at actual close-out.
  */
+const clientSideOf = (side, splitClientSide) => (side === "Split" ? splitClientSide || null : side);
+
+/** This side's existing row for the Under Contract form, or null (= create a
+ * new row for this side). Opened from a deal card → that deal, as long as it's
+ * the same side. Otherwise: a non-terminated deal at this address on the same
+ * client side (e.g. your listing turning Under Contract). A deal on the
+ * opposite side is someone else's side — left alone. */
+async function findSameSide({ existingId, address, side, splitClientSide }) {
+  const mine = clientSideOf(side, splitClientSide);
+  const sameSide = (t) => {
+    const theirs = clientSideOf(t.side, t.split_client_side);
+    return !mine || !theirs || theirs === mine;
+  };
+  if (existingId) {
+    const { data, error } = await supabase.from("transactions").select("*").eq("id", existingId).maybeSingle();
+    if (error) throw error;
+    if (data && !data.terminated_at && sameSide(data)) return data;
+  }
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("*")
+    .ilike("address", address.trim())
+    .is("terminated_at", null);
+  if (error) throw error;
+  const matches = (data || []).filter(sameSide);
+  // Prefer one that's clearly this side (not just "side unknown").
+  return matches.find((t) => clientSideOf(t.side, t.split_client_side) === mine) || matches[0] || null;
+}
+
+/** The other side's agent name (staff can see every deal; an agent can't see
+ * another agent's side, so this returns null for them). */
+export async function fetchOtherSideAgentName(otherSideId) {
+  const { data } = await supabase
+    .from("transactions")
+    .select("agent:agents!transactions_agent_id_fkey(name)")
+    .eq("id", otherSideId)
+    .maybeSingle();
+  return data?.agent?.name || null;
+}
+
+/** Links a deal to the other side of the same property (Split / in-house).
+ * Pass otherId to link two specific deals (broker only). */
+export async function linkDealSides(transactionId, otherId) {
+  const { data, error } = await supabase.functions.invoke("link-deal-sides", { body: { transactionId, ...(otherId ? { otherId } : {}) } });
+  if (error) throw await functionError(error);
+  return data;
+}
+
 export async function submitUnderContract(fields) {
   const {
     region, agentId, side, splitClientSide, sellerName, buyerName, address, propertyStyle, price,
@@ -655,7 +703,7 @@ export async function submitUnderContract(fields) {
     inspectionDate, financingDate, appraiser, holdDeposit, depositAmount, depositDueDate,
     secondDeposit, secondDepositAmount, secondDepositDueDate,
     clientSource, referralOwedTo, referralPct, tcFeeType,
-    townWaterSewer,
+    townWaterSewer, existingId,
   } = fields;
 
   const txPatch = {
@@ -676,7 +724,10 @@ export async function submitUnderContract(fields) {
     town_water_sewer: townWaterSewer,
   };
 
-  let tx = await findTransactionByAddress(address);
+  // Each side of a deal is its own row (own id, agent, commission, referral,
+  // close-out). Only ever update THIS side's row — never the other agent's
+  // side of a Split or in-house deal at the same address.
+  let tx = await findSameSide({ existingId, address, side, splitClientSide });
   if (tx) {
     const { data, error } = await supabase
       .from("transactions")
@@ -742,6 +793,19 @@ export async function submitUnderContract(fields) {
 
   await addActivityLog(tx.id, "Under Contract form submitted", address);
 
+  // Split / in-house: link to the other side (if it's in the app yet). The
+  // server does this — an agent can't see the other agent's side.
+  let otherSideHoldsDeposit = false;
+  try {
+    const link = await linkDealSides(tx.id);
+    if (link?.linked) {
+      tx._otherSide = link.linked;
+      otherSideHoldsDeposit = link.otherSideHoldsDeposit;
+    }
+  } catch (e) {
+    console.error("Couldn't link the other side of this deal:", e);
+  }
+
   // Best-effort, non-blocking — a Xero hiccup must never stop the actual
   // Under Contract submission from going through. Surfaced to the caller as
   // tx._xeroWarning so the form can toast it rather than fail silently.
@@ -753,7 +817,11 @@ export async function submitUnderContract(fields) {
       ? { label: "Second Earnest Money Deposit", amount: secondDepositAmount, due_date: secondDepositDueDate || null }
       : null,
   ].filter(Boolean);
-  if (deposits.length) {
+  if (deposits.length && otherSideHoldsDeposit) {
+    // The other side already said we're holding the deposit — it's one
+    // deposit, so it's already in Xero from their submission.
+    tx._xeroWarning = `The other side (${tx._otherSide.agentName || "other agent"}) already recorded the deposit, so it wasn't added to Xero again.`;
+  } else if (deposits.length) {
     try {
       await pushDepositsToXero({ address, region, buyer_name: buyerName, closing_date: closingDate || null, deposits });
     } catch (e) {
