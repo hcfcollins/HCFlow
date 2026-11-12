@@ -9,9 +9,22 @@ const has = (v) => (Array.isArray(v) ? v.some((x) => String(x || "").trim()) : v
 // buyers — used for labels ("Buyer Email") and hiding listing-only sections.
 export const clientIsBuyer = (tx) => tx.side === "Buy" || (tx.side === "Split" && tx.split_client_side === "Buy");
 
+/** "Buyer side" / "Seller side" / "Split - Buyer Side" / "Split - Seller Side"
+ * (just "Split" until we know which side our clients are on). */
+export function sideLabel(tx) {
+  if (tx.side === "Split") {
+    if (tx.split_client_side === "Buy") return "Split - Buyer Side";
+    if (tx.split_client_side === "Sell") return "Split - Seller Side";
+    return "Split";
+  }
+  return `${tx.side === "Buy" ? "Buyer" : tx.side === "Sell" ? "Seller" : tx.side} side`;
+}
+
 // `field` matches a data-field="…" on the deal screen (DealDetail) — that's
 // where tapping the item jumps to and flashes.
 const CONTRACT_CHECKS = [
+  // Split: which side are OUR clients on — drives every buyer/seller label.
+  { field: "split_client_side", label: "Our Side (Buyers or Sellers)", get: (tx) => tx.split_client_side, onlyIf: (tx) => tx.side === "Split" },
   { field: "region", label: "State (VT/NH)", get: (tx) => tx.region },
   { field: "next_date", label: "Closing Date", get: (tx) => tx.next_date },
   { field: "price", label: "Price", get: (tx) => tx.price },
@@ -63,7 +76,17 @@ export function missingInfoItems(tx, { review = false } = {}) {
   const checks = checksFor(tx, review);
   return checks
     .filter((c) => (!c.onlyIf || c.onlyIf(tx)) && !has(c.get(tx)))
-    .map((c) => ({ field: c.field, label: c.field === "seller_emails" && clientIsBuyer(tx) ? "Buyer Email" : c.label }));
+    .map((c) => ({
+      field: c.field,
+      label:
+        c.field === "seller_emails"
+          ? clientIsBuyer(tx)
+            ? "Buyer Email"
+            : tx.side === "Split" && !tx.split_client_side
+              ? "Client Email"
+              : c.label === "Client Email" ? "Seller Email" : c.label
+          : c.label,
+    }));
 }
 
 /** Labels only. */

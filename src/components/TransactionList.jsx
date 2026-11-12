@@ -9,6 +9,7 @@ import { useMentionRoster } from "../lib/mentions";
 import { stageSelectValue, closingStatusBadge, terminatedLabel } from "../lib/stages";
 import { formatBac, openEmailCompose } from "../lib/clientEmail";
 import TodoList, { MissingInfoTodo } from "./TodoList";
+import { sideLabel } from "../lib/missingInfo";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 
 /** Today as YYYY-MM-DD in local time (not toISOString, which is UTC and can be
@@ -144,7 +145,7 @@ function TxCard({
           </div>
           <div className="tx-sub">
             {tx.town}
-            {isActiveListing ? "" : ` · ${tx.side} side`}
+            {isActiveListing ? "" : ` · ${sideLabel(tx)}`}
             {isBroker && tx.agent ? ` · ${tx.agent.name}` : ""}
             {colistName ? ` · Co-list: ${colistName}` : ""}
           </div>

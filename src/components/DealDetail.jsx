@@ -10,7 +10,7 @@ import DropboxFolderPicker from "./DropboxFolderPicker";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents, fetchOtherSideAgentName } from "../lib/transactions";
-import { clientIsBuyer as isClientBuyer, missingInfoItems } from "../lib/missingInfo";
+import { clientIsBuyer as isClientBuyer, missingInfoItems, sideLabel } from "../lib/missingInfo";
 import { stageSelectValue, closingStatusBadge, isExpiredListing, terminatedLabel, EXPIRED_REASON } from "../lib/stages";
 import { formatBac, bacWarning, emailComposeUrl, emailLinkTarget } from "../lib/clientEmail";
 import { sendShowingPacket } from "../lib/showingPacket";
@@ -750,7 +750,7 @@ export default function DealDetail({
 
             <EditableEmailList
               field="seller_emails"
-              label={clientIsBuyer ? "Buyer Email(s)" : "Seller Email(s)"}
+              label={clientIsBuyer ? "Buyer Email(s)" : transaction.side === "Split" && !transaction.split_client_side ? "Client Email(s)" : "Seller Email(s)"}
               values={transaction.seller_emails || []}
               onSave={(emails) => handleFieldSave({ seller_emails: emails })}
             />
@@ -759,11 +759,11 @@ export default function DealDetail({
               <>
                 <div>
                   <div className="detail-label">Side</div>
-                  <div>{transaction.side}</div>
+                  <div>{sideLabel(transaction)}</div>
                 </div>
 
                 {transaction.side === "Split" && (
-                  <div className="detail-grid-full">
+                  <div className="detail-grid-full" data-field="split_client_side">
                     <div className="detail-label">Your Clients Are The</div>
                     <RadioGroup
                       name="splitClientSide"
