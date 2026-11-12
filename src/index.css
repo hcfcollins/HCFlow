@@ -1578,3 +1578,12 @@ button { cursor: pointer; }
 .bac-warning { font-size: 12px; font-weight: 600; color: var(--color-danger-text); }
 .detail-style-tag { margin-top: 6px; }
 .comps-status-btn--expired { color: #8A5A00; border-color: #F5C26B; background: #FEF6E4; }
+
+/* Won Listing: full-screen "setting up" overlay while the Dropbox folder and
+   checklist are created. */
+.won-setup-overlay { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(23, 51, 72, 0.45); backdrop-filter: blur(2px); animation: toast-in 0.2s ease-out; }
+.won-setup-card { background: #fff; border-radius: 16px; padding: 28px 24px; max-width: 340px; width: 100%; text-align: center; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2); }
+.won-setup-spinner { width: 44px; height: 44px; margin: 0 auto 16px; border-radius: 50%; border: 4px solid #e3ebf0; border-top-color: #173348; animation: won-spin 0.8s linear infinite; }
+.won-setup-title { font-weight: 700; color: #173348; font-size: 17px; margin-bottom: 6px; }
+.won-setup-sub { color: #5b6b78; font-size: 14px; line-height: 1.4; }
+@keyframes won-spin { to { transform: rotate(360deg); } }

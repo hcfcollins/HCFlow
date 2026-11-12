@@ -171,7 +171,7 @@ export default function DealDetail({
       return () => clearTimeout(t);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transaction._focusField]);
+  }, [transaction._focusField, transaction._focusAt]);
 
   useEffect(() => {
     fetchAttorneys().then(setAttorneys).catch(() => {});

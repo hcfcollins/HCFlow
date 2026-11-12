@@ -98,6 +98,7 @@ export default function App() {
     };
   }, [remindMenuTodoId]);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [wonSetup, setWonSetup] = useState(null); // the listing being set up after "Won Listing"
   const [closingTransaction, setClosingTransaction] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [pageIndex, setPageIndex] = useState(2); // Under Contract — see PAGES in DealPages.jsx
@@ -156,8 +157,10 @@ export default function App() {
       setError(null);
       maybeBackfillFolderIds(data);
       maybeBackfillZips(data);
+      return data;
     } catch (e) {
       setError(e.message);
+      return null;
     } finally {
       if (!silent) setLoadingTxs(false);
     }
@@ -170,26 +173,32 @@ export default function App() {
       // These are gated independently — a transaction can already have todos
       // (seeded on a prior attempt) while still lacking a Dropbox folder if
       // that step failed, so retrying must still re-attempt just that piece.
-      if (tx && !tx.todos?.length) {
-        try {
-          const mlsTodo = await seedWonListingTodos(id);
-          // Let the coordinator know right away — best-effort.
-          notifyTodo({ transactionId: id, event: "listing_won", text: mlsTodo }).catch((e) =>
-            console.error("Listing Won notification failed:", e)
-          );
-        } catch (e) {
-          console.error("Failed to seed Won Listing to-dos:", e);
-          sideEffectError = `Couldn't set up the to-do checklist: ${e.message}`;
-        }
-      }
-      if (tx && !tx.dropbox_folder_url) {
-        try {
-          await createDropboxFolderForListing(id);
-        } catch (e) {
-          console.error("Dropbox folder creation failed:", e);
-          sideEffectError = sideEffectError || `Couldn't create the Dropbox folder: ${e.message}`;
-        }
-      }
+      // The checklist and the Dropbox folder don't depend on each other, so
+      // they run at the same time (the folder is the slow part).
+      let todoError = null;
+      let folderError = null;
+      await Promise.all([
+        tx && !tx.todos?.length
+          ? seedWonListingTodos(id)
+              .then((mlsTodo) => {
+                // Let the coordinator know right away — best-effort.
+                notifyTodo({ transactionId: id, event: "listing_won", text: mlsTodo }).catch((e) =>
+                  console.error("Listing Won notification failed:", e)
+                );
+              })
+              .catch((e) => {
+                console.error("Failed to seed Won Listing to-dos:", e);
+                todoError = `Couldn't set up the to-do checklist: ${e.message}`;
+              })
+          : null,
+        tx && !tx.dropbox_folder_url
+          ? createDropboxFolderForListing(id).catch((e) => {
+              console.error("Dropbox folder creation failed:", e);
+              folderError = `Couldn't create the Dropbox folder: ${e.message}`;
+            })
+          : null,
+      ]);
+      sideEffectError = todoError || folderError;
     }
     if (stage === "market") {
       const tx = txs.find((t) => t.id === id);
@@ -225,8 +234,27 @@ export default function App() {
     await updateTransactionStage(id, stage);
     // loadTransactions clears any stale error on success, so set ours after it,
     // not before — otherwise the refresh would immediately wipe it out.
-    await loadTransactions({ silent: true });
+    const fresh = await loadTransactions({ silent: true });
     if (sideEffectError) setError(sideEffectError);
+    return fresh;
+  }
+
+  /** Won Listing takes a while (Dropbox folder + checklist), so show a
+   * full-screen "setting up" overlay, then land on the deal screen with the
+   * Price field highlighted so price, commission, etc. can go right in. */
+  async function handleWonListing(tx) {
+    setWonSetup(tx);
+    try {
+      const fresh = await handleStageChange(tx.id, "won");
+      const updated = fresh?.find((t) => t.id === tx.id) || { ...tx, stage: "won" };
+      setShowAllDeals(false);
+      setSelectedTransaction({ ...updated, _focusField: "price", _focusAt: Date.now() });
+    } catch (e) {
+      console.error("Won Listing failed:", e);
+      setError(`Couldn't move ${tx.address} to Won Listing: ${e.message}`);
+    } finally {
+      setWonSetup(null);
+    }
   }
 
   async function handleNotesChange(id, notes) {
@@ -498,6 +526,10 @@ export default function App() {
       return;
     }
     if (newStage === "closed" && !isBrokerUser) return; // only a broker closes a deal
+    if (newStage === "won" && tx.stage === "comps") {
+      if (!wonSetup) handleWonListing(tx);
+      return;
+    }
     if (newStage === "contract" && tx.stage !== "contract") {
       handleRequestUnderContract(tx);
     } else if (newStage === "closed" && tx.stage !== "closed") {
@@ -670,6 +702,7 @@ export default function App() {
       <TodoActionsContext.Provider value={renderTodoActions}>
       <div className="app">
         {error && <div className="error-banner">{error}</div>}
+        {wonSetup && <WonSetupOverlay address={wonSetup.address} />}
         <DealDetail
           key={selectedTransaction.id}
           className={closingTransaction ? "deal-detail-exit" : "deal-detail-enter"}
@@ -713,6 +746,7 @@ export default function App() {
     return (
       <TodoActionsContext.Provider value={renderTodoActions}>
         <div className="app">
+        {wonSetup && <WonSetupOverlay address={wonSetup.address} />}
           <header className="app-header">
             <div>
               <div className="brand-eyebrow">Pipeline &amp; Archive</div>
@@ -745,6 +779,7 @@ export default function App() {
   return (
     <TodoActionsContext.Provider value={renderTodoActions}>
     <div className="app">
+      {wonSetup && <WonSetupOverlay address={wonSetup.address} />}
       <header className="main-header">
         <div className="main-header-row">
           <div className="brand-logo-group">
@@ -880,5 +915,17 @@ export default function App() {
       </div>
     </div>
     </TodoActionsContext.Provider>
+  );
+}
+
+function WonSetupOverlay({ address }) {
+  return (
+    <div className="won-setup-overlay" role="status" aria-live="polite">
+      <div className="won-setup-card">
+        <div className="won-setup-spinner" aria-hidden="true" />
+        <div className="won-setup-title">Setting up {address || "the listing"}…</div>
+        <div className="won-setup-sub">Creating the Dropbox folder and to-do checklist. This can take a little while.</div>
+      </div>
+    </div>
   );
 }
