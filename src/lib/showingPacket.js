@@ -6,8 +6,8 @@ export function showingPacketEmail(address, url) {
   return {
     to: [],
     subject: `Listing Packet - ${address}`,
-    // One return between each line, per Fran.
-    body: `Hello,\nHere is the listing packet for ${address}:\n${url}\nLet me know if you have any questions!`,
+    // One blank line between each line, per Fran.
+    body: `Hello,\n\nHere is the listing packet for ${address}:\n\n${url}\n\nLet me know if you have any questions!`,
   };
 }
 

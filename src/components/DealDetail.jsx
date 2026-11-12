@@ -9,7 +9,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import DropboxFolderPicker from "./DropboxFolderPicker";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
-import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode } from "../lib/transactions";
+import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents } from "../lib/transactions";
 import { clientIsBuyer as isClientBuyer } from "../lib/missingInfo";
 import { stageSelectValue, closingStatusBadge } from "../lib/stages";
 import { formatBac, bacWarning, emailComposeUrl, emailLinkTarget } from "../lib/clientEmail";
@@ -613,6 +613,16 @@ export default function DealDetail({
               onSave={(v) => handleFieldSave({ price: v ? Number(v) : null })}
             />
 
+            {isStaff && (
+              <AgentPicker
+                transaction={transaction}
+                onSave={async (agentId, agentName) => {
+                  await handleFieldSave({ agent_id: agentId });
+                  showToast(`Now ${agentName}'s deal`);
+                }}
+              />
+            )}
+
             {!isBuySide && (
               <EditableText
                 label="Buyer Agency Commission"
@@ -713,13 +723,6 @@ export default function DealDetail({
                         { value: "Buy", label: "Buyers" },
                       ]}
                     />
-                  </div>
-                )}
-
-                {isStaff && (
-                  <div>
-                    <div className="detail-label">Agent</div>
-                    <div>{transaction.agent?.name || "—"}</div>
                   </div>
                 )}
 
@@ -1898,5 +1901,55 @@ function AddressEditor({ transaction, onSave, onCancel }) {
         </button>
       </div>
     </form>
+  );
+}
+
+/** Staff-only: reassign the deal to a different agent (e.g. picked the wrong
+ * one on a quick add). The Dropbox folder stays where it is — if the new agent
+ * keeps listings in their own Dropbox space, move it there and re-pair it. */
+function AgentPicker({ transaction, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [agents, setAgents] = useState(null);
+
+  useEffect(() => {
+    if (editing && !agents) fetchAgents().then(setAgents).catch(() => setAgents([]));
+  }, [editing, agents]);
+
+  if (!editing) {
+    return (
+      <div data-field="agent">
+        <div className="detail-label">Agent</div>
+        <div className="editable-missing editable-set">
+          {transaction.agent?.name || "—"}
+          <button type="button" className="edit-icon-btn" onClick={() => setEditing(true)} aria-label="Change agent" title="Change which agent this deal belongs to">
+            <Pencil size={12} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div data-field="agent">
+      <div className="detail-label">Agent</div>
+      <select
+        autoFocus
+        defaultValue={transaction.agent_id || ""}
+        disabled={!agents}
+        onChange={async (e) => {
+          const picked = agents.find((a) => a.id === e.target.value);
+          setEditing(false);
+          if (picked && picked.id !== transaction.agent_id) await onSave(picked.id, picked.name);
+        }}
+        onBlur={() => setEditing(false)}
+      >
+        {!agents && <option value={transaction.agent_id || ""}>Loading…</option>}
+        {agents?.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.name}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
