@@ -8,8 +8,8 @@
 //   Not Yet     → Under Contract (closes through the Close-Out Calculator as usual)
 //   TERMINATED  → a terminated Under Contract deal (off by default)
 //
-// A Split deal is two rows in the sheet (one per side) but one deal here —
-// those are merged, adding the two sides' commission together.
+// A Split deal is two rows in the sheet (one per side) and stays two linked
+// deals here, so each side closes out with its own agent, % and referral.
 
 import { PROPERTY_STYLES } from "./compFieldOptions.js";
 
@@ -209,28 +209,35 @@ export function parseDealTracker(rows, { year, agents, existing }) {
     });
   });
 
-  // Merge the two halves of a Split deal (same property, same status group).
-  const deals = [];
-  for (const d of parsed) {
+  // A Split deal is two rows in the sheet — one per side, each with its own
+  // agent, commission %, referral and close-out. They stay two separate deals
+  // here too (so each side closes out on its own), linked to each other.
+  const deals = parsed.map((d) => ({ ...d, warnings: [], pairId: null }));
+  for (const d of deals) {
+    if (d.pairId) continue;
     const twin = deals.find(
       (o) =>
+        o !== d &&
+        !o.pairId &&
         addressKey(o.address) === addressKey(d.address) &&
         (o.status === "terminated") === (d.status === "terminated") &&
-        o.rowNums.length === 1 &&
         (o.side === "Split" || d.side === "Split" || (o.side && d.side && o.side !== d.side))
     );
-    if (twin) mergeInto(twin, d);
-    else deals.push({ ...d, warnings: [] });
+    if (twin) d.pairId = twin.pairId = `pair-${d.rowNums[0]}`;
   }
 
   for (const d of deals) {
     if (!d.agentId) d.warnings.push(d.agentName ? `No agent named "${d.agentName}" in the app` : "No agent");
     if (!d.side) d.warnings.push("Side (Buyer/Seller) not recognized");
-    if (d.rowNums.length > 1) d.warnings.push(`Both sides — ${d.rowNums.length} sheet rows combined`);
-    const sameKey = deals.filter(
-      (o) => addressKey(o.address) === addressKey(d.address) && (o.status === "terminated") === (d.status === "terminated")
-    );
-    if (sameKey.length > 1) d.warnings.push("This address appears more than once in the sheet");
+    if (d.pairId) {
+      const twin = deals.find((o) => o !== d && o.pairId === d.pairId);
+      d.warnings.push(`One side of a Split deal — its own close-out, linked to ${twin.agentName || "the other side"}'s side (row ${twin.rowNums[0]})`);
+    } else {
+      const sameKey = deals.filter(
+        (o) => addressKey(o.address) === addressKey(d.address) && (o.status === "terminated") === (d.status === "terminated")
+      );
+      if (sameKey.length > 1) d.warnings.push("This address appears more than once in the sheet");
+    }
     const match = existing.find((t) => addressKey(t.address) === addressKey(d.address) && !(t.terminated_at && d.status !== "terminated"));
     d.existingId = match?.id || null;
     d.existingStage = match?.stage || null;
@@ -240,19 +247,4 @@ export function parseDealTracker(rows, { year, agents, existing }) {
   return deals.sort((a, b) => a.closingDate.localeCompare(b.closingDate));
 }
 
-function mergeInto(a, b) {
-  a.rowNums.push(...b.rowNums);
-  a.side = "Split";
-  a.commissionPct = (a.commissionPct || 0) + (b.commissionPct || 0) || null;
-  for (const k of Object.keys(a.money)) {
-    const sum = (a.money[k] || 0) + (b.money[k] || 0);
-    a.money[k] = a.money[k] == null && b.money[k] == null ? null : sum;
-  }
-  for (const k of ["sellerName", "buyerName", "sellerAttorney", "buyerAttorney", "clientSource", "inspectionDate", "financingDate", "appraiser", "propertyStyle", "region", "leadType", "agentId", "agentName", "price"]) {
-    if (a[k] == null && b[k] != null) a[k] = b[k];
-  }
-  if (b.notes && b.notes !== a.notes) a.notes = [a.notes, b.notes].filter(Boolean).join(" · ");
-  if (a.referralPct == null) a.referralPct = b.referralPct;
-  if (!a.deposit.hold && b.deposit.hold) a.deposit = b.deposit;
-}
 

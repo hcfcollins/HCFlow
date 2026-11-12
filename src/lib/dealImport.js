@@ -1,6 +1,6 @@
 // Saves deals parsed by dealImportParse.js (the old Google Sheet Deal Tracker).
 import { supabase } from "./supabaseClient";
-import { resolveAttorneyId, fetchAttorneys, fillAllZipCodes } from "./transactions";
+import { resolveAttorneyId, fetchAttorneys, fillAllZipCodes, linkTransactions } from "./transactions";
 
 export { parseDealTracker, addressKey, yearOf, IMPORT_SHEET_NAME } from "./dealImportParse";
 export const IMPORT_ACTIVITY_LABEL = "Imported from Deal Tracker";
@@ -18,6 +18,7 @@ export async function importDeals(deals, onProgress) {
 
   const created = [];
   const failed = [];
+  const pairIds = new Map(); // Split deal pairId → the two new deal ids
   for (let i = 0; i < deals.length; i++) {
     const d = deals[i];
     onProgress?.(i, deals.length, d.address);
@@ -76,8 +77,19 @@ export async function importDeals(deals, onProgress) {
         .from("activity_log")
         .insert({ transaction_id: tx.id, label: IMPORT_ACTIVITY_LABEL, detail: `Sheet row${d.rowNums.length > 1 ? "s" : ""} ${d.rowNums.join(" & ")}` });
       created.push(tx.id);
+      if (d.pairId) pairIds.set(d.pairId, [...(pairIds.get(d.pairId) || []), tx.id]);
     } catch (e) {
       failed.push({ address: d.address, error: e.message || String(e) });
+    }
+  }
+  // Link the two sides of each Split deal to each other.
+  for (const ids of pairIds.values()) {
+    if (ids.length === 2) {
+      try {
+        await linkTransactions(ids[0], ids[1]);
+      } catch (e) {
+        console.error("Couldn't link the two sides of a Split deal:", e);
+      }
     }
   }
   onProgress?.(deals.length, deals.length, null);

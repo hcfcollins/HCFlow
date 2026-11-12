@@ -129,8 +129,9 @@ export default function DealImport({ transactions, onBack, onImported, onStartRe
           </h2>
           <p className="field-help">
             In Google Sheets, open the Deal Tracker and choose <strong>File → Download → Microsoft Excel (.xlsx)</strong>, then pick that
-            file here. Only rows with a closing date in the year below come in. Deals that are already in the app are skipped, and both sides
-            of a Split deal are combined into one.
+            file here. Only rows with a closing date in the year below come in. Deals that are already in the app are skipped. Each side of a
+            Split deal stays its own deal with its own close-out (agent, commission and referral), just like the sheet, and the two sides are
+            linked to each other.
           </p>
           <div className="import-controls">
             <label className="import-file-btn" title="Choose the Deal Tracker .xlsx file">
