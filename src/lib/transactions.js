@@ -1121,3 +1121,43 @@ export async function sendTestDailyDigest() {
   }
   return data;
 }
+
+/** Pulls the real error message out of a failed Edge Function call. */
+async function functionError(error) {
+  if (error?.context?.json) {
+    try {
+      const detail = (await error.context.json())?.error;
+      if (detail) return new Error(detail);
+    } catch {
+      // not JSON
+    }
+  }
+  return error;
+}
+
+/** Folders one level inside the agent's Dropbox listing folder (or buyer
+ * folder for side "Buy") — the choices in the "Pair Existing Folder" picker. */
+export async function listDropboxFolders(agentId, side) {
+  const { data, error } = await supabase.functions.invoke("pair-dropbox-folder", { body: { action: "list", agentId, side } });
+  if (error) throw await functionError(error);
+  return data;
+}
+
+/** Attach an existing Dropbox folder to a deal — by folder ID (picked from the
+ * list) or a pasted share link / folder path. Saves the folder's permanent ID
+ * so renaming the folder later doesn't disconnect it. */
+export async function pairDropboxFolder(transactionId, { folderId, link }) {
+  const { data, error } = await supabase.functions.invoke("pair-dropbox-folder", {
+    body: { action: "pair", transactionId, folderId, link },
+  });
+  if (error) throw await functionError(error);
+  return data;
+}
+
+/** Broker-only, fire-and-forget: records the permanent folder ID for any deal
+ * that only has a folder path saved so far. */
+export async function backfillDropboxFolderIds() {
+  const { data, error } = await supabase.functions.invoke("pair-dropbox-folder", { body: { action: "backfill" } });
+  if (error) throw await functionError(error);
+  return data;
+}

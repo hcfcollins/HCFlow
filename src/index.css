@@ -1493,3 +1493,38 @@ button { cursor: pointer; }
 .detail-title-row h1 { margin: 0; }
 .detail-title-row .edit-icon-btn { margin-top: 6px; }
 .address-dropbox-note { font-size: 11px; color: var(--color-text-muted); }
+
+/* Button color separation: Active Listing (light blue) vs New Comp (green);
+   My Spreadsheet is outlined so it doesn't read as another green action. */
+.uc-launch--active { background: var(--color-accent-blue); }
+.my-spreadsheet-cta { background: var(--color-white); color: #6F7F55; border: 2px solid #8A9A6F; padding: 7px; }
+.my-spreadsheet-cta:hover { background: rgba(138, 154, 111, 0.08); opacity: 1; }
+/* Lockbox tag — hot pink so it doesn't blend in with the BAC tag. */
+.tx-icon-badge--lockbox { color: #E3197F; background: rgba(227, 25, 127, 0.1); }
+
+/* Export Client Contacts (Spreadsheet View header) */
+.sv-header-actions { display: flex; align-items: center; gap: 10px; }
+.sv-export-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--color-border-input); background: var(--color-white); color: var(--color-navy); border-radius: 8px; padding: 7px 12px; font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; }
+.sv-export-btn:hover { background: var(--color-bg-slate); }
+
+/* Dropbox folder picker (pair an existing folder) */
+.dbx-picker { width: 100%; box-sizing: border-box; margin-top: 10px; padding: 12px; border: 1px solid var(--color-border-blue); border-radius: 12px; background: var(--color-white); display: flex; flex-direction: column; gap: 8px; }
+.dbx-picker-head { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.dbx-picker-error { color: var(--color-danger-text); }
+.dbx-picker-search { display: flex; align-items: center; gap: 6px; border: 1px solid var(--color-border-input); border-radius: 8px; padding: 0 8px; color: var(--color-text-muted); }
+.dbx-picker .dbx-picker-search input { border: none; margin: 0; padding: 7px 0; flex: 1; min-width: 0; outline: none; font-family: 'Montserrat', sans-serif; font-size: 13px; }
+.dbx-picker-list { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.dbx-picker-item { width: 100%; display: flex; align-items: center; gap: 8px; text-align: left; border: none; background: none; padding: 7px 8px; border-radius: 8px; font-family: 'Montserrat', sans-serif; font-size: 13px; color: var(--color-navy); cursor: pointer; }
+.dbx-picker-item:hover { background: var(--color-bg-slate); }
+.dbx-picker-item span:first-of-type { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.dbx-picker-item--match { background: var(--color-info-bg); }
+.dbx-picker-badge { flex-shrink: 0; font-size: 10px; font-weight: 700; color: var(--color-info-text); text-transform: uppercase; letter-spacing: 0.03em; }
+.dbx-picker-link { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--color-border); padding-top: 8px; }
+.dbx-picker-link-row { display: flex; gap: 6px; }
+.dbx-picker .dbx-picker-link-row input { flex: 1; min-width: 0; margin: 0; padding: 7px 8px; border-radius: 8px; border: 1px solid var(--color-border-input); font-family: 'Montserrat', sans-serif; font-size: 13px; }
+.dbx-picker-link-row button, .dbx-picker-cancel { border: none; border-radius: 8px; padding: 7px 12px; font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 700; background: var(--color-navy); color: var(--color-white); cursor: pointer; }
+.dbx-picker-cancel { align-self: flex-start; background: var(--color-border); color: var(--color-navy); }
+.dbx-change-link { border: none; background: none; padding: 4px 0; font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 600; color: var(--color-text-muted); text-decoration: underline; cursor: pointer; align-self: flex-start; }
+.dbx-chosen { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.dbx-chosen span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.dbx-chosen button { border: none; background: none; color: var(--color-danger-text); font-weight: 700; font-size: 12px; cursor: pointer; }

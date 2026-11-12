@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { DollarSign, Ban, RotateCcw, ArrowLeft } from "lucide-react";
+import { DollarSign, Ban, RotateCcw, ArrowLeft, Download } from "lucide-react";
+import { exportClientContacts } from "../lib/contactExport";
 import {
   updateTransactionFields,
   upsertCommissionData,
@@ -412,6 +413,7 @@ export default function SpreadsheetView({ transactions: rawTransactions, onBack,
   const [closingOutTx, setClosingOutTx] = useState(null);
   const [terminatingTx, setTerminatingTx] = useState(null);
   const showToast = useToast();
+  const [exportingContacts, setExportingContacts] = useState(false);
 
   useEffect(() => {
     fetchAllAgents().then(setAgents).catch(() => {});
@@ -685,9 +687,30 @@ export default function SpreadsheetView({ transactions: rawTransactions, onBack,
           <div className="brand-eyebrow">Broker Tools</div>
           <h1>Spreadsheet View</h1>
         </div>
-        <button type="button" className="header-icon-btn" onClick={onBack} aria-label="Back" title="Back">
-          <ArrowLeft size={20} />
-        </button>
+        <div className="sv-header-actions">
+          <button
+            type="button"
+            className="sv-export-btn"
+            disabled={exportingContacts}
+            onClick={async () => {
+              setExportingContacts(true);
+              try {
+                const { total, buyers } = await exportClientContacts(transactions);
+                showToast(`Exported ${total} contacts (${buyers} buyers)`);
+              } catch (e) {
+                showToast(`Export failed: ${e.message}`);
+              } finally {
+                setExportingContacts(false);
+              }
+            }}
+            title="Download an Excel file of every buyer (name, email, mailing address) plus our seller clients' emails"
+          >
+            <Download size={14} /> {exportingContacts ? "Exporting…" : "Export Client Contacts"}
+          </button>
+          <button type="button" className="header-icon-btn" onClick={onBack} aria-label="Back" title="Back">
+            <ArrowLeft size={20} />
+          </button>
+        </div>
       </header>
 
       <div className="sv-filters">

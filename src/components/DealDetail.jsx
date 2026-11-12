@@ -6,9 +6,10 @@ import CheckboxGroup from "./CheckboxGroup";
 import GenerateCompForm from "./GenerateCompForm";
 import CloseoutCalculator from "./CloseoutCalculator";
 import ConfirmDialog from "./ConfirmDialog";
+import DropboxFolderPicker from "./DropboxFolderPicker";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
-import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData } from "../lib/transactions";
+import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder } from "../lib/transactions";
 import { clientIsBuyer as isClientBuyer } from "../lib/missingInfo";
 import { stageSelectValue, closingStatusBadge } from "../lib/stages";
 import { formatBac, emailComposeUrl, emailLinkTarget } from "../lib/clientEmail";
@@ -109,6 +110,22 @@ export default function DealDetail({
   const swipeIntent = useRef(null);
   const showToast = useToast();
   const [editingAddress, setEditingAddress] = useState(false);
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
+  const [pairingFolder, setPairingFolder] = useState(false);
+
+  async function handlePairFolder(choice) {
+    setPairingFolder(true);
+    try {
+      const result = await pairDropboxFolder(transaction.id, choice);
+      setShowFolderPicker(false);
+      onRefresh();
+      showToast(`Paired with ${result.folderPath?.split("/").pop() || "the folder"}`);
+    } catch (e) {
+      showToast(`Couldn't pair the folder: ${e.message}`);
+    } finally {
+      setPairingFolder(false);
+    }
+  }
   const [scrolledPastTitle, setScrolledPastTitle] = useState(false);
   const titleRef = useRef(null);
 
@@ -237,7 +254,20 @@ export default function DealDetail({
     // is ready — a window.open() called only after the await below (network
     // round-trips to Dropbox and Gmail) is no longer a direct result of the
     // user gesture and gets silently popup-blocked in most browsers.
-    const draftTab = window.open("", "_blank", "noopener,noreferrer");
+    // NOT "noopener": with it, window.open() returns null, so the tab could
+    // never be pointed at the draft — that was the blank page. The opener
+    // link is cut by hand instead.
+    const draftTab = window.open("", "_blank");
+    if (draftTab) {
+      try {
+        draftTab.opener = null;
+        draftTab.document.title = "Creating draft…";
+        draftTab.document.body.innerHTML =
+          '<p style="font-family:Montserrat,Arial,sans-serif;color:#173348;padding:24px">Creating your Gmail draft with the showing packet attached…</p>';
+      } catch {
+        /* cosmetic only */
+      }
+    }
     try {
       const result = await emailShowingPacket(transaction.id);
       showToast(`Draft created with "${result.fileName}" attached`);
@@ -940,9 +970,17 @@ export default function DealDetail({
           <p className="field-help">Files live in Dropbox — this list tracks status only.</p>
           {transaction.dropbox_folder_url ? (
             <>
-              <a href={transaction.dropbox_folder_url} target="_blank" rel="noreferrer" className="cma-export-btn">
+              <a href={transaction.dropbox_folder_url} target="_blank" rel="noreferrer" className="cma-export-btn" title="Open this deal's folder in Dropbox">
                 <FolderOpen size={14} /> Open Dropbox Folder
               </a>
+              <button
+                type="button"
+                className="dbx-change-link"
+                onClick={() => setShowFolderPicker((v) => !v)}
+                title="Point this deal at a different existing Dropbox folder"
+              >
+                Change folder
+              </button>
               {transaction.side !== "Buy" && (
                 <button title="Create a Gmail draft with the showing packet attached" type="button" className="cma-export-btn" disabled={emailingPacket} onClick={handleEmailShowingPacket}>
                   <Mail size={14} /> {emailingPacket ? "Creating draft…" : "Email Showing Packet"}
@@ -950,10 +988,32 @@ export default function DealDetail({
               )}
             </>
           ) : (
+            <>
+              <p className="field-help">No Dropbox folder linked yet.</p>
+              <button
+                type="button"
+                className="cma-export-btn"
+                onClick={() => setShowFolderPicker((v) => !v)}
+                title="Link a Dropbox folder that already exists (e.g. a listing from before HC Flow)"
+              >
+                <FolderOpen size={14} /> Pair Existing Folder
+              </button>
+            </>
+          )}
+          {showFolderPicker && (
+            <DropboxFolderPicker
+              agentId={transaction.agent_id}
+              side={isBuySide ? "Buy" : "Sell"}
+              address={transaction.address}
+              busy={pairingFolder}
+              onPick={handlePairFolder}
+              onCancel={() => setShowFolderPicker(false)}
+            />
+          )}
+          {!transaction.dropbox_folder_url && (
             (transaction.stage === "won" || (transaction.side === "Buy" && transaction.stage === "contract")) && (
               <>
-                <p className="field-help">Dropbox folder not created yet.</p>
-                <button title="Try creating this deal's Dropbox folder again"
+                <button title="Create a brand-new Dropbox folder for this deal (with the standard subfolders)"
                   type="button"
                   className="cma-export-btn"
                   disabled={retryingDropbox}
@@ -963,7 +1023,7 @@ export default function DealDetail({
                     setRetryingDropbox(false);
                   }}
                 >
-                  <FolderOpen size={14} /> {retryingDropbox ? "Creating…" : "Retry Dropbox Folder"}
+                  <FolderOpen size={14} /> {retryingDropbox ? "Creating…" : "Create New Folder"}
                 </button>
               </>
             )

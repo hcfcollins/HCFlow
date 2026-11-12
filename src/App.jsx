@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./lib/useAuth";
 import {
   fetchTransactions,
@@ -26,6 +26,7 @@ import {
   setReadyForCloseout,
   sendTestDailyDigest,
   initialsFor,
+  backfillDropboxFolderIds,
 } from "./lib/transactions";
 import { TodoActionsContext } from "./lib/TodoActionsContext";
 import { buildUtilityEmail, openEmailCompose } from "./lib/clientEmail";
@@ -119,6 +120,19 @@ export default function App() {
   // `silent` skips the full-screen loading state for refreshes triggered by an
   // edit (toggling a todo, changing notes, etc.) so the screen doesn't flash
   // back to "Loading…" and reset scroll position every time something is saved.
+  // Once per session, for a broker: deals whose Dropbox folder was saved by
+  // path only get their permanent folder ID recorded, so renaming those
+  // folders won't disconnect them. Only runs once the dropbox_folder_id
+  // column exists (it shows up as a key on every row).
+  const backfillStarted = useRef(false);
+  function maybeBackfillFolderIds(data) {
+    if (backfillStarted.current || agent?.role !== "broker" || !data.length) return;
+    if (!("dropbox_folder_id" in data[0])) return;
+    if (!data.some((t) => t.dropbox_folder_path && !t.dropbox_folder_id)) return;
+    backfillStarted.current = true;
+    backfillDropboxFolderIds().catch((e) => console.error("Dropbox folder ID backfill failed:", e));
+  }
+
   async function loadTransactions({ silent = false } = {}) {
     if (!silent) setLoadingTxs(true);
     try {
@@ -126,6 +140,7 @@ export default function App() {
       setTxs(data);
       setSelectedTransaction((current) => (current ? data.find((t) => t.id === current.id) || current : current));
       setError(null);
+      maybeBackfillFolderIds(data);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -829,7 +844,7 @@ export default function App() {
           All Deals
         </button>
         {!isCoordinator && (
-          <button title="Your own deals and commission totals in one table" type="button" className="my-earnings-cta" onClick={() => setShowMySpreadsheet(true)}>
+          <button title="Your own deals and commission totals in one table" type="button" className="my-earnings-cta my-spreadsheet-cta" onClick={() => setShowMySpreadsheet(true)}>
             My Spreadsheet
           </button>
         )}

@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { X } from "lucide-react";
-import { createActiveListing } from "../lib/transactions";
+import { X, FolderOpen } from "lucide-react";
+import { createActiveListing, pairDropboxFolder } from "../lib/transactions";
+import DropboxFolderPicker from "./DropboxFolderPicker";
 import AgentField from "./AgentField";
 import RadioGroup from "./RadioGroup";
 import EmailListInput from "./EmailListInput";
@@ -26,6 +27,10 @@ export default function ActiveListingForm({ currentAgent, onCancel, onSubmitted 
   const [sellerEmails, setSellerEmails] = useState([""]);
   const [lockboxCode, setLockboxCode] = useState("");
   const [notes, setNotes] = useState("");
+  // The existing Dropbox folder to pair once the listing's saved:
+  // { folderId, name } or { link }.
+  const [folder, setFolder] = useState(null);
+  const [pickingFolder, setPickingFolder] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [addedCount, setAddedCount] = useState(0);
@@ -40,6 +45,8 @@ export default function ActiveListingForm({ currentAgent, onCancel, onSubmitted 
     setSellerEmails([""]);
     setLockboxCode("");
     setNotes("");
+    setFolder(null);
+    setPickingFolder(false);
   }
 
   async function save(addAnother) {
@@ -71,8 +78,19 @@ export default function ActiveListingForm({ currentAgent, onCancel, onSubmitted 
         notes: notes.trim(),
       });
       setAddedCount((n) => n + 1);
+      let folderNote = "";
+      if (folder) {
+        try {
+          await pairDropboxFolder(tx.id, folder);
+          folderNote = " + Dropbox folder paired";
+        } catch (e) {
+          // The listing itself saved fine — just say so and let them pair
+          // from the deal screen.
+          showToast(`Saved, but the Dropbox folder didn't pair: ${e.message}`);
+        }
+      }
       if (addAnother) {
-        showToast(`Added ${tx.address}`);
+        showToast(`Added ${tx.address}${folderNote}`);
         resetForNext();
         document.querySelector(".active-listing-address")?.focus();
       } else {
@@ -163,6 +181,32 @@ export default function ActiveListingForm({ currentAgent, onCancel, onSubmitted 
         Lockbox Code
         <input value={lockboxCode} onChange={(e) => setLockboxCode(e.target.value)} placeholder="Leave blank if none" />
       </label>
+      <fieldset>
+        <legend>Dropbox Folder (optional)</legend>
+        {folder ? (
+          <div className="dbx-chosen">
+            <FolderOpen size={14} /> <span>{folder.name || folder.link}</span>
+            <button type="button" onClick={() => setFolder(null)} title="Don't pair a folder">
+              Remove
+            </button>
+          </div>
+        ) : pickingFolder ? (
+          <DropboxFolderPicker
+            agentId={agentId}
+            side="Sell"
+            address={address}
+            onPick={(choice) => {
+              setFolder(choice);
+              setPickingFolder(false);
+            }}
+            onCancel={() => setPickingFolder(false)}
+          />
+        ) : (
+          <button type="button" className="cma-export-btn" onClick={() => setPickingFolder(true)} title="Link this listing's folder that's already in Dropbox">
+            <FolderOpen size={14} /> Pair Existing Folder
+          </button>
+        )}
+      </fieldset>
       <label>
         Notes
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />

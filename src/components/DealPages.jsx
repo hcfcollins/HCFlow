@@ -145,7 +145,7 @@ export default function DealPages({
       {/* For bringing listings that already exist outside the app in — a short
           form, not the full New Comp → Won → On Market path. */}
       {currentPageKey === "active" && onNewActiveListing && (
-        <button title="Quickly add a listing that already exists outside the app" className="google-btn uc-launch uc-launch--comps" onClick={onNewActiveListing}>
+        <button title="Quickly add a listing that already exists outside the app" className="google-btn uc-launch uc-launch--active" onClick={onNewActiveListing}>
           + Active Listing
         </button>
       )}

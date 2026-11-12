@@ -257,7 +257,7 @@ function TxCard({
             </span>
           )}
           {isActiveListing && tx.has_lockbox && (
-            <button title="Show the lockbox code" type="button" className="tx-icon-badge tx-icon-badge--btn" onClick={() => setLockboxOpen((o) => !o)}>
+            <button title="Show the lockbox code" type="button" className="tx-icon-badge tx-icon-badge--btn tx-icon-badge--lockbox" onClick={() => setLockboxOpen((o) => !o)}>
               <Lock size={14} /> Lockbox
             </button>
           )}

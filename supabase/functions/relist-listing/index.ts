@@ -23,6 +23,42 @@ function sanitizeFolderName(name: string): string {
   return name.replace(/[/\\<>:"|?*]/g, "-").trim().replace(/[. ]+$/, "");
 }
 
+// ----- Rename-proof folder lookup (same helper in each function that uses a
+// deal's Dropbox folder — see pair-dropbox-folder). Looks the folder up by its
+// permanent Dropbox ID when one is saved, so a folder renamed or moved in
+// Dropbox is still found; saves the new path (and, for deals that only had a
+// path, the ID) back onto the deal. Falls back to the saved path if anything
+// goes wrong, so it never makes things worse than before.
+async function resolveDealFolderPath(accessToken: string, transactionId: string, storedPath: string | null): Promise<string | null> {
+  try {
+    const svc = { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` };
+    const rowRes = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}&select=dropbox_folder_id`, { headers: svc });
+    const folderId = rowRes.ok ? (await rowRes.json())?.[0]?.dropbox_folder_id : undefined;
+    const lookup = folderId || storedPath;
+    if (!lookup) return storedPath;
+    const metaRes = await fetch("https://api.dropboxapi.com/2/files/get_metadata", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
+      body: JSON.stringify({ path: lookup }),
+    });
+    if (!metaRes.ok) return storedPath;
+    const meta = await metaRes.json();
+    const patch: Record<string, string> = {};
+    if (meta.path_display && meta.path_display !== storedPath) patch.dropbox_folder_path = meta.path_display;
+    if (rowRes.ok && !folderId && meta.id) patch.dropbox_folder_id = meta.id;
+    if (Object.keys(patch).length) {
+      await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}`, {
+        method: "PATCH",
+        headers: { ...svc, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify(patch),
+      }).catch(() => {});
+    }
+    return meta.path_display || storedPath;
+  } catch {
+    return storedPath;
+  }
+}
+
 async function getDropboxAccessToken(): Promise<string> {
   const res = await fetch("https://api.dropboxapi.com/oauth2/token", {
     method: "POST",
@@ -143,9 +179,10 @@ Deno.serve(async (req) => {
     }
 
     const accessToken = await getDropboxAccessToken();
+    const dealFolder = (await resolveDealFolderPath(accessToken, transactionId, tx.dropbox_folder_path)) || tx.dropbox_folder_path;
     const buyerLabel = sanitizeFolderName(tx.buyer_name || "Unknown Buyer");
-    const fromPath = `${tx.dropbox_folder_path}/${UNDER_CONTRACT_SUBFOLDER}`;
-    const toPath = `${tx.dropbox_folder_path}/${UNDER_CONTRACT_SUBFOLDER} - TERMINATED - ${buyerLabel}`;
+    const fromPath = `${dealFolder}/${UNDER_CONTRACT_SUBFOLDER}`;
+    const toPath = `${dealFolder}/${UNDER_CONTRACT_SUBFOLDER} - TERMINATED - ${buyerLabel}`;
 
     await moveDropboxPath(accessToken, fromPath, toPath);
     await createDropboxFolder(accessToken, fromPath);
