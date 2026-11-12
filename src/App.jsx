@@ -27,6 +27,7 @@ import {
   sendTestDailyDigest,
   initialsFor,
   backfillDropboxFolderIds,
+  fillAllZipCodes,
 } from "./lib/transactions";
 import { TodoActionsContext } from "./lib/TodoActionsContext";
 import { buildUtilityEmail, openEmailCompose } from "./lib/clientEmail";
@@ -133,6 +134,19 @@ export default function App() {
     backfillDropboxFolderIds().catch((e) => console.error("Dropbox folder ID backfill failed:", e));
   }
 
+  // Same idea for ZIP codes: once per broker session, look up any missing
+  // ones from the address (only once the zip column exists).
+  const zipBackfillStarted = useRef(false);
+  function maybeBackfillZips(data) {
+    if (zipBackfillStarted.current || agent?.role !== "broker" || !data.length) return;
+    if (!("zip" in data[0])) return;
+    if (!data.some((t) => t.address && !t.zip)) return;
+    zipBackfillStarted.current = true;
+    fillAllZipCodes()
+      .then((r) => r?.filled && loadTransactions({ silent: true }))
+      .catch((e) => console.error("ZIP backfill failed:", e));
+  }
+
   async function loadTransactions({ silent = false } = {}) {
     if (!silent) setLoadingTxs(true);
     try {
@@ -141,6 +155,7 @@ export default function App() {
       setSelectedTransaction((current) => (current ? data.find((t) => t.id === current.id) || current : current));
       setError(null);
       maybeBackfillFolderIds(data);
+      maybeBackfillZips(data);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -831,6 +846,22 @@ export default function App() {
                 }
           }
           onNewActiveListing={() => setShowActiveListingForm(true)}
+          onDeadLead={async (tx, reason) => {
+            try {
+              await handleTerminate(tx.id, reason?.trim() ? `Dead lead: ${reason.trim()}` : "Dead lead");
+              showToast(`${tx.address} moved to Dead Leads`);
+            } catch (e) {
+              showToast(`Couldn't update: ${e.message}`);
+            }
+          }}
+          onReviveLead={async (tx) => {
+            try {
+              await handleReactivate(tx.id);
+              showToast(`${tx.address} is back in Comps`);
+            } catch (e) {
+              showToast(`Couldn't update: ${e.message}`);
+            }
+          }}
         />
       )}
 

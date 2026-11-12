@@ -9,10 +9,10 @@ import ConfirmDialog from "./ConfirmDialog";
 import DropboxFolderPicker from "./DropboxFolderPicker";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
-import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder } from "../lib/transactions";
+import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode } from "../lib/transactions";
 import { clientIsBuyer as isClientBuyer } from "../lib/missingInfo";
 import { stageSelectValue, closingStatusBadge } from "../lib/stages";
-import { formatBac, emailComposeUrl, emailLinkTarget } from "../lib/clientEmail";
+import { formatBac, emailComposeUrl, emailLinkTarget, gmailComposeUrl, mailtoUrl, isMobileDevice } from "../lib/clientEmail";
 import { focusNextOnEnter } from "../lib/formKeyNav";
 import {
   PROPERTY_STYLES,
@@ -248,33 +248,39 @@ export default function DealDetail({
     showToast("Saved");
   }
 
+  /** Opens a pre-filled email from YOUR OWN account (phone mail app, or a
+   * Gmail tab on a computer) with a Dropbox link to the newest file in this
+   * listing's "3) Showing Docs" folder — the recipient is left blank for you. */
   async function handleEmailShowingPacket() {
     setEmailingPacket(true);
-    // Opened synchronously, right on the click, and redirected once the draft
-    // is ready — a window.open() called only after the await below (network
-    // round-trips to Dropbox and Gmail) is no longer a direct result of the
-    // user gesture and gets silently popup-blocked in most browsers.
-    // NOT "noopener": with it, window.open() returns null, so the tab could
-    // never be pointed at the draft — that was the blank page. The opener
-    // link is cut by hand instead.
-    const draftTab = window.open("", "_blank");
-    if (draftTab) {
+    // Desktop: open the tab right on the click and point it at Gmail once the
+    // link is ready — a window.open() after the await gets popup-blocked. Not
+    // "noopener" (that makes window.open return null — the old blank page).
+    const mobile = isMobileDevice();
+    const composeTab = mobile ? null : window.open("", "_blank");
+    if (composeTab) {
       try {
-        draftTab.opener = null;
-        draftTab.document.title = "Creating draft…";
-        draftTab.document.body.innerHTML =
-          '<p style="font-family:Montserrat,Arial,sans-serif;color:#173348;padding:24px">Creating your Gmail draft with the showing packet attached…</p>';
+        composeTab.opener = null;
+        composeTab.document.title = "Getting the showing packet…";
+        composeTab.document.body.innerHTML =
+          '<p style="font-family:Montserrat,Arial,sans-serif;color:#173348;padding:24px">Getting the showing packet link…</p>';
       } catch {
         /* cosmetic only */
       }
     }
     try {
-      const result = await emailShowingPacket(transaction.id);
-      showToast(`Draft created with "${result.fileName}" attached`);
-      if (draftTab) draftTab.location.href = result.draftUrl;
+      const { fileName, url } = await emailShowingPacket(transaction.id);
+      const email = {
+        to: [],
+        subject: `Listing Packet - ${transaction.address}`,
+        body: `Hi,\n\nHere is the listing packet for ${transaction.address}:\n${url}\n\nLet me know if you have any questions!`,
+      };
+      if (composeTab) composeTab.location.href = gmailComposeUrl(email);
+      else window.location.href = mobile ? mailtoUrl(email) : gmailComposeUrl(email);
+      showToast(`Email ready with a link to "${fileName}"`);
     } catch (e) {
-      if (draftTab) draftTab.close();
-      showToast(`Couldn't create the draft: ${e.message}`);
+      if (composeTab) composeTab.close();
+      showToast(`Couldn't get the showing packet: ${e.message}`);
     } finally {
       setEmailingPacket(false);
     }
@@ -389,15 +395,25 @@ export default function DealDetail({
           <AddressEditor
             transaction={transaction}
             onCancel={() => setEditingAddress(false)}
-            onSave={async (patch) => {
+            onSave={async (patch, { lookUpZip } = {}) => {
               await handleFieldSave(patch);
               setEditingAddress(false);
+              if (lookUpZip) {
+                fillZipCode(transaction.id)
+                  .then((zip) => {
+                    if (zip) {
+                      onRefresh();
+                      showToast(`Zip ${zip} filled in`);
+                    }
+                  })
+                  .catch(() => {});
+              }
             }}
           />
         ) : (
           <div>
             <div className="brand-eyebrow" data-field="town">
-              {[transaction.town, transaction.region].filter(Boolean).join(", ") || transaction.side}
+              {[transaction.town, [transaction.region, transaction.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ") || transaction.side}
               {!transaction.region && <span className="field-help"> · VT/NH not set</span>}
             </div>
             <div className="detail-title-row">
@@ -982,8 +998,8 @@ export default function DealDetail({
                 Change folder
               </button>
               {transaction.side !== "Buy" && (
-                <button title="Create a Gmail draft with the showing packet attached" type="button" className="cma-export-btn" disabled={emailingPacket} onClick={handleEmailShowingPacket}>
-                  <Mail size={14} /> {emailingPacket ? "Creating draft…" : "Email Showing Packet"}
+                <button title="Open an email from your own account with a link to the latest file in Showing Docs" type="button" className="cma-export-btn" disabled={emailingPacket} onClick={handleEmailShowingPacket}>
+                  <Mail size={14} /> {emailingPacket ? "Getting packet…" : "Email Showing Packet"}
                 </button>
               )}
             </>
@@ -1807,15 +1823,24 @@ function AddressEditor({ transaction, onSave, onCancel }) {
   const [address, setAddress] = useState(transaction.address || "");
   const [town, setTown] = useState(transaction.town || "");
   const [region, setRegion] = useState(transaction.region || "");
+  const [zip, setZip] = useState(transaction.zip || "");
   const [saving, setSaving] = useState(false);
   const hasFolder = Boolean(transaction.dropbox_folder_path);
+  const hasZipColumn = "zip" in transaction;
 
   async function submit(e) {
     e.preventDefault();
     if (!address.trim()) return;
     setSaving(true);
     try {
-      await onSave({ address: address.trim(), town: town.trim() || null, region: region || null });
+      const locationChanged =
+        address.trim() !== (transaction.address || "") || town.trim() !== (transaction.town || "") || (region || "") !== (transaction.region || "");
+      const zipTyped = zip.trim() !== (transaction.zip || "");
+      const patch = { address: address.trim(), town: town.trim() || null, region: region || null };
+      // A zip typed by hand wins; otherwise a moved address gets a fresh lookup.
+      if (hasZipColumn && zipTyped) patch.zip = zip.trim() || null;
+      else if (hasZipColumn && locationChanged) patch.zip = null;
+      await onSave(patch, { lookUpZip: hasZipColumn && !zipTyped && (locationChanged || !transaction.zip) });
     } finally {
       setSaving(false);
     }
@@ -1831,9 +1856,17 @@ function AddressEditor({ transaction, onSave, onCancel }) {
         <div className="detail-label">Town</div>
         <input value={town} onChange={(e) => setTown(e.target.value)} />
       </div>
-      <div data-field="region">
-        <div className="detail-label">State</div>
-        <RadioGroup name={`region-${transaction.id}`} value={region} onChange={setRegion} options={["VT", "NH"]} />
+      <div className="address-edit-row">
+        <div data-field="region" style={{ flex: 1 }}>
+          <div className="detail-label">State</div>
+          <RadioGroup name={`region-${transaction.id}`} value={region} onChange={setRegion} options={["VT", "NH"]} />
+        </div>
+        {hasZipColumn && (
+          <div data-field="zip" style={{ width: 110 }}>
+            <div className="detail-label">Zip</div>
+            <input value={zip} onChange={(e) => setZip(e.target.value)} inputMode="numeric" maxLength={10} placeholder="Auto" />
+          </div>
+        )}
       </div>
       {hasFolder && address.trim() !== (transaction.address || "") && (
         <div className="address-dropbox-note">Heads up: this doesn't rename the Dropbox folder — rename that in Dropbox if you want them to match.</div>

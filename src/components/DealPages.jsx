@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X, Signpost } from "lucide-react";
 import TransactionList from "./TransactionList";
+import ConfirmDialog from "./ConfirmDialog";
 import { TodoRow } from "./TodoList";
+import MentionInput from "./MentionInput";
 import { STANDING_REMINDERS } from "../lib/onboarding";
+import { useMentionRoster, splitMentions } from "../lib/mentions";
 
 /** Starts collapsed only while a section is empty, then auto-opens the moment
  * something first lands in it — `useState(length === 0)` alone only looks at the
@@ -53,8 +56,11 @@ export default function DealPages({
   onNewComp,
   onNewUnderContract,
   onNewActiveListing,
+  onDeadLead,
+  onReviveLead,
 }) {
   const [dragOffset, setDragOffset] = useState(0);
+  const [quickTodoOpen, setQuickTodoOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
   const touchStart = useRef(null);
   const intent = useRef(null);
@@ -134,7 +140,17 @@ export default function DealPages({
           form pre-filled with that deal's details — a blank "+ Under Contract"
           button here would just invite a manually-typed, possibly mismatched or
           duplicate address. */}
-      {currentPageKey !== "active" && (onCompsPage ? onNewComp : onNewUnderContract) && (
+      {currentPageKey === "todos" && onAddTodo && (
+        <button
+          type="button"
+          className="google-btn uc-launch uc-launch--todo"
+          onClick={() => setQuickTodoOpen((v) => !v)}
+          title="Add a to-do to any deal"
+        >
+          {quickTodoOpen ? "Close" : "+ Add a To-Do"}
+        </button>
+      )}
+      {currentPageKey !== "active" && currentPageKey !== "todos" && (onCompsPage ? onNewComp : onNewUnderContract) && (
         <button title={onCompsPage ? "Add a new property to send a comp for" : "Add a new deal that just went under contract"}
           className={`google-btn uc-launch ${onCompsPage ? "uc-launch--comps" : "uc-launch--contract"}`}
           onClick={() => (onCompsPage ? onNewComp() : onNewUnderContract())}
@@ -187,6 +203,9 @@ export default function DealPages({
                   {p.key === "comps" ? (
                     <CompsPage
                       transactions={activeTransactions}
+                      deadLeads={transactions.filter((tx) => tx.stage === "comps" && tx.terminated_at)}
+                      onDeadLead={onDeadLead}
+                      onReviveLead={onReviveLead}
                       stages={stages}
                       currentAgent={currentAgent}
                       onStageChange={onStageChange}
@@ -228,6 +247,9 @@ export default function DealPages({
                     <AllTodosPage
                       transactions={activeTransactions}
                       currentAgent={currentAgent}
+                      quickTodoOpen={quickTodoOpen}
+                      onCloseQuickTodo={() => setQuickTodoOpen(false)}
+                      onAddTodo={onAddTodo}
                       onToggleTodo={onToggleTodo}
                       onEditTodo={onEditTodo}
                       onDeleteTodo={onDeleteTodo}
@@ -301,13 +323,70 @@ function CollapsibleSection({ title, count, colorClass, onTitleClick, children, 
  * to-dos are deliberately left out of every summary view (this one and each
  * deal's card) — they only show, with their completion date, inside that
  * deal's own detail screen. */
-function AllTodosPage({ transactions, currentAgent, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail }) {
+/** "+ Add a To-Do" on the To-Dos tab: pick the deal, type the to-do
+ * (@name works), optional due date. */
+function QuickTodoForm({ transactions, onAdd, onDone }) {
+  const sorted = useMemo(() => [...transactions].sort((a, b) => (a.address || "").localeCompare(b.address || "")), [transactions]);
+  const [txId, setTxId] = useState("");
+  const [text, setText] = useState("");
+  const [due, setDue] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!txId || !text.trim()) return;
+    setSaving(true);
+    try {
+      await onAdd(txId, text.trim(), due || undefined);
+      setText("");
+      setDue("");
+      onDone?.();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form className="quick-todo-form" onSubmit={submit}>
+      <select value={txId} onChange={(e) => setTxId(e.target.value)} required title="Which deal is this to-do for?">
+        <option value="" disabled>
+          Which property?
+        </option>
+        {sorted.map((tx) => (
+          <option key={tx.id} value={tx.id}>
+            {tx.address}
+            {tx.town ? ` — ${tx.town}` : ""}
+          </option>
+        ))}
+      </select>
+      <MentionInput value={text} onChange={setText} placeholder="What needs to happen? (@name to notify)" />
+      <div className="quick-todo-row">
+        <label className="quick-todo-due" title="Optional due date">
+          Due
+          <input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
+        </label>
+        <button type="submit" className="google-btn" disabled={saving || !txId || !text.trim()} title="Add this to-do to the property">
+          {saving ? "Adding…" : "Add To-Do"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function AllTodosPage({ transactions, currentAgent, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail, quickTodoOpen, onCloseQuickTodo, onAddTodo }) {
   const [groupByProperty, setGroupByProperty] = useState(true);
   const reminders = STANDING_REMINDERS.filter((r) => r.forEmail === currentAgent?.email && r.active());
   const pending = transactions.flatMap((tx) => (tx.todos || []).filter((t) => !t.done).map((t) => ({ ...t, tx })));
 
   const urgency = (t) => (t.due_date ? new Date(`${t.due_date}T00:00:00`).getTime() : Infinity);
   pending.sort((a, b) => urgency(a) - urgency(b));
+
+  // To-dos someone @-tagged you in — pinned at the very top, whatever deal
+  // they're on (they also still show in their normal spot below).
+  const roster = useMentionRoster();
+  const taggedMe = currentAgent?.id
+    ? pending.filter((t) => splitMentions(t.text, roster).some((p) => typeof p !== "string" && p.agent.id === currentAgent.id))
+    : [];
 
   function row(t, withPropertyTag) {
     return (
@@ -337,6 +416,7 @@ function AllTodosPage({ transactions, currentAgent, onToggleTodo, onEditTodo, on
 
   return (
     <div className="all-todos-page">
+      {quickTodoOpen && onAddTodo && <QuickTodoForm transactions={transactions} onAdd={onAddTodo} onDone={onCloseQuickTodo} />}
       {reminders.length > 0 && (
         <div className="standing-reminders">
           <h2 className="comps-section-title">My Reminders</h2>
@@ -346,6 +426,16 @@ function AllTodosPage({ transactions, currentAgent, onToggleTodo, onEditTodo, on
               <span>{r.text}</span>
             </div>
           ))}
+        </div>
+      )}
+      {taggedMe.length > 0 && (
+        <div className="comps-section comps-section--tagged-me">
+          <div className="comps-section-header">
+            <h2 className="comps-section-title">
+              Tagged You <span className="comps-section-count">{taggedMe.length}</span>
+            </h2>
+          </div>
+          <div className="todo-list">{taggedMe.map((t) => row(t, true))}</div>
         </div>
       )}
       <div className="tutorial-tabs">
@@ -393,7 +483,8 @@ function closedYear(tx) {
  * its own screen from App (All Deals button), not a swipe page. */
 export function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange, onAddTodo, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail }) {
   const active = transactions.filter((tx) => !tx.terminated_at);
-  const terminated = transactions.filter((tx) => tx.terminated_at);
+  const terminated = transactions.filter((tx) => tx.terminated_at && tx.stage !== "comps");
+  const deadLeads = transactions.filter((tx) => tx.terminated_at && tx.stage === "comps");
   const currentYear = new Date().getFullYear();
 
   const allClosed = active.filter((tx) => tx.stage === "closed");
@@ -444,6 +535,12 @@ export function AllPage({ transactions, stages, currentAgent, onStageChange, onN
       title: "Terminated",
       colorClass: "comps-section--terminated",
       items: terminated,
+    },
+    {
+      key: "dead",
+      title: "Dead Leads",
+      colorClass: "comps-section--dead",
+      items: deadLeads,
     },
   ];
 
@@ -549,9 +646,10 @@ function ActiveListingsPage({
             <Signpost size={14} /> {activeFilter === "signs" ? "Back to Listings" : "Sign Inventory"}
           </button>
         )}
-        {/* Not ready for general use yet — limited to Fran while the feature is
-            still being worked on. Remove this gate once it's ready for everyone. */}
-        {currentAgent?.email === "fran.collins@hallcollins.com" && currentAgent?.role !== "coordinator" && (
+        {/* Brokers only — agents and the TC never see the social schedule.
+            Also still limited to Fran while it's being worked on. The role
+            check (not just the email) is what hides it in "View as Agent". */}
+        {currentAgent?.email === "fran.collins@hallcollins.com" && currentAgent?.role === "broker" && (
           <button title="See where each listing is in the social media rotation"
             type="button"
             className="sign-inventory-toggle"
@@ -875,6 +973,9 @@ function UnderContractPage({ transactions: allTransactions, stages, currentAgent
 
 function CompsPage({
   transactions,
+  deadLeads = [],
+  onDeadLead,
+  onReviveLead,
   stages,
   currentAgent,
   onStageChange,
@@ -892,9 +993,27 @@ function CompsPage({
   const [needCollapsed, setNeedCollapsed] = useAutoCollapse(needToSend.length);
   const [wonCollapsed, setWonCollapsed] = useAutoCollapse(wonListings.length);
   const [waitingCollapsed, setWaitingCollapsed] = useState(false);
+  const [deadCollapsed, setDeadCollapsed] = useState(true);
+  const [confirmDeadTx, setConfirmDeadTx] = useState(null);
+  const askDeadLead = onDeadLead ? (tx) => setConfirmDeadTx(tx) : undefined;
+  const sortedDead = [...deadLeads].sort((a, b) => String(b.terminated_at).localeCompare(String(a.terminated_at)));
 
   return (
     <div className="comps-page">
+      <ConfirmDialog
+        open={Boolean(confirmDeadTx)}
+        title="Mark as a dead lead?"
+        message={confirmDeadTx ? `${confirmDeadTx.address} moves to Dead Leads at the bottom of this page. You can revive it anytime.` : ""}
+        confirmLabel="Dead Lead"
+        promptLabel="What happened? (optional)"
+        promptPlaceholder="e.g. Listed with another brokerage, decided not to sell…"
+        onConfirm={(reason) => {
+          const tx = confirmDeadTx;
+          setConfirmDeadTx(null);
+          onDeadLead(tx, reason);
+        }}
+        onCancel={() => setConfirmDeadTx(null)}
+      />
       <div className="comps-section comps-section--need">
         <div className="comps-section-header">
           <h2 className="comps-section-title">
@@ -912,6 +1031,7 @@ function CompsPage({
             onStageChange={onStageChange}
             onNotesChange={onNotesChange}
             onCompsStatusChange={onCompsStatusChange}
+            onDeadLead={askDeadLead}
             onOpenDetail={onOpenDetail}
           />
         )}
@@ -959,17 +1079,52 @@ function CompsPage({
             onStageChange={onStageChange}
             onNotesChange={onNotesChange}
             onCompsStatusChange={onCompsStatusChange}
+            onDeadLead={askDeadLead}
             onOpenDetail={onOpenDetail}
           />
         )}
       </div>
+      {sortedDead.length > 0 && (
+        <div className="comps-section comps-section--dead">
+          <div className="comps-section-header">
+            <h2 className="comps-section-title">
+              Dead Leads <span className="comps-section-count">{sortedDead.length}</span>
+            </h2>
+            <button title={deadCollapsed ? "Show this section" : "Collapse this section"} type="button" className="comps-minimize-btn" onClick={() => setDeadCollapsed((c) => !c)}>
+              {deadCollapsed ? "Show" : "Minimize"}
+            </button>
+          </div>
+          {!deadCollapsed && (
+            <ul className="dead-lead-list">
+              {sortedDead.map((tx) => (
+                <li key={tx.id}>
+                  <button type="button" className="dead-lead-main" onClick={() => onOpenDetail(tx)} title="Open this comp">
+                    <span className="tx-address">{tx.address}</span>
+                    <span className="tx-sub">
+                      {[tx.town, tx.agent?.name, tx.terminated_at ? new Date(tx.terminated_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null]
+                        .filter(Boolean)
+                        .join(" · ")}
+                      {tx.termination_reason && tx.termination_reason !== "Dead lead" ? ` — ${tx.termination_reason.replace(/^Dead lead:\s*/, "")}` : ""}
+                    </span>
+                  </button>
+                  {onReviveLead && (
+                    <button type="button" className="comps-status-btn" onClick={() => onReviveLead(tx)} title="Bring this comp back to the active comps">
+                      Revive
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 const TIMEFRAME_ORDER = ["Now", "6 months", "Next year"];
 
-function TimeframeGroups({ transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange, onOpenDetail }) {
+function TimeframeGroups({ transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange, onOpenDetail, onDeadLead }) {
   const groups = [
     ...TIMEFRAME_ORDER.map((tf) => ({ label: tf, items: transactions.filter((tx) => tx.timeframe === tf) })),
     { label: "No Timeframe Set", items: transactions.filter((tx) => !TIMEFRAME_ORDER.includes(tx.timeframe)) },
@@ -984,6 +1139,7 @@ function TimeframeGroups({ transactions, stages, currentAgent, onStageChange, on
         onStageChange={onStageChange}
         onNotesChange={onNotesChange}
         onCompsStatusChange={onCompsStatusChange}
+        onDeadLead={onDeadLead}
         onOpenDetail={onOpenDetail}
       />
     );
@@ -1003,6 +1159,8 @@ function TimeframeGroups({ transactions, stages, currentAgent, onStageChange, on
             onStageChange={onStageChange}
             onNotesChange={onNotesChange}
             onCompsStatusChange={onCompsStatusChange}
+            onDeadLead={onDeadLead}
+        onDeadLead={onDeadLead}
             onOpenDetail={onOpenDetail}
           />
         </div>

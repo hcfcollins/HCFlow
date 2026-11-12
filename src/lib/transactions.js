@@ -399,6 +399,9 @@ export async function deleteTransaction(id) {
 export async function createTransaction(fields) {
   const { data, error } = await supabase.from("transactions").insert(fields).select().single();
   if (error) throw error;
+  // Zip is looked up from the address in the background — never blocks or
+  // fails adding the deal.
+  if (data?.address && !data.zip) fillZipCode(data.id).catch(() => {});
   return data;
 }
 
@@ -1158,6 +1161,21 @@ export async function pairDropboxFolder(transactionId, { folderId, link }) {
  * that only has a folder path saved so far. */
 export async function backfillDropboxFolderIds() {
   const { data, error } = await supabase.functions.invoke("pair-dropbox-folder", { body: { action: "backfill" } });
+  if (error) throw await functionError(error);
+  return data;
+}
+
+/** Looks up and saves this deal's ZIP from its address (fill-zip-codes).
+ * Returns the zip, or null if the address couldn't be matched. */
+export async function fillZipCode(transactionId) {
+  const { data, error } = await supabase.functions.invoke("fill-zip-codes", { body: { transactionId } });
+  if (error) throw await functionError(error);
+  return data?.zip ?? null;
+}
+
+/** Broker-only: fills every missing ZIP. Returns { filled, notFound }. */
+export async function fillAllZipCodes() {
+  const { data, error } = await supabase.functions.invoke("fill-zip-codes", { body: { all: true } });
   if (error) throw await functionError(error);
   return data;
 }

@@ -20,6 +20,18 @@ function todayStr() {
  * To-Dos tab. */
 const CARD_TODO_LIMIT = 3;
 
+/** The Dropbox "open box" mark, drawn inline (lucide has no brand icons). */
+function DropboxIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        fill="currentColor"
+        d="M6 1.807 0 5.629l6 3.822 6-3.822zm12 0-6 3.822 6 3.822 6-3.822zM0 13.274l6 3.822 6-3.822-6-3.823zm18-3.823-6 3.823 6 3.822 6-3.822zM6 18.371l6 3.822 6-3.822-6-3.822z"
+      />
+    </svg>
+  );
+}
+
 const PROPERTY_STYLE_TAGS = {
   Residential: { emoji: "🏠", label: "Single Family", className: "tx-tag--residential" },
   Land: { emoji: "🌲", label: "Land", className: "tx-tag--land" },
@@ -39,6 +51,7 @@ export default function TransactionList({
   onEditTodo,
   onDeleteTodo,
   onOpenDetail,
+  onDeadLead,
 }) {
   // Named isBroker for history; true for the transaction coordinator too,
   // since she also sees every agent's deals and needs the agent name shown.
@@ -60,6 +73,7 @@ export default function TransactionList({
           onStageChange={onStageChange}
           onNotesChange={onNotesChange}
           onCompsStatusChange={onCompsStatusChange}
+          onDeadLead={onDeadLead}
           onAddTodo={onAddTodo}
           onToggleTodo={onToggleTodo}
           onEditTodo={onEditTodo}
@@ -84,6 +98,7 @@ function TxCard({
   onEditTodo,
   onDeleteTodo,
   onOpenDetail,
+  onDeadLead,
 }) {
   const [lockboxOpen, setLockboxOpen] = useState(false);
   const [signNoteOpen, setSignNoteOpen] = useState(false);
@@ -123,6 +138,19 @@ function TxCard({
           </div>
         </div>
         <div className="tx-card-top-right">
+          {tx.dropbox_folder_url && (
+            <a
+              href={tx.dropbox_folder_url}
+              target="_blank"
+              rel="noreferrer"
+              className="tx-dropbox-btn"
+              onClick={(e) => e.stopPropagation()}
+              aria-label="Open this property's Dropbox folder"
+              title="Open this property's Dropbox folder"
+            >
+              <DropboxIcon size={15} />
+            </a>
+          )}
           {canPostSocial && (
             <div className="detail-social-menu-wrap" onClick={(e) => e.stopPropagation()}>
               <button
@@ -306,6 +334,11 @@ function TxCard({
           <button title="We won the listing — move it to Private Listing" type="button" className="comps-status-btn" onClick={() => onStageChange(tx, "won")}>
             Won Listing
           </button>
+          {onDeadLead && (
+            <button type="button" className="comps-status-btn comps-status-btn--dead" onClick={() => onDeadLead(tx)} title="We didn't get this one — archive it as a dead lead">
+              Dead Lead
+            </button>
+          )}
         </div>
       )}
 

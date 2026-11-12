@@ -64,6 +64,7 @@ create table transactions (
   lockbox_note text,
   dropbox_folder_url text, -- set by the create-dropbox-folder Edge Function when a deal first moves to Won
   dropbox_folder_path text, -- raw Dropbox path (not the shared link) for the same folder, used to target its Pitch Docs subfolder
+  zip text, -- auto-filled from the address (fill-zip-codes: US Census geocoder, town fallback)
   dropbox_folder_id text, -- permanent Dropbox folder ID ("id:…"); survives renames/moves — functions look the current path up from it (see pair-dropbox-folder)
   comp_analysis jsonb, -- price band, agent write-up, and conditional land/multi-family analysis inputs from the Generate Comp form
   last_comp_url text, -- shared Dropbox link to the most recently generated comp PDF
@@ -439,4 +440,8 @@ alter table gusto_connection enable row level security;
 
 -- Migration (2026-11-11): rename-proof Dropbox folder links.
 alter table transactions add column if not exists dropbox_folder_id text;
+notify pgrst, 'reload schema';
+
+-- Migration (2026-11-11): ZIP codes, auto-filled from the address.
+alter table transactions add column if not exists zip text;
 notify pgrst, 'reload schema';
