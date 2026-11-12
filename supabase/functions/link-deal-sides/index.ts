@@ -113,6 +113,17 @@ async function getTx(id: string): Promise<Tx | null> {
   return tx || null;
 }
 
+/** "@Rachel " (full name if two people share the first name) for a to-do. */
+async function agentTag(t: Tx): Promise<string> {
+  const name = t.agent?.name;
+  if (!name) return "";
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/agents?is_active=eq.true&select=name`, { headers: svc });
+  const roster: { name: string }[] = res.ok ? await res.json() : [];
+  const first = name.split(/\s+/)[0];
+  const shared = roster.filter((a) => a.name.split(/\s+/)[0].toLowerCase() === first.toLowerCase()).length > 1;
+  return `@${shared ? name : first} `;
+}
+
 async function setOtherSide(id: string, otherId: string) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${id}`, {
     method: "PATCH",
@@ -161,7 +172,8 @@ Deno.serve(async (req) => {
             await fetch(`${SUPABASE_URL}/rest/v1/todos`, {
               method: "POST",
               headers: { ...svc, "Content-Type": "application/json", Prefer: "return=minimal" },
-              body: JSON.stringify({ transaction_id: otherTx.id, text: "Return Deposit to Buyer" }),
+              // Tagged to that side's agent — top priority.
+              body: JSON.stringify({ transaction_id: otherTx.id, text: `${await agentTag(otherTx)}Return Deposit to Buyer` }),
             });
           }
           await fetch(`${SUPABASE_URL}/rest/v1/activity_log`, {

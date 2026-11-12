@@ -51,10 +51,32 @@ export async function terminateTransaction(id, reason) {
   try {
     const { data: cd } = await supabase.from("commission_data").select("hold_deposit").eq("transaction_id", id).maybeSingle();
     if (cd?.hold_deposit === "Yes") {
-      await addTodo(id, "Return Deposit to Buyer", null);
+      // Tagged to the deal's agent — returning a buyer's deposit is top priority.
+      const text = `${await agentTagFor(id)}Return Deposit to Buyer`;
+      await addTodo(id, text, null);
+      // Same as any @-tag: bell + email to the tagged agent.
+      if (todoHasMention(text)) notifyTodo({ transactionId: id, text }).catch(() => {});
     }
   } catch {
     // ignore — termination itself already succeeded above
+  }
+}
+
+/** "@Rachel " (or "@Rachel Noyes " if two people share the first name) for
+ * the deal's agent, to put at the front of a to-do. "" if there's no agent. */
+async function agentTagFor(transactionId) {
+  try {
+    const [{ data: tx }, { data: roster }] = await Promise.all([
+      supabase.from("transactions").select("agent:agents!transactions_agent_id_fkey(name)").eq("id", transactionId).maybeSingle(),
+      supabase.from("agents").select("name").eq("is_active", true),
+    ]);
+    const name = tx?.agent?.name;
+    if (!name) return "";
+    const first = name.split(/\s+/)[0];
+    const shared = (roster || []).filter((a) => a.name.split(/\s+/)[0].toLowerCase() === first.toLowerCase()).length > 1;
+    return `@${shared ? name : first} `;
+  } catch {
+    return "";
   }
 }
 
