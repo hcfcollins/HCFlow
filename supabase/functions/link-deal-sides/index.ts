@@ -56,6 +56,7 @@ type Tx = {
   colist_agent_id?: string | null;
   terminated_at: string | null;
   other_side_id?: string | null;
+  linked_id?: string | null;
   agent?: { name: string } | null;
   commission_data?: { hold_deposit: string | null } | { hold_deposit: string | null }[] | null;
 };
@@ -168,14 +169,6 @@ Deno.serve(async (req) => {
             body: JSON.stringify({ terminated_at: new Date().toISOString(), termination_reason: reason, updated_at: new Date().toISOString() }),
           });
           if (!res.ok) throw new Error(`Couldn't terminate the other side: ${await res.text()}`);
-          if (holdsDeposit(otherTx)) {
-            await fetch(`${SUPABASE_URL}/rest/v1/todos`, {
-              method: "POST",
-              headers: { ...svc, "Content-Type": "application/json", Prefer: "return=minimal" },
-              // Tagged to that side's agent — top priority.
-              body: JSON.stringify({ transaction_id: otherTx.id, text: `${await agentTag(otherTx)}Return Deposit to Buyer` }),
-            });
-          }
           await fetch(`${SUPABASE_URL}/rest/v1/activity_log`, {
             method: "POST",
             headers: { ...svc, "Content-Type": "application/json", Prefer: "return=minimal" },
@@ -188,6 +181,41 @@ Deno.serve(async (req) => {
       } else {
         message = `${who} terminated their buyer side of ${tx.address}. If the listing is going back on the market, open it and choose Terminate Deal → "Seller is still selling".`;
       }
+      // The deposit goes back to the buyer from the SELLER's side only (the
+      // listing brokerage holds it) — a tagged to-do for the listing agent,
+      // whichever side recorded holding it. Never on the buyer side.
+      let sellerSide = clientSide(otherTx) === "Buy" ? tx : clientSide(tx) === "Buy" ? otherTx : null;
+      // Relisted: the seller's to-do belongs on the NEW active listing (the
+      // old row is terminated). Only accepted if it really is the relist of tx.
+      if (sellerSide === tx && endOtherSide?.relistedId) {
+        const relisted = await getTx(endOtherSide.relistedId);
+        if (relisted && relisted.linked_id === tx.id) sellerSide = relisted;
+      }
+      let depositTodoFor: Tx | null = null;
+      if (sellerSide && (holdsDeposit(tx) || holdsDeposit(otherTx))) {
+        const existing = await fetch(
+          `${SUPABASE_URL}/rest/v1/todos?transaction_id=eq.${sellerSide.id}&done=eq.false&text=ilike.*Return%20Deposit%20to%20Buyer*&select=id`,
+          { headers: svc }
+        );
+        const open = existing.ok ? await existing.json() : [];
+        if (!open.length) {
+          await fetch(`${SUPABASE_URL}/rest/v1/todos`, {
+            method: "POST",
+            headers: { ...svc, "Content-Type": "application/json", Prefer: "return=minimal" },
+            body: JSON.stringify({ transaction_id: sellerSide.id, text: `${await agentTag(sellerSide)}Return Deposit to Buyer` }),
+          });
+          depositTodoFor = sellerSide;
+        }
+      }
+      if (depositTodoFor === otherTx) message += " Please return the buyer's deposit (it's on your to-do list).";
+      if (depositTodoFor && depositTodoFor !== otherTx && depositTodoFor.agent_id && depositTodoFor.agent_id !== caller.id) {
+        await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
+          method: "POST",
+          headers: { ...svc, "Content-Type": "application/json", Prefer: "return=minimal" },
+          body: JSON.stringify([{ recipient_agent_id: depositTodoFor.agent_id, transaction_id: depositTodoFor.id, kind: "todo_assigned", message: `Return the buyer's deposit on ${depositTodoFor.address} — it's on your to-do list.`, created_by_agent_id: caller.id }]),
+        });
+      }
+
       const recipients = [otherTx.agent_id, otherTx.colist_agent_id].filter((id) => id && id !== caller.id);
       if (recipients.length) {
         await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {

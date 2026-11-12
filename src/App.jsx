@@ -493,7 +493,7 @@ export default function App() {
     const newTx = await relistAfterTermination(id, reason);
     if (oldTx?.other_side_id) {
       try {
-        await handleOtherSideOnTermination(id, { reason, relisted: true });
+        await handleOtherSideOnTermination(id, { reason, relisted: true, relistedId: newTx.id });
       } catch (e) {
         setError(`Relisted, but couldn't terminate the in-house buyer side: ${e.message}`);
       }

@@ -36,7 +36,7 @@ export async function updateTransactionStage(id, stage) {
  * history. Pulls it out of the active pipeline pages into the "Terminated" bucket on
  * the All page. Any future reminder-email automation must treat this as the cancel
  * signal (check terminated_at is null before sending). */
-export async function terminateTransaction(id, reason) {
+export async function terminateTransaction(id, reason, { depositTodoOn = id } = {}) {
   const { error } = await supabase
     .from("transactions")
     .update({ terminated_at: new Date(), termination_reason: reason || null, updated_at: new Date() })
@@ -49,13 +49,24 @@ export async function terminateTransaction(id, reason) {
   // deposit toward the commission (a smaller check, not a withheld refund).
   // Best-effort: a failed lookup here must never block the termination itself.
   try {
-    const { data: cd } = await supabase.from("commission_data").select("hold_deposit").eq("transaction_id", id).maybeSingle();
-    if (cd?.hold_deposit === "Yes") {
+    const [{ data: cd }, { data: t }] = await Promise.all([
+      supabase.from("commission_data").select("hold_deposit").eq("transaction_id", id).maybeSingle(),
+      supabase.from("transactions").select("side, split_client_side").eq("id", id).maybeSingle(),
+    ]);
+    // Only the seller's side can refund it (the listing brokerage holds the
+    // deposit) — a buyer side never gets this to-do. On an in-house deal the
+    // listing side gets it instead (link-deal-sides handles that).
+    const isBuyerSide = t?.side === "Buy" || (t?.side === "Split" && t?.split_client_side === "Buy");
+    if (cd?.hold_deposit === "Yes" && !isBuyerSide) {
       // Tagged to the deal's agent — returning a buyer's deposit is top priority.
-      const text = `${await agentTagFor(id)}Return Deposit to Buyer`;
-      await addTodo(id, text, null);
-      // Same as any @-tag: bell + email to the tagged agent.
-      if (todoHasMention(text)) notifyTodo({ transactionId: id, text }).catch(() => {});
+      // depositTodoOn: on a relist, the new active listing (the old row is off
+      // the active pages, so a to-do there would never be seen).
+      if (depositTodoOn) {
+        const text = `${await agentTagFor(depositTodoOn)}Return Deposit to Buyer`;
+        await addTodo(depositTodoOn, text, null);
+        // Same as any @-tag: bell + email to the tagged agent.
+        if (todoHasMention(text)) notifyTodo({ transactionId: depositTodoOn, text }).catch(() => {});
+      }
     }
   } catch {
     // ignore — termination itself already succeeded above
@@ -106,7 +117,8 @@ export async function relistAfterTermination(transactionId, reason) {
   const { error: folderError } = await supabase.functions.invoke("relist-listing", { body: { transactionId } });
   if (folderError) throw folderError;
 
-  await terminateTransaction(transactionId, reason);
+  // The deposit to-do (if any) goes on the new listing, added below.
+  await terminateTransaction(transactionId, reason, { depositTodoOn: null });
 
   const newTx = await createTransaction({
     address: oldTx.address,
@@ -158,6 +170,17 @@ export async function relistAfterTermination(transactionId, reason) {
 
   await addActivityLog(transactionId, "Buyer fell through — relisted", `New deal created: ${newTx.address}`);
   await addActivityLog(newTx.id, "Relisted after buyer fell through", "Carried forward from the terminated deal");
+
+  try {
+    const { data: cd } = await supabase.from("commission_data").select("hold_deposit").eq("transaction_id", transactionId).maybeSingle();
+    if (cd?.hold_deposit === "Yes") {
+      const text = `${await agentTagFor(newTx.id)}Return Deposit to Buyer`;
+      await addTodo(newTx.id, text, null);
+      if (todoHasMention(text)) notifyTodo({ transactionId: newTx.id, text }).catch(() => {});
+    }
+  } catch {
+    // best-effort — the relist itself already went through
+  }
 
   return newTx;
 }
@@ -708,8 +731,10 @@ export async function fetchOtherSideAgentName(transactionId) {
 
 /** This side fell through → terminate the linked other side too and tell its
  * agent (server side). Buy side terminated → only tell the listing agent. */
-export async function handleOtherSideOnTermination(transactionId, { reason, relisted, buySide }) {
-  const body = buySide ? { transactionId, notifyOtherSide: true } : { transactionId, endOtherSide: { reason: reason || null, relisted: Boolean(relisted) } };
+export async function handleOtherSideOnTermination(transactionId, { reason, relisted, buySide, relistedId }) {
+  const body = buySide
+    ? { transactionId, notifyOtherSide: true }
+    : { transactionId, endOtherSide: { reason: reason || null, relisted: Boolean(relisted), relistedId: relistedId || null } };
   const { data, error } = await supabase.functions.invoke("link-deal-sides", { body });
   if (error) throw await functionError(error);
   return data;
