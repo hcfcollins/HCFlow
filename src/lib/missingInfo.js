@@ -20,7 +20,8 @@ const CONTRACT_CHECKS = [
   { field: "seller_emails", label: "Client Email", get: (tx) => tx.seller_emails },
   { field: "seller_attorney", label: "Seller Attorney", get: (tx) => tx.seller_attorney?.name },
   { field: "buyer_attorney", label: "Buyer Attorney", get: (tx) => tx.buyer_attorney?.name },
-  { field: "inspection_date", label: "Inspection Date", get: (tx) => tx.commission_data?.inspection_date },
+  // "Waived / no inspection" checked → nothing to ask for.
+  { field: "inspection_date", label: "Inspection Date", get: (tx) => (tx.commission_data?.inspection_waived ? "waived" : tx.commission_data?.inspection_date) },
   // No financing contingency date = treated as a cash/no-financing deal, so
   // neither the financing date itself nor an appraiser is asked for. Once a
   // financing date is entered, the appraiser becomes required.

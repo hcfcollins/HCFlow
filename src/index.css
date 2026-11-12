@@ -1654,3 +1654,10 @@ button { cursor: pointer; }
 .license-editor-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; color: var(--color-navy); }
 .license-editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
 .license-upload-btn { display: inline-flex; align-items: center; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--color-navy); color: var(--color-navy); font-weight: 600; font-size: 13px; cursor: pointer; }
+/* Inspection "Waived / no inspection" + Dropbox address-search suggestions */
+.inspection-waived-check { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; color: var(--color-navy); font-weight: 500; cursor: pointer; }
+.inspection-waived-check input { width: 16px; height: 16px; margin: 0; }
+.dbx-picker-suggest { margin-bottom: 12px; }
+.dbx-picker-suggest-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #5b6b78; margin: 6px 0 4px; }
+.dbx-picker-item-text { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; text-align: left; }
+.dbx-picker-item-path { font-size: 11px; color: #7a8895; word-break: break-word; }

@@ -156,6 +156,8 @@ export default function DealDetail({
   function focusField(field) {
     const open = field === "town" || field === "region" || field === "address";
     if (open) setEditingAddress(true);
+    // Missing Dropbox folder → open the picker (it searches by address).
+    if (field === "dropbox" && !transaction.dropbox_folder_url) setShowFolderPicker(true);
     // Wait a frame (two, if the editor just opened) for it to be on screen.
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
@@ -944,23 +946,46 @@ export default function DealDetail({
                 <div>{formatDate(transaction.next_date) || "—"}</div>
               </div>
             )}
-            {isStaff ? (
-              <EditableText
-                field="inspection_date"
-                label="Inspection Deadline"
-                type="date"
-                value={formatDate(transaction.commission_data?.inspection_date)}
-                rawValue={transaction.commission_data?.inspection_date?.slice(0, 10)}
-                placeholder="—"
-                editableWhenSet
-                onSave={(v) => handleCommissionSave({ inspection_date: v || null })}
-              />
-            ) : (
-              <div data-field="inspection_date">
-                <div className="detail-label">Inspection Deadline</div>
-                <div>{formatDate(transaction.commission_data?.inspection_date) || "—"}</div>
-              </div>
-            )}
+            {(() => {
+              const cd = transaction.commission_data;
+              const canWaive = Boolean(cd) && "inspection_waived" in cd;
+              const waived = canWaive && cd.inspection_waived === true;
+              return (
+                <div data-field="inspection_date">
+                  {waived ? (
+                    <>
+                      <div className="detail-label">Inspection Deadline</div>
+                      <div>Waived / no inspection</div>
+                    </>
+                  ) : isStaff ? (
+                    <EditableText
+                      label="Inspection Deadline"
+                      type="date"
+                      value={formatDate(cd?.inspection_date)}
+                      rawValue={cd?.inspection_date?.slice(0, 10)}
+                      placeholder="—"
+                      editableWhenSet
+                      onSave={(v) => handleCommissionSave({ inspection_date: v || null })}
+                    />
+                  ) : (
+                    <>
+                      <div className="detail-label">Inspection Deadline</div>
+                      <div>{formatDate(cd?.inspection_date) || "—"}</div>
+                    </>
+                  )}
+                  {isStaff && canWaive && (
+                    <label className="inspection-waived-check" title="No inspection on this deal — stops asking for an inspection deadline">
+                      <input
+                        type="checkbox"
+                        checked={waived}
+                        onChange={(e) => handleCommissionSave({ inspection_waived: e.target.checked })}
+                      />
+                      Waived / no inspection
+                    </label>
+                  )}
+                </div>
+              );
+            })()}
             {isStaff ? (
               <EditableText
                 field="financing_date"
@@ -1089,7 +1114,7 @@ export default function DealDetail({
           {showFolderPicker && (
             <DropboxFolderPicker
               agentId={transaction.agent_id}
-              side={isBuySide ? "Buy" : "Sell"}
+              side={clientIsBuyer ? "Buy" : "Sell"}
               address={transaction.address}
               busy={pairingFolder}
               onPick={handlePairFolder}

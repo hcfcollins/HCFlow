@@ -10,6 +10,10 @@
 //   { action: "list", agentId, side? }            → { folders: [{ id, name, path }] }
 //       The agent's listing folder (or buyer folder for side "Buy"), one
 //       level deep — what the picker shows.
+//   { action: "search", agentId, address }        → { folders: [{ id, name, path }] }
+//       Searches the agent's WHOLE Dropbox space (listings, buyers, and every
+//       CLOSED / Terminated / year subfolder) for folders named with this
+//       address — how closed deals get matched to their old folders.
 //   { action: "pair", transactionId, folderId }   → { folderPath, folderUrl }
 //   { action: "pair", transactionId, link }       → same, from a pasted
 //       Dropbox share link or a folder path.
@@ -157,6 +161,50 @@ Deno.serve(async (req) => {
       }
       folders.sort((a, b) => a.name.localeCompare(b.name));
       return jsonResponse({ root, folders });
+    }
+
+    if (body.action === "search") {
+      const { agentId, address } = body;
+      if (!agentId || !address) return jsonResponse({ error: "agentId and address required" }, 400);
+      if (!isStaff(caller) && caller.id !== agentId) return jsonResponse({ error: "Not allowed" }, 403);
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/agents?id=eq.${agentId}&select=name,dropbox_listing_path,dropbox_buyer_path`, { headers: svcHeaders });
+      const [agent] = await res.json();
+      // Top-level space(s): "/Hall Collins REG Team Folder", "/HC - Rachel Noyes".
+      const spaces = [...new Set([agent?.dropbox_listing_path, agent?.dropbox_buyer_path].filter(Boolean).map((p: string) => `/${p.split("/").filter(Boolean)[0]}`))];
+      if (!spaces.length) return jsonResponse({ folders: [] });
+      // "3673 Fish Hill Road Randolph, VT" → "3673 Fish" (number + first street word).
+      const words = String(address).replace(/[^A-Za-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
+      const numIdx = words.findIndex((w) => /^\d+[A-Za-z]?$/.test(w));
+      const query = (numIdx >= 0 ? words.slice(numIdx, numIdx + 2) : words.slice(0, 2)).join(" ");
+      if (!query) return jsonResponse({ folders: [] });
+      const seen = new Set<string>();
+      const folders: { id: string; name: string; path: string }[] = [];
+      for (const path of spaces) {
+        const r = await dbx(token, "files/search_v2", {
+          query,
+          options: { path, max_results: 25, file_categories: ["folder"], filename_only: true },
+        });
+        if (!r.ok) continue;
+        for (const m of r.data.matches || []) {
+          const md = m.metadata?.metadata;
+          if (!md || md[".tag"] !== "folder" || seen.has(md.id)) continue;
+          const segs = String(md.path_display).split("/").filter(Boolean);
+          const parents = segs.slice(0, -1);
+          // Skip folders INSIDE a deal folder ("4) Photos/3673 Fish Hill…"), CMA
+          // folders, and the space itself.
+          if (parents.some((p) => /^\d+[a-z]?\)\s/i.test(p) || /cma/i.test(p))) continue;
+          seen.add(md.id);
+          folders.push({ id: md.id, name: md.name, path: md.path_display });
+        }
+      }
+      // Drop a match nested inside another match (keep the deal folder itself).
+      const top = folders.filter((f) => !folders.some((o) => o !== f && f.path.toLowerCase().startsWith(`${o.path.toLowerCase()}/`)));
+      // The side's own kind of folder first: buyer deals → "Buyers" paths,
+      // listings → "Listings"/"Sellers" paths.
+      const buy = body.side === "Buy";
+      const sideScore = (f: { path: string }) => (buy ? /buyer/i.test(f.path) : /listing|seller/i.test(f.path) && !/buyer/i.test(f.path)) ? 1 : 0;
+      top.sort((a, b) => sideScore(b) - sideScore(a));
+      return jsonResponse({ query, folders: top });
     }
 
     if (body.action === "pair") {

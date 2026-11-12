@@ -1299,6 +1299,14 @@ export async function listDropboxFolders(agentId, side) {
 /** Attach an existing Dropbox folder to a deal — by folder ID (picked from the
  * list) or a pasted share link / folder path. Saves the folder's permanent ID
  * so renaming the folder later doesn't disconnect it. */
+/** Folders anywhere in the agent's Dropbox (incl. CLOSED / year folders)
+ * named with this address. */
+export async function searchDropboxFolders(agentId, address, side) {
+  const { data, error } = await supabase.functions.invoke("pair-dropbox-folder", { body: { action: "search", agentId, address, side } });
+  if (error) throw await functionError(error);
+  return data?.folders || [];
+}
+
 export async function pairDropboxFolder(transactionId, { folderId, link }) {
   const { data, error } = await supabase.functions.invoke("pair-dropbox-folder", {
     body: { action: "pair", transactionId, folderId, link },

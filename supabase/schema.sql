@@ -531,3 +531,8 @@ drop policy if exists agent_licenses_own_read on storage.objects;
 create policy agent_licenses_own_read on storage.objects for select
   using (bucket_id = 'agent-licenses' and (storage.foldername(name))[1] = current_agent_id()::text);
 notify pgrst, 'reload schema';
+
+-- "Waived / no inspection" checkbox on the deal screen — stops Missing Info
+-- asking for an inspection deadline.
+alter table commission_data add column if not exists inspection_waived boolean not null default false;
+notify pgrst, 'reload schema';

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FolderOpen, Search } from "lucide-react";
-import { listDropboxFolders } from "../lib/transactions";
+import { listDropboxFolders, searchDropboxFolders } from "../lib/transactions";
 
 // Folder lists cached for a few minutes per agent/side, so adding a pile of
 // listings for one agent doesn't reload the same folder list every time.
@@ -35,6 +35,13 @@ function matchScore(folderName, address) {
   return score;
 }
 
+/** "/Hall Collins REG Team Folder/Listings/***CLOSED/2026/Sellers/**Gage - …"
+ * → "Listings/***CLOSED/2026/Sellers" — where the folder lives. */
+function parentPath(path) {
+  const segs = String(path || "").split("/").filter(Boolean);
+  return segs.slice(1, -1).join(" / ") || segs.slice(0, -1).join(" / ");
+}
+
 /** Pick one of the agent's existing Dropbox folders (best matches for the
  * address float to the top), or paste a share link / folder path.
  * onPick({ folderId, name }) or onPick({ link }). */
@@ -42,6 +49,24 @@ export default function DropboxFolderPicker({ agentId, side, address, onPick, on
   const [state, setState] = useState({ loading: true, folders: [], root: "", error: null });
   const [query, setQuery] = useState("");
   const [link, setLink] = useState("");
+  // Address search across the agent's whole Dropbox (incl. CLOSED / year
+  // folders) — finds closed deals' folders that aren't in the main list.
+  const [found, setFound] = useState({ loading: true, folders: [] });
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!agentId || !address) {
+      setFound({ loading: false, folders: [] });
+      return;
+    }
+    setFound({ loading: true, folders: [] });
+    searchDropboxFolders(agentId, address, side)
+      .then((folders) => !cancelled && setFound({ loading: false, folders }))
+      .catch(() => !cancelled && setFound({ loading: false, folders: [] }));
+    return () => {
+      cancelled = true;
+    };
+  }, [agentId, address, side]);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,12 +85,14 @@ export default function DropboxFolderPicker({ agentId, side, address, onPick, on
 
   const ranked = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const suggestedIds = new Set(found.folders.map((f) => f.id));
     const list = state.folders
+      .filter((f) => !suggestedIds.has(f.id))
       .filter((f) => !q || f.name.toLowerCase().includes(q))
       .map((f) => ({ ...f, score: matchScore(f.name, address) }));
     list.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
     return list;
-  }, [state.folders, query, address]);
+  }, [state.folders, query, address, found.folders]);
 
   return (
     <div className="dbx-picker" onClick={(e) => e.stopPropagation()}>
@@ -73,6 +100,36 @@ export default function DropboxFolderPicker({ agentId, side, address, onPick, on
         <strong>Pair an existing Dropbox folder</strong>
         {state.root && <span className="field-help">from {state.root}</span>}
       </div>
+
+      {found.loading ? (
+        <p className="field-help">Searching Dropbox for {address}…</p>
+      ) : (
+        found.folders.length > 0 && (
+          <div className="dbx-picker-suggest">
+            <div className="dbx-picker-suggest-title">Found in Dropbox</div>
+            <ul className="dbx-picker-list">
+              {found.folders.map((f, i) => (
+                <li key={f.id}>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className={`dbx-picker-item ${i === 0 ? "dbx-picker-item--match" : ""}`}
+                    onClick={() => onPick({ folderId: f.id, name: f.name })}
+                    title={`Pair ${f.path}`}
+                  >
+                    <FolderOpen size={14} />
+                    <span className="dbx-picker-item-text">
+                      <span>{f.name}</span>
+                      <span className="dbx-picker-item-path">{parentPath(f.path)}</span>
+                    </span>
+                    {i === 0 && <span className="dbx-picker-badge">Best match</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
+      )}
 
       {state.loading ? (
         <p className="field-help">Loading folders…</p>
