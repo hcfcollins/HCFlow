@@ -102,7 +102,8 @@ export default function NotificationBell({ transactions, onOpenDeal }) {
                       disabled={!tx}
                       onClick={() => {
                         setOpen(false);
-                        if (tx) onOpenDeal(tx);
+                        // Notifications are about to-dos — land on the To-Do list.
+                        if (tx) onOpenDeal({ ...tx, _focusField: "todos", _focusAt: Date.now() });
                       }}
                     >
                       <span className="notif-item-msg">{n.message}</span>

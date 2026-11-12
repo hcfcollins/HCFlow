@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Pencil, Mail, FileText, FolderOpen, ChevronDown, ChevronLeft, Instagram } from "lucide-react";
 import TodoList, { MissingInfoTodo } from "./TodoList";
 import RadioGroup from "./RadioGroup";
@@ -171,6 +171,14 @@ export default function DealDetail({
       })
     );
   }
+
+  // Opening a deal normally starts at the top of the page (not wherever the
+  // list was scrolled to). Opened for a specific to-do or missing field, the
+  // effect below scrolls to that instead.
+  useLayoutEffect(() => {
+    if (!transaction._focusField) window.scrollTo(0, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transaction.id]);
 
   // Arrived here from a card's Missing Info box — jump to that field.
   useEffect(() => {
@@ -832,7 +840,7 @@ export default function DealDetail({
         </div>
       )}
 
-      <div className="detail-section">
+      <div className="detail-section" data-field="todos">
         <h2 className="comps-section-title">To-Do</h2>
         {!review && <MissingInfoTodo tx={transaction} onPick={focusField} />}
         <TodoList

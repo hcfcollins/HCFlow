@@ -419,7 +419,7 @@ function AllTodosPage({ transactions, currentAgent, onToggleTodo, onEditTodo, on
         onEdit={onEditTodo}
         onDelete={onDeleteTodo}
         propertyLabel={withPropertyTag ? t.tx.address : undefined}
-        onPropertyClick={() => onOpenDetail(t.tx)}
+        onPropertyClick={() => onOpenDetail({ ...t.tx, _focusField: "todos", _focusAt: Date.now() })}
       />
     );
   }
