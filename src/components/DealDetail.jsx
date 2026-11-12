@@ -14,6 +14,7 @@ import { clientIsBuyer as isClientBuyer } from "../lib/missingInfo";
 import { stageSelectValue, closingStatusBadge } from "../lib/stages";
 import { formatBac, emailComposeUrl, emailLinkTarget } from "../lib/clientEmail";
 import { sendShowingPacket } from "../lib/showingPacket";
+import { SHOWING_ACCESS_OPTIONS } from "../lib/showingAccess";
 import { focusNextOnEnter } from "../lib/formKeyNav";
 import {
   PROPERTY_STYLES,
@@ -606,6 +607,18 @@ export default function DealDetail({
               options={PROPERTY_STYLES}
               onSave={(v) => handleFieldSave({ property_style: v })}
             />
+
+            {!clientIsBuyer && "showing_access" in transaction && (
+              <div className="detail-grid-full" data-field="showing_access">
+                <div className="detail-label">Showings</div>
+                <RadioGroup
+                  name="showingAccess"
+                  value={transaction.showing_access || ""}
+                  onChange={(v) => handleFieldSave({ showing_access: v })}
+                  options={SHOWING_ACCESS_OPTIONS}
+                />
+              </div>
+            )}
 
             {!isBuySide && (
               <div className="detail-grid-full">

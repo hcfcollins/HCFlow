@@ -6,6 +6,7 @@ import AgentField from "./AgentField";
 import RadioGroup from "./RadioGroup";
 import EmailListInput from "./EmailListInput";
 import { PROPERTY_STYLES } from "../lib/compFieldOptions";
+import { SHOWING_ACCESS_OPTIONS } from "../lib/showingAccess";
 import { focusNextOnEnter } from "../lib/formKeyNav";
 import { useToast } from "../lib/ToastContext";
 
@@ -26,6 +27,7 @@ export default function ActiveListingForm({ currentAgent, onCancel, onSubmitted 
   const [sellerName, setSellerName] = useState("");
   const [sellerEmails, setSellerEmails] = useState([""]);
   const [lockboxCode, setLockboxCode] = useState("");
+  const [showingAccess, setShowingAccess] = useState("");
   const [notes, setNotes] = useState("");
   // The existing Dropbox folder to pair once the listing's saved:
   // { folderId, name } or { link }.
@@ -44,6 +46,7 @@ export default function ActiveListingForm({ currentAgent, onCancel, onSubmitted 
     setSellerName("");
     setSellerEmails([""]);
     setLockboxCode("");
+    setShowingAccess("");
     setNotes("");
     setFolder(null);
     setPickingFolder(false);
@@ -76,6 +79,7 @@ export default function ActiveListingForm({ currentAgent, onCancel, onSubmitted 
         has_lockbox: Boolean(lockboxCode.trim()),
         lockbox_code: lockboxCode.trim() || null,
         notes: notes.trim(),
+        ...(showingAccess ? { showing_access: showingAccess } : {}),
       });
       setAddedCount((n) => n + 1);
       let folderNote = "";
@@ -177,6 +181,10 @@ export default function ActiveListingForm({ currentAgent, onCancel, onSubmitted 
         Seller Email(s)
         <EmailListInput values={sellerEmails} onChange={setSellerEmails} />
       </label>
+      <fieldset>
+        <legend>Showings</legend>
+        <RadioGroup name="alShowingAccess" value={showingAccess} onChange={setShowingAccess} options={SHOWING_ACCESS_OPTIONS} />
+      </fieldset>
       <label>
         Lockbox Code
         <input value={lockboxCode} onChange={(e) => setLockboxCode(e.target.value)} placeholder="Leave blank if none" />

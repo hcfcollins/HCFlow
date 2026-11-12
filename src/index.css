@@ -1568,3 +1568,10 @@ button { cursor: pointer; }
 /* Dead/Lost button + section title with the RIP stone */
 .comps-status-btn--dead { display: inline-flex; align-items: center; gap: 4px; }
 .comps-section--dead .comps-section-title { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Stage dropdown with the property-type tag tucked underneath */
+.tx-stage-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.tx-stage-stack .tx-tag { font-size: 11px; }
+/* Showings: solo OK vs. agent present */
+.tx-icon-badge--solo { background: var(--color-success-bg); color: var(--color-success-text); }
+.tx-icon-badge--accompanied { background: rgba(126, 87, 194, 0.12); color: var(--color-accent-purple); }

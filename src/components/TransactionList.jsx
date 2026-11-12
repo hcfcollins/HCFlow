@@ -3,7 +3,8 @@ import Tombstone from "./icons/Tombstone";
 import { sendShowingPacket } from "../lib/showingPacket";
 import { useToast } from "../lib/ToastContext";
 import { createPortal } from "react-dom";
-import { Signpost, Lock, Mail, Instagram, Send } from "lucide-react";
+import { Signpost, Lock, Mail, Instagram, Send, User, Users } from "lucide-react";
+import { SHOWING_ACCESS_TAGS } from "../lib/showingAccess";
 import { stageSelectValue, closingStatusBadge } from "../lib/stages";
 import { formatBac, openEmailCompose } from "../lib/clientEmail";
 import TodoList, { MissingInfoTodo } from "./TodoList";
@@ -220,6 +221,7 @@ function TxCard({
               )}
             </div>
           )}
+          <div className="tx-stage-stack">
           <select
             value={stageSelectValue(tx, stages)}
             onChange={(e) => onStageChange(tx, e.target.value)}
@@ -232,6 +234,13 @@ function TxCard({
               </option>
             ))}
           </select>
+          {/* Property type sits right under the stage dropdown. */}
+          {isActiveListing && PROPERTY_STYLE_TAGS[tx.property_style] && (
+            <span className={`tx-icon-badge tx-tag ${PROPERTY_STYLE_TAGS[tx.property_style].className}`} onClick={(e) => e.stopPropagation()}>
+              {PROPERTY_STYLE_TAGS[tx.property_style].emoji} {PROPERTY_STYLE_TAGS[tx.property_style].label}
+            </span>
+          )}
+          </div>
         </div>
       </div>
 
@@ -257,14 +266,6 @@ function TxCard({
           document.body
         )}
 
-      {isActiveListing && PROPERTY_STYLE_TAGS[tx.property_style] && (
-        <div className="tx-tag-row" onClick={(e) => e.stopPropagation()}>
-          <span className={`tx-icon-badge tx-tag ${PROPERTY_STYLE_TAGS[tx.property_style].className}`}>
-            {PROPERTY_STYLE_TAGS[tx.property_style].emoji} {PROPERTY_STYLE_TAGS[tx.property_style].label}
-          </span>
-        </div>
-      )}
-
       {(isActiveListing || (tx.ba_comp && !isBuySide)) && (
         <div className="tx-icons-row" onClick={(e) => e.stopPropagation()}>
           {isActiveListing && tx.sign_status === "Yes" && (
@@ -287,8 +288,16 @@ function TxCard({
             </span>
           )}
           {tx.ba_comp && !isBuySide && (
-            <span className="tx-icon-badge" title="Buyer agency commission">
-              BAC {formatBac(tx.ba_comp)}
+            <span className="tx-icon-badge" title="Buyer agency commission (BAC)">
+              {formatBac(tx.ba_comp)}
+            </span>
+          )}
+          {isActiveListing && SHOWING_ACCESS_TAGS[tx.showing_access] && (
+            <span
+              className={`tx-icon-badge ${SHOWING_ACCESS_TAGS[tx.showing_access].className}`}
+              title={SHOWING_ACCESS_TAGS[tx.showing_access].title}
+            >
+              {tx.showing_access === "Solo" ? <User size={14} /> : <Users size={14} />} {SHOWING_ACCESS_TAGS[tx.showing_access].label}
             </span>
           )}
           {isActiveListing && tx.has_lockbox && (
@@ -413,7 +422,7 @@ function TxCard({
                 }
               }}
             >
-              <Send size={14} /> Packet
+              Packet <Send size={14} />
             </button>
           )}
         </div>

@@ -445,3 +445,7 @@ notify pgrst, 'reload schema';
 -- Migration (2026-11-11): ZIP codes, auto-filled from the address.
 alter table transactions add column if not exists zip text;
 notify pgrst, 'reload schema';
+
+-- Migration (2026-11-11): whether one of us needs to attend showings.
+alter table transactions add column if not exists showing_access text check (showing_access in ('Solo', 'Accompanied'));
+notify pgrst, 'reload schema';

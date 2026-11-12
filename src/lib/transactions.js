@@ -1100,7 +1100,15 @@ export async function fetchStaffTotalCommissions() {
 export async function createActiveListing(fields) {
   const existing = await findTransactionByAddress(fields.address);
   if (existing) throw new Error(`${fields.address} is already in the app.`);
-  const tx = await createTransaction(fields);
+  let tx;
+  try {
+    tx = await createTransaction(fields);
+  } catch (e) {
+    // showing_access column not added yet — save the listing without it.
+    if (!fields.showing_access || !String(e.message).includes("showing_access")) throw e;
+    const { showing_access: _skip, ...rest } = fields;
+    tx = await createTransaction(rest);
+  }
   await addActivityLog(tx.id, "Added as an existing active listing", fields.address);
   return tx;
 }
