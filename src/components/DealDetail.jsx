@@ -617,7 +617,9 @@ export default function DealDetail({
               <EditableText
                 label="Buyer Agency Commission"
                 value={formatBac(transaction.ba_comp)}
+                rawValue={transaction.ba_comp || ""}
                 placeholder="e.g. 2.5%"
+                editableWhenSet
                 onSave={(v) => {
                   if (bacWarning(v)) {
                     setPendingBac(v);
