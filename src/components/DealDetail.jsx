@@ -662,7 +662,7 @@ export default function DealDetail({
                 }}
               />
             )}
-            {transaction.other_side_id && <OtherSideInfo otherSideId={transaction.other_side_id} />}
+            {transaction.other_side_id && <OtherSideInfo transactionId={transaction.id} otherSideId={transaction.other_side_id} />}
             {isCoordinator && (
               <div data-field="agent">
                 <div className="detail-label">Agent</div>
@@ -2081,22 +2081,22 @@ function CoListPicker({ transaction, canEdit, onSave }) {
 
 /** Split / in-house deal: who has the other side. Each side is its own deal
  * with its own close-out — this is just so everyone knows. */
-function OtherSideInfo({ otherSideId }) {
+function OtherSideInfo({ transactionId, otherSideId }) {
   const [name, setName] = useState(null);
   useEffect(() => {
     let live = true;
-    fetchOtherSideAgentName(otherSideId)
+    fetchOtherSideAgentName(transactionId)
       .then((n) => live && setName(n))
       .catch(() => {});
     return () => {
       live = false;
     };
-  }, [otherSideId]);
+  }, [transactionId, otherSideId]);
   return (
     <div className="detail-grid-full">
       <div className="detail-label">Other Side</div>
       <div>
-        🤝 In-house deal{name ? ` — ${name}` : " — another Hall Collins agent"}
+        🤝 In-house deal{name ? ` — ${name}` : ""}
         <div className="field-help">Each side has its own agent, commission, referral and close-out.</div>
       </div>
     </div>

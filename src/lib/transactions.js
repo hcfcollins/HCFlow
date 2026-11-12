@@ -677,15 +677,11 @@ async function findSameSide({ existingId, address, side, splitClientSide }) {
   return matches.find((t) => clientSideOf(t.side, t.split_client_side) === mine) || matches[0] || null;
 }
 
-/** The other side's agent name (staff can see every deal; an agent can't see
- * another agent's side, so this returns null for them). */
-export async function fetchOtherSideAgentName(otherSideId) {
-  const { data } = await supabase
-    .from("transactions")
-    .select("agent:agents!transactions_agent_id_fkey(name)")
-    .eq("id", otherSideId)
-    .maybeSingle();
-  return data?.agent?.name || null;
+/** The other side's agent name. Goes through link-deal-sides (server side)
+ * because an agent can't read another agent's deal directly. */
+export async function fetchOtherSideAgentName(transactionId) {
+  const data = await linkDealSides(transactionId);
+  return data?.linked?.agentName || null;
 }
 
 /** Links a deal to the other side of the same property (Split / in-house).
