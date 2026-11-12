@@ -684,6 +684,15 @@ export async function fetchOtherSideAgentName(transactionId) {
   return data?.linked?.agentName || null;
 }
 
+/** This side fell through → terminate the linked other side too and tell its
+ * agent (server side). Buy side terminated → only tell the listing agent. */
+export async function handleOtherSideOnTermination(transactionId, { reason, relisted, buySide }) {
+  const body = buySide ? { transactionId, notifyOtherSide: true } : { transactionId, endOtherSide: { reason: reason || null, relisted: Boolean(relisted) } };
+  const { data, error } = await supabase.functions.invoke("link-deal-sides", { body });
+  if (error) throw await functionError(error);
+  return data;
+}
+
 /** Links a deal to the other side of the same property (Split / in-house).
  * Pass otherId to link two specific deals (broker only). */
 export async function linkDealSides(transactionId, otherId) {

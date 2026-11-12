@@ -14,6 +14,7 @@ import {
   createDropboxFolderForListing,
   createDropboxFolderForBuyer,
   terminateTransaction,
+  handleOtherSideOnTermination,
   reactivateTransaction,
   relistAfterTermination,
   setSocialRotation,
@@ -48,6 +49,7 @@ import ManageAgents from "./components/ManageAgents";
 import SocialScheduler from "./components/SocialScheduler";
 import SpreadsheetView from "./components/SpreadsheetView";
 import DealImport from "./components/DealImport";
+import { clientIsBuyer } from "./lib/missingInfo";
 import TutorialGuide from "./components/TutorialGuide";
 import AgentSpreadsheetView from "./components/AgentSpreadsheetView";
 import { SkeletonList } from "./components/Skeleton";
@@ -468,7 +470,16 @@ export default function App() {
   }
 
   async function handleTerminate(id, reason) {
+    const tx = txs.find((t) => t.id === id);
     await terminateTransaction(id, reason);
+    // In-house / Split: the other agent's side (their own deal) follows.
+    if (tx?.other_side_id && tx.stage === "contract") {
+      try {
+        await handleOtherSideOnTermination(id, { reason, relisted: false, buySide: clientIsBuyer(tx) });
+      } catch (e) {
+        setError(`Terminated, but couldn't update the other side of this in-house deal: ${e.message}`);
+      }
+    }
     loadTransactions({ silent: true });
   }
 
@@ -478,7 +489,15 @@ export default function App() {
   }
 
   async function handleRelist(id, reason) {
+    const oldTx = txs.find((t) => t.id === id);
     const newTx = await relistAfterTermination(id, reason);
+    if (oldTx?.other_side_id) {
+      try {
+        await handleOtherSideOnTermination(id, { reason, relisted: true });
+      } catch (e) {
+        setError(`Relisted, but couldn't terminate the in-house buyer side: ${e.message}`);
+      }
+    }
     await loadTransactions({ silent: true });
     setSelectedTransaction(newTx);
     return newTx;

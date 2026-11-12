@@ -11,6 +11,13 @@
 // POST, signed in:
 //   { transactionId }            → find the other side by address and link it
 //   { transactionId, otherId }   → broker only: link these two directly (import)
+//   { transactionId, endOtherSide: { reason, relisted } }
+//        → this side fell through: also terminate the linked other side, give
+//          it a "Return Deposit to Buyer" to-do if it held the deposit, and
+//          tell that agent (bell notification)
+//   { transactionId, notifyOtherSide: true }
+//        → a buy side was terminated: just tell the listing agent (their
+//          listing is left alone — they decide whether to relist)
 // Returns { linked: { id, agentName } | null, otherSideHoldsDeposit: boolean }
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -33,7 +40,7 @@ async function getCaller(req: Request) {
   if (!userRes.ok) return null;
   const user = await userRes.json();
   if (!user?.email) return null;
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/agents?email=ilike.${encodeURIComponent(user.email)}&select=id,role,is_active`, { headers: svc });
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/agents?email=ilike.${encodeURIComponent(user.email)}&select=id,name,role,is_active`, { headers: svc });
   const [agent] = await res.json();
   return agent && agent.is_active !== false ? agent : null;
 }
@@ -121,7 +128,7 @@ Deno.serve(async (req) => {
   try {
     const caller = await getCaller(req);
     if (!caller) return jsonResponse({ error: "Sign in first" }, 401);
-    const { transactionId, otherId } = await req.json();
+    const { transactionId, otherId, endOtherSide, notifyOtherSide } = await req.json();
     if (!transactionId) return jsonResponse({ error: "transactionId required" }, 400);
 
     const tx = await getTx(transactionId);
@@ -132,6 +139,55 @@ Deno.serve(async (req) => {
     }
     // Column not added yet — nothing to link, but don't break the submission.
     if (!("other_side_id" in tx)) return jsonResponse({ linked: null, otherSideHoldsDeposit: false, needsMigration: true });
+
+    if (endOtherSide || notifyOtherSide) {
+      if (!tx.other_side_id) return jsonResponse({ ok: true, otherSide: null });
+      const otherTx = await getTx(tx.other_side_id);
+      if (!otherTx) return jsonResponse({ ok: true, otherSide: null });
+      const who = caller.name || "Someone";
+      let message: string;
+      if (endOtherSide) {
+        if (!otherTx.terminated_at) {
+          const reason = endOtherSide.relisted
+            ? `Fell through on the listing side — ${who} relisted it${endOtherSide.reason ? `: ${endOtherSide.reason}` : ""}`
+            : `Deal fell through (terminated by ${who})${endOtherSide.reason ? `: ${endOtherSide.reason}` : ""}`;
+          const res = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${otherTx.id}`, {
+            method: "PATCH",
+            headers: { ...svc, "Content-Type": "application/json", Prefer: "return=minimal" },
+            body: JSON.stringify({ terminated_at: new Date().toISOString(), termination_reason: reason, updated_at: new Date().toISOString() }),
+          });
+          if (!res.ok) throw new Error(`Couldn't terminate the other side: ${await res.text()}`);
+          if (holdsDeposit(otherTx)) {
+            await fetch(`${SUPABASE_URL}/rest/v1/todos`, {
+              method: "POST",
+              headers: { ...svc, "Content-Type": "application/json", Prefer: "return=minimal" },
+              body: JSON.stringify({ transaction_id: otherTx.id, text: "Return Deposit to Buyer" }),
+            });
+          }
+          await fetch(`${SUPABASE_URL}/rest/v1/activity_log`, {
+            method: "POST",
+            headers: { ...svc, "Content-Type": "application/json", Prefer: "return=minimal" },
+            body: JSON.stringify({ transaction_id: otherTx.id, label: "Terminated with the other side", detail: reason }),
+          });
+        }
+        message = endOtherSide.relisted
+          ? `${who} relisted ${tx.address} — the deal fell through, so your side was terminated too.`
+          : `${who} terminated ${tx.address} — the deal fell through, so your side was terminated too.`;
+      } else {
+        message = `${who} terminated their buyer side of ${tx.address}. If the listing is going back on the market, open it and choose Terminate Deal → "Seller is still selling".`;
+      }
+      const recipients = [otherTx.agent_id, otherTx.colist_agent_id].filter((id) => id && id !== caller.id);
+      if (recipients.length) {
+        await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
+          method: "POST",
+          headers: { ...svc, "Content-Type": "application/json", Prefer: "return=minimal" },
+          body: JSON.stringify(
+            recipients.map((id) => ({ recipient_agent_id: id, transaction_id: otherTx.id, kind: "todo_assigned", message, created_by_agent_id: caller.id }))
+          ),
+        });
+      }
+      return jsonResponse({ ok: true, otherSide: { id: otherTx.id, agentName: otherTx.agent?.name || null } });
+    }
 
     let other: Tx | null = null;
     if (otherId) {

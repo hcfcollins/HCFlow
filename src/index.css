@@ -1635,3 +1635,10 @@ button { cursor: pointer; }
 .review-complete { padding: 10px 12px; border-radius: 10px; background: rgba(63, 125, 58, 0.1); color: #2f5f2b; font-weight: 600; font-size: 14px; }
 /* In-house / Split deal: the other side is also Hall Collins */
 .tx-inhouse-badge { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #6b4fa0; background: rgba(107, 79, 160, 0.12); vertical-align: middle; }
+/* Terminate on an Under Contract listing: relist vs. end it */
+.terminate-choices { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.terminate-choice { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; padding: 12px 14px; border-radius: 12px; border: 2px solid #dbe3ea; background: var(--color-white); color: var(--color-navy); cursor: pointer; }
+.terminate-choice span { font-size: 13px; color: var(--color-text-subtle); font-weight: 400; }
+.terminate-choice--on { border-color: var(--color-navy); background: rgba(23, 51, 72, 0.05); }
+.terminate-summary { margin: 0 0 14px; padding-left: 18px; font-size: 14px; color: var(--color-navy); line-height: 1.45; }
+.terminate-summary li { margin-bottom: 6px; }

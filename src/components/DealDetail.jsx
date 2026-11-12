@@ -75,6 +75,8 @@ export default function DealDetail({
   const isStaff = isBroker || isCoordinator;
   const isActiveListing = transaction.stage === "won" || transaction.stage === "market";
   const isBuySide = transaction.side === "Buy";
+  // A listing whose buyer is falling through — Terminate asks whether to relist.
+  const isContractListing = transaction.stage === "contract" && !isClientBuyer(transaction) && !transaction.terminated_at;
   // Buy deals, plus Split deals where we represent the buyers — no comp data,
   // and the client email list is labeled as the buyers'.
   const clientIsBuyer = isClientBuyer(transaction);
@@ -101,7 +103,8 @@ export default function DealDetail({
   const [utilitiesCollapsed, setUtilitiesCollapsed] = useState(true);
   const [showTerminateConfirm, setShowTerminateConfirm] = useState(false);
   const [showExpireConfirm, setShowExpireConfirm] = useState(false);
-  const [showRelistConfirm, setShowRelistConfirm] = useState(false);
+  // Under Contract listing → Terminate asks "is the seller still selling?" first.
+  const [showTerminateFlow, setShowTerminateFlow] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   // A commission over 4% waiting on "save anyway?" (usually a typo).
   const [pendingBac, setPendingBac] = useState(null);
@@ -225,7 +228,6 @@ export default function DealDetail({
   }
 
   async function handleRelistConfirm(reason) {
-    setShowRelistConfirm(false);
     setRelisting(true);
     setRelistError(null);
     try {
@@ -1168,31 +1170,20 @@ export default function DealDetail({
             </p>
           ) : (
             <>
-              {!isBuySide && transaction.stage === "contract" && (
-                <>
-                  {relistError && <div className="error-banner">{relistError}</div>}
-                  <button title="The buyer backed out — put this listing back on the market"
-                    type="button"
-                    className="comps-status-btn comps-status-btn--danger"
-                    onClick={() => setShowRelistConfirm(true)}
-                    disabled={relisting}
-                  >
-                    {relisting ? "Relisting…" : "Buyer Fell Through — Relist"}
-                  </button>
-                  <p className="field-help">
-                    Archives this buyer's Under Contract paperwork and puts the listing back On Market as a fresh
-                    deal, linked back to this one for the record — use this instead of Terminate Deal if the seller
-                    is still selling, just this buyer fell through.
-                  </p>
-                </>
-              )}
+              {relistError && <div className="error-banner">{relistError}</div>}
               {["won", "market"].includes(transaction.stage) && !isBuySide && (
                 <button title="The listing agreement ran out without a sale — moves it to Expired (you can relist it later)" type="button" className="comps-status-btn comps-status-btn--expired" onClick={() => setShowExpireConfirm(true)}>
                   ⏳ Listing Expired
                 </button>
               )}
-              <button title="The deal fell through — keeps a record, removes it from active pages" type="button" className="comps-status-btn comps-status-btn--danger" onClick={() => setShowTerminateConfirm(true)}>
-                Terminate Deal
+              <button
+                title="The deal fell through — you'll be asked whether the seller is still selling before anything changes"
+                type="button"
+                className="comps-status-btn comps-status-btn--danger"
+                disabled={relisting}
+                onClick={() => (isContractListing ? setShowTerminateFlow(true) : setShowTerminateConfirm(true))}
+              >
+                {relisting ? "Relisting…" : "Terminate Deal"}
               </button>
             </>
           )}
@@ -1231,17 +1222,6 @@ export default function DealDetail({
         onCancel={() => setShowDeleteConfirm(false)}
       />
 
-      <ConfirmDialog
-        open={showRelistConfirm}
-        title="Buyer fell through — relist this listing?"
-        message="This terminates this deal (keeping the buyer's info for the record) and creates a fresh active listing at the same address/Dropbox folder for the next buyer."
-        promptLabel="Reason (optional)"
-        promptPlaceholder="Why did this buyer fall through?"
-        confirmLabel="Relist"
-        danger
-        onConfirm={handleRelistConfirm}
-        onCancel={() => setShowRelistConfirm(false)}
-      />
 
       <ConfirmDialog
         open={showExpireConfirm}
@@ -1258,10 +1238,30 @@ export default function DealDetail({
         onCancel={() => setShowExpireConfirm(false)}
       />
 
+      {showTerminateFlow && (
+        <TerminateListingDialog
+          transaction={transaction}
+          onCancel={() => setShowTerminateFlow(false)}
+          onRelist={(reason) => {
+            setShowTerminateFlow(false);
+            handleRelistConfirm(reason);
+          }}
+          onTerminate={(reason) => {
+            setShowTerminateFlow(false);
+            onTerminate(transaction.id, reason || "");
+            showToast("Deal terminated");
+          }}
+        />
+      )}
+
       <ConfirmDialog
         open={showTerminateConfirm}
         title="Terminate this deal?"
-        message="This can be undone later with Reactivate."
+        message={
+          transaction.other_side_id && transaction.stage === "contract"
+            ? "This can be undone later with Reactivate. The listing agent on the other side will be notified so they can relist."
+            : "This can be undone later with Reactivate."
+        }
         promptLabel="Reason (optional)"
         promptPlaceholder="Why is this deal being terminated?"
         confirmLabel="Terminate Deal"
@@ -2098,6 +2098,115 @@ function OtherSideInfo({ transactionId, otherSideId }) {
       <div>
         🤝 In-house deal{name ? ` — ${name}` : ""}
         <div className="field-help">Each side has its own agent, commission, referral and close-out.</div>
+      </div>
+    </div>
+  );
+}
+
+/** Terminate on an Under Contract listing: step 1 asks whether the seller is
+ * still selling (relist vs. end it), step 2 spells out exactly what will
+ * happen — including the other agent's side on an in-house deal — before
+ * anything changes. */
+function TerminateListingDialog({ transaction, onCancel, onRelist, onTerminate }) {
+  const [step, setStep] = useState(1);
+  const [choice, setChoice] = useState(null); // "relist" | "terminate"
+  const [reason, setReason] = useState("");
+  const [otherName, setOtherName] = useState(null);
+  const hasOtherSide = Boolean(transaction.other_side_id);
+
+  useEffect(() => {
+    if (!hasOtherSide) return;
+    let live = true;
+    fetchOtherSideAgentName(transaction.id)
+      .then((n) => live && setOtherName(n))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [hasOtherSide, transaction.id]);
+
+  const buyer = transaction.buyer_name || "the buyer";
+  const otherWho = otherName || "the other agent";
+  const happens =
+    choice === "relist"
+      ? [
+          `This deal is terminated, and ${buyer}'s info is kept for the record.`,
+          `${buyer}'s paperwork in Dropbox ("5) Under Contract") is archived and labeled TERMINATED.`,
+          `A fresh listing for ${transaction.address} goes back On Market with the same Dropbox folder, seller, price, lockbox and property details.`,
+          ...(hasOtherSide ? [`${otherWho}'s buyer side is terminated too, and they're notified.`] : []),
+        ]
+      : [
+          `This deal is terminated and taken off the active pages. The listing does NOT go back on the market.`,
+          `${buyer}'s info is kept for the record.`,
+          ...(hasOtherSide ? [`${otherWho}'s buyer side is terminated too, and they're notified.`] : []),
+          `You can undo this later with Reactivate.`,
+        ];
+
+  return (
+    <div className="confirm-dialog-overlay" onClick={onCancel}>
+      <div className="confirm-dialog terminate-flow" onClick={(e) => e.stopPropagation()}>
+        {step === 1 ? (
+          <>
+            <h2 className="confirm-dialog-title">Terminate {transaction.address}?</h2>
+            <p className="confirm-dialog-message">Is the seller still selling?</p>
+            <div className="terminate-choices">
+              <button
+                type="button"
+                className={`terminate-choice ${choice === "relist" ? "terminate-choice--on" : ""}`}
+                onClick={() => setChoice("relist")}
+                title="Just this buyer fell through. Put the listing back on the market"
+              >
+                <strong>Yes, put it back On Market</strong>
+                <span>Just this buyer fell through. Relist it for the next buyer.</span>
+              </button>
+              <button
+                type="button"
+                className={`terminate-choice ${choice === "terminate" ? "terminate-choice--on" : ""}`}
+                onClick={() => setChoice("terminate")}
+                title="The seller isn't selling anymore. End the deal and the listing"
+              >
+                <strong>No, the listing is off</strong>
+                <span>End the deal and the listing completely.</span>
+              </button>
+            </div>
+            <label className="confirm-dialog-prompt-label">
+              Reason (optional)
+              <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why did this fall through?" rows={2} />
+            </label>
+            <div className="confirm-dialog-actions">
+              <button type="button" onClick={onCancel} title="Go back without doing anything">
+                Cancel
+              </button>
+              <button type="button" className="google-btn confirm-dialog-confirm" disabled={!choice} onClick={() => setStep(2)} title="Review what will happen">
+                Next
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2 className="confirm-dialog-title">{choice === "relist" ? "Confirm: relist" : "Confirm: terminate"}</h2>
+            <p className="confirm-dialog-message">Here's exactly what will happen to {transaction.address}:</p>
+            <ul className="terminate-summary">
+              {happens.map((h) => (
+                <li key={h}>{h}</li>
+              ))}
+            </ul>
+            {reason.trim() && <p className="confirm-dialog-message">Reason: {reason.trim()}</p>}
+            <div className="confirm-dialog-actions">
+              <button type="button" onClick={() => setStep(1)} title="Change your answer">
+                Back
+              </button>
+              <button
+                type="button"
+                className="comps-status-btn comps-status-btn--danger confirm-dialog-confirm"
+                onClick={() => (choice === "relist" ? onRelist(reason.trim()) : onTerminate(reason.trim()))}
+                title={choice === "relist" ? "Terminate this deal and relist the listing" : "Terminate this deal and the listing"}
+              >
+                {choice === "relist" ? "Relist" : "Terminate"}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
