@@ -38,7 +38,9 @@ const CONTRACT_CHECKS = [
   // No financing contingency date = treated as a cash/no-financing deal, so
   // neither the financing date itself nor an appraiser is asked for. Once a
   // financing date is entered, the appraiser becomes required.
-  { field: "appraiser", label: "Appraiser", get: (tx) => tx.commission_data?.appraiser, onlyIf: (tx) => has(tx.commission_data?.financing_date) },
+  // Listing side only — on the buyer side we almost never find out who the
+  // appraiser was, so it's never asked for there.
+  { field: "appraiser", label: "Appraiser", get: (tx) => tx.commission_data?.appraiser, onlyIf: (tx) => has(tx.commission_data?.financing_date) && !clientIsBuyer(tx) },
 ];
 
 const LISTING_CHECKS = [
