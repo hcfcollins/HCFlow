@@ -125,8 +125,8 @@ export function TodoRow({ todo, onToggle, onEdit, onDelete, propertyLabel, onPro
 /** The "standing to-do" for a deal's missing info — highlighted, can't be
  * checked off or deleted, and vanishes by itself once every field is filled
  * in (see lib/missingInfo.js). Tapping it opens the deal to fill things in. */
-export function MissingInfoTodo({ tx, onOpen, onPick }) {
-  const missing = missingInfoItems(tx);
+export function MissingInfoTodo({ tx, onOpen, onPick, review = false }) {
+  const missing = missingInfoItems(tx, { review });
   if (!missing.length) return null;
   // On a card: open the deal and jump to the field. On the deal screen
   // itself: just jump (onPick scrolls + flashes it).

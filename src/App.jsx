@@ -47,6 +47,7 @@ import Celebration from "./components/Celebration";
 import ManageAgents from "./components/ManageAgents";
 import SocialScheduler from "./components/SocialScheduler";
 import SpreadsheetView from "./components/SpreadsheetView";
+import DealImport from "./components/DealImport";
 import TutorialGuide from "./components/TutorialGuide";
 import AgentSpreadsheetView from "./components/AgentSpreadsheetView";
 import { SkeletonList } from "./components/Skeleton";
@@ -109,6 +110,9 @@ export default function App() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [showMySpreadsheet, setShowMySpreadsheet] = useState(false);
   const [showAllDeals, setShowAllDeals] = useState(false);
+  // Temporary catch-up: Import Deals screen + its line-by-line review.
+  const [showImport, setShowImport] = useState(false);
+  const [review, setReview] = useState(null); // { ids, index }
   // Broker-only previews: null (normal), "agent", or "coordinator" (TC View).
   const [viewAs, setViewAs] = useState(null);
   const viewAsAgent = viewAs === "agent";
@@ -484,7 +488,26 @@ export default function App() {
   // snapping the detail screen away instantly — 200ms matches .deal-detail-exit's CSS
   // transition duration. Shared by the Back button and DealDetail's swipe-left gesture,
   // since both call this same onBack prop.
+  function goToReview(ids, index) {
+    if (index < 0) return;
+    if (index >= ids.length) {
+      setReview(null);
+      setSelectedTransaction(null);
+      return;
+    }
+    const tx = txs.find((t) => t.id === ids[index]);
+    setReview({ ids, index });
+    setSelectedTransaction(tx || null);
+    window.scrollTo(0, 0);
+  }
+
   function handleCloseDetail() {
+    if (review) {
+      // Back from a review deal returns to the Import Deals screen.
+      setReview(null);
+      setSelectedTransaction(null);
+      return;
+    }
     setClosingTransaction(true);
     setTimeout(() => {
       setSelectedTransaction(null);
@@ -723,6 +746,16 @@ export default function App() {
           onTerminate={handleTerminate}
           onReactivate={handleReactivate}
           onRelist={handleRelist}
+          review={
+            review && review.ids[review.index] === selectedTransaction.id
+              ? {
+                  index: review.index,
+                  total: review.ids.length,
+                  onPrev: () => goToReview(review.ids, review.index - 1),
+                  onNext: () => goToReview(review.ids, review.index + 1),
+                }
+              : null
+          }
         />
       </div>
     </TodoActionsContext.Provider>
@@ -742,6 +775,20 @@ export default function App() {
 
   // Rendered after the selectedTransaction check on purpose: opening a deal
   // from here and hitting Back lands you back on All Deals, not the tabs.
+  if (showImport && isRealBroker && !viewAs) {
+    return (
+      <TodoActionsContext.Provider value={renderTodoActions}>
+        {error && <div className="error-banner">{error}</div>}
+        <DealImport
+          transactions={txs}
+          onBack={() => setShowImport(false)}
+          onImported={() => loadTransactions({ silent: true })}
+          onStartReview={(ids) => goToReview(ids, 0)}
+        />
+      </TodoActionsContext.Provider>
+    );
+  }
+
   if (showAllDeals) {
     return (
       <TodoActionsContext.Provider value={renderTodoActions}>
@@ -907,6 +954,11 @@ export default function App() {
         >
           All Deals
         </button>
+        {isRealBroker && !viewAs && (
+          <button type="button" className="my-earnings-cta import-deals-cta" title="Temporary: import this year's deals from the Deal Tracker spreadsheet, then fill in what's missing deal by deal" onClick={() => setShowImport(true)}>
+            Import Deals
+          </button>
+        )}
         {!isCoordinator && (
           <button title="Your own deals and commission totals in one table" type="button" className="my-earnings-cta my-spreadsheet-cta" onClick={() => setShowMySpreadsheet(true)}>
             My Spreadsheet

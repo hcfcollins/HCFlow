@@ -10,7 +10,7 @@ import DropboxFolderPicker from "./DropboxFolderPicker";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents } from "../lib/transactions";
-import { clientIsBuyer as isClientBuyer } from "../lib/missingInfo";
+import { clientIsBuyer as isClientBuyer, missingInfoItems } from "../lib/missingInfo";
 import { stageSelectValue, closingStatusBadge, isExpiredListing, terminatedLabel, EXPIRED_REASON } from "../lib/stages";
 import { formatBac, bacWarning, emailComposeUrl, emailLinkTarget } from "../lib/clientEmail";
 import { sendShowingPacket } from "../lib/showingPacket";
@@ -64,6 +64,9 @@ export default function DealDetail({
   onTerminate,
   onReactivate,
   onRelist,
+  // Set while going line by line through deals from the Import Deals screen:
+  // { index, total, onPrev, onNext } — adds Prev/Next and the fuller missing list.
+  review = null,
 }) {
   const isBroker = currentAgent.role === "broker";
   // The transaction coordinator sees every deal like a broker does, but never
@@ -307,6 +310,19 @@ export default function DealDetail({
             <ChevronLeft size={22} />
           </button>
           <span className={`detail-sticky-title ${scrolledPastTitle ? "detail-sticky-title--shown" : ""}`}>{transaction.address}</span>
+          {review && (
+            <div className="review-nav">
+              <button type="button" className="review-nav-btn" onClick={review.onPrev} disabled={review.index === 0} title="Previous deal">
+                ‹ Prev
+              </button>
+              <span className="review-nav-count">
+                {review.index + 1} of {review.total}
+              </span>
+              <button type="button" className="review-nav-btn review-nav-btn--next" onClick={review.onNext} title={review.index + 1 === review.total ? "Finish — back to the import screen" : "Next deal"}>
+                {review.index + 1 === review.total ? "Done ✓" : "Next ›"}
+              </button>
+            </div>
+          )}
           {canPostSocial && (
             <div className="detail-social-menu-wrap">
               <button
@@ -416,6 +432,16 @@ export default function DealDetail({
           </div>
         )}
       </header>
+
+      {review && (
+        <div className="review-panel">
+          {missingInfoItems(transaction, { review: true }).length ? (
+            <MissingInfoTodo tx={transaction} onPick={focusField} review />
+          ) : (
+            <div className="review-complete">✓ Everything's filled in on this one.</div>
+          )}
+        </div>
+      )}
 
       <ConfirmDialog
         open={pendingBac != null}
@@ -803,7 +829,7 @@ export default function DealDetail({
 
       <div className="detail-section">
         <h2 className="comps-section-title">To-Do</h2>
-        <MissingInfoTodo tx={transaction} onPick={focusField} />
+        {!review && <MissingInfoTodo tx={transaction} onPick={focusField} />}
         <TodoList
           todos={transaction.todos}
           onAdd={(text, dueDate) => onAddTodo(transaction.id, text, dueDate)}
@@ -1022,7 +1048,7 @@ export default function DealDetail({
       )}
 
       {transaction.stage !== "comps" && (
-        <div className="detail-section">
+        <div className="detail-section" data-field="dropbox">
           <h2 className="comps-section-title">Documents</h2>
           <p className="field-help">Files live in Dropbox — this list tracks status only.</p>
           {transaction.dropbox_folder_url ? (

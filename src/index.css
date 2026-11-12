@@ -1587,3 +1587,49 @@ button { cursor: pointer; }
 .won-setup-title { font-weight: 700; color: #173348; font-size: 17px; margin-bottom: 6px; }
 .won-setup-sub { color: #5b6b78; font-size: 14px; line-height: 1.4; }
 @keyframes won-spin { to { transform: rotate(360deg); } }
+
+/* ===== Import Deals (temporary catch-up screen) ===== */
+.import-deals-cta { background: var(--color-white); color: var(--color-navy); border: 2px dashed var(--color-navy); padding: 7px; }
+.import-deals-cta:hover { background: rgba(23, 51, 72, 0.05); opacity: 1; }
+.import-screen { display: flex; flex-direction: column; gap: 16px; padding-bottom: 40px; }
+.import-card { background: var(--color-white); border-radius: 14px; padding: 18px 16px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06); min-width: 0; }
+.import-step-title { display: flex; align-items: center; gap: 10px; font-size: 17px; margin: 0 0 8px; color: var(--color-navy); }
+.import-step-num { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: var(--color-navy); color: #fff; font-size: 14px; flex-shrink: 0; }
+.import-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 12px 0 6px; }
+.import-file-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px; background: var(--color-navy); color: #fff; font-weight: 600; cursor: pointer; }
+.import-year { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--color-navy); }
+.import-year select { width: auto; padding: 6px 8px; }
+.import-file-name { font-size: 13px; color: #5b6b78; margin-bottom: 8px; word-break: break-all; }
+.import-summary { margin: 12px 0 4px; font-size: 14px; color: var(--color-navy); line-height: 1.5; }
+.import-select-links { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 8px; }
+.import-link-btn { background: none; border: none; padding: 0; color: #1f6fb2; font-size: 13px; font-weight: 600; text-decoration: underline; cursor: pointer; }
+.import-table-wrap { overflow-x: auto; max-height: 60vh; overflow-y: auto; border: 1px solid #e3ebf0; border-radius: 10px; -webkit-overflow-scrolling: touch; }
+.import-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.import-table th { position: sticky; top: 0; background: #f4f7f9; text-align: left; padding: 8px; font-weight: 700; color: var(--color-navy); white-space: nowrap; z-index: 1; }
+.import-table td { padding: 7px 8px; border-top: 1px solid #eef2f5; vertical-align: top; white-space: nowrap; }
+.import-table td.import-address { white-space: normal; min-width: 180px; font-weight: 600; }
+.import-table td.import-warnings { white-space: normal; min-width: 170px; color: #a15c00; font-size: 12px; }
+.import-table input[type="checkbox"] { width: 18px; height: 18px; }
+.import-row--in-app td { color: #8a97a1; }
+.import-row--selected { background: rgba(31, 111, 178, 0.04); }
+.import-in-app { color: #3f7d3a; font-weight: 600; }
+.import-status { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.import-status--closed { background: rgba(63, 125, 58, 0.12); color: #3f7d3a; }
+.import-status--contract { background: rgba(31, 111, 178, 0.12); color: #1f6fb2; }
+.import-status--terminated { background: rgba(160, 60, 60, 0.12); color: #a03c3c; }
+.import-go-btn { margin-top: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
+.import-progress { margin-top: 14px; font-size: 14px; color: var(--color-navy); }
+.import-progress-bar { height: 10px; border-radius: 999px; background: #e3ebf0; overflow: hidden; margin-bottom: 6px; }
+.import-progress-bar > div { height: 100%; background: var(--color-navy); transition: width 0.2s ease; }
+.import-result { margin-top: 14px; padding: 12px; border-radius: 10px; background: rgba(63, 125, 58, 0.1); color: #2f5f2b; font-size: 14px; }
+.import-result--warn { background: rgba(214, 140, 0, 0.12); color: #7a4d00; }
+.import-result ul { margin: 8px 0 0; padding-left: 18px; }
+
+/* Line-by-line review on the deal screen */
+.review-nav { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.review-nav-count { font-size: 12px; font-weight: 700; color: var(--color-navy); white-space: nowrap; }
+.review-nav-btn { padding: 6px 10px; border-radius: 8px; border: 1px solid #cdd8e0; background: var(--color-white); color: var(--color-navy); font-weight: 600; font-size: 13px; cursor: pointer; }
+.review-nav-btn:disabled { opacity: 0.4; cursor: default; }
+.review-nav-btn--next { background: var(--color-navy); color: #fff; border-color: var(--color-navy); }
+.review-panel { margin: 4px 0 14px; }
+.review-complete { padding: 10px 12px; border-radius: 10px; background: rgba(63, 125, 58, 0.1); color: #2f5f2b; font-weight: 600; font-size: 14px; }

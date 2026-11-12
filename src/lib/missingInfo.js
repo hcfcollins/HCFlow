@@ -36,10 +36,30 @@ const LISTING_CHECKS = [
   { field: "property_style", label: "Property Style", get: (tx) => tx.property_style },
 ];
 
-/** [{ field, label }] of what's missing on this deal (empty if nothing). */
-export function missingInfoItems(tx) {
+// The "go line by line" catch-up (Import Deals screen) also asks for these, and
+// checks Closed deals too — minus the contingency items, long past by then.
+const REVIEW_EXTRA = [
+  { field: "town", label: "Town", get: (tx) => tx.town },
+  { field: "property_style", label: "Property Style", get: (tx) => tx.property_style },
+  { field: "dropbox", label: "Dropbox Folder", get: (tx) => tx.dropbox_folder_url },
+];
+const CLOSED_REVIEW_CHECKS = [
+  ...CONTRACT_CHECKS.filter((c) => c.field !== "inspection_date" && c.field !== "appraiser"),
+  ...REVIEW_EXTRA,
+];
+
+function checksFor(tx, review) {
+  if (tx.stage === "contract") return review ? [...CONTRACT_CHECKS, ...REVIEW_EXTRA] : CONTRACT_CHECKS;
+  if (tx.stage === "won" || tx.stage === "market") return LISTING_CHECKS;
+  if (tx.stage === "closed" && review) return CLOSED_REVIEW_CHECKS;
+  return [];
+}
+
+/** [{ field, label }] of what's missing on this deal (empty if nothing).
+ * `review`: the fuller catch-up list (see REVIEW_EXTRA). */
+export function missingInfoItems(tx, { review = false } = {}) {
   if (!tx || tx.terminated_at) return [];
-  const checks = tx.stage === "contract" ? CONTRACT_CHECKS : tx.stage === "won" || tx.stage === "market" ? LISTING_CHECKS : [];
+  const checks = checksFor(tx, review);
   return checks
     .filter((c) => (!c.onlyIf || c.onlyIf(tx)) && !has(c.get(tx)))
     .map((c) => ({ field: c.field, label: c.field === "seller_emails" && clientIsBuyer(tx) ? "Buyer Email" : c.label }));

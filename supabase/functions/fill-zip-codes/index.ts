@@ -38,7 +38,10 @@ async function getCaller(req: Request) {
 
 type Tx = { id: string; address: string | null; town: string | null; region: string | null };
 
-async function censusZip(oneLine: string): Promise<string | null> {
+type Match = { zip: string; city: string | null };
+const titleCase = (s: string) => s.toLowerCase().replace(/\b([a-z])/g, (c) => c.toUpperCase());
+
+async function censusZip(oneLine: string): Promise<Match | null> {
   const url = new URL("https://geocoding.geo.census.gov/geocoder/locations/onelineaddress");
   url.searchParams.set("address", oneLine);
   url.searchParams.set("benchmark", "Public_AR_Current");
@@ -48,7 +51,9 @@ async function censusZip(oneLine: string): Promise<string | null> {
   const data = await res.json();
   const matches = data?.result?.addressMatches || [];
   const zips = [...new Set(matches.map((m: { addressComponents?: { zip?: string } }) => m.addressComponents?.zip).filter(Boolean))];
-  return zips.length === 1 ? (zips[0] as string) : null;
+  if (zips.length !== 1) return null;
+  const city = matches.find((m: { addressComponents?: { zip?: string; city?: string } }) => m.addressComponents?.zip === zips[0])?.addressComponents?.city;
+  return { zip: zips[0] as string, city: city ? titleCase(city) : null };
 }
 
 async function townZip(town: string, state: string): Promise<string | null> {
@@ -62,7 +67,7 @@ async function townZip(town: string, state: string): Promise<string | null> {
   return zips.length === 1 ? (zips[0] as string) : null;
 }
 
-async function lookupZip(tx: Tx): Promise<string | null> {
+async function lookupZip(tx: Tx): Promise<Match | null> {
   const address = (tx.address || "").trim();
   if (!address) return null;
   const town = (tx.town || "").trim();
@@ -72,14 +77,15 @@ async function lookupZip(tx: Tx): Promise<string | null> {
   if (town && !address.toLowerCase().includes(town.toLowerCase())) parts.push(town);
   if (state && !new RegExp(`\\b${state}\\b`, "i").test(address)) parts.push(state);
   try {
-    const zip = await censusZip(parts.join(", "));
-    if (zip) return zip;
+    const match = await censusZip(parts.join(", "));
+    if (match) return match;
   } catch {
     // fall through to the town lookup
   }
   if (town && state) {
     try {
-      return await townZip(town, state);
+      const zip = await townZip(town, state);
+      return zip ? { zip, city: null } : null;
     } catch {
       return null;
     }
@@ -87,11 +93,15 @@ async function lookupZip(tx: Tx): Promise<string | null> {
   return null;
 }
 
-async function saveZip(id: string, zip: string) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${id}`, {
+// Also fills the town when it's blank (e.g. deals imported from the old Deal
+// Tracker, which only had a full address) — never overwrites a typed-in town.
+async function saveZip(tx: Tx, match: Match) {
+  const patch: Record<string, string> = { zip: match.zip };
+  if (!(tx.town || "").trim() && match.city) patch.town = match.city;
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${tx.id}`, {
     method: "PATCH",
     headers: { ...svc, "Content-Type": "application/json", Prefer: "return=minimal" },
-    body: JSON.stringify({ zip }),
+    body: JSON.stringify(patch),
   });
   if (!res.ok) throw new Error(`Couldn't save the zip: ${await res.text()}`);
 }
@@ -112,9 +122,9 @@ Deno.serve(async (req) => {
       let filled = 0;
       const notFound: string[] = [];
       for (const tx of rows) {
-        const zip = await lookupZip(tx);
-        if (zip) {
-          await saveZip(tx.id, zip);
+        const match = await lookupZip(tx);
+        if (match) {
+          await saveZip(tx, match);
           filled++;
         } else {
           notFound.push(tx.address || tx.id);
@@ -128,9 +138,9 @@ Deno.serve(async (req) => {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}&select=id,address,town,region,agent_id`, { headers: svc });
     const [tx] = await res.json();
     if (!tx) return jsonResponse({ error: "Deal not found" }, 404);
-    const zip = await lookupZip(tx);
-    if (zip) await saveZip(tx.id, zip);
-    return jsonResponse({ zip });
+    const match = await lookupZip(tx);
+    if (match) await saveZip(tx, match);
+    return jsonResponse({ zip: match?.zip ?? null });
   } catch (e) {
     return jsonResponse({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
