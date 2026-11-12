@@ -43,6 +43,17 @@ export function openEmailCompose(opts) {
   else window.open(gmailComposeUrl(opts), "_blank", "noopener,noreferrer");
 }
 
+/** A buyer agency commission over 4% is almost always a typo (e.g. the
+ * price typed into the commission box). Returns a warning string, or null. */
+export const BAC_WARN_ABOVE = 4;
+export function bacWarning(value) {
+  // Flat-fee BACs ("$5,000 flat") aren't percentages — never warn on those.
+  if (/\$|flat/i.test(String(value ?? ""))) return null;
+  const n = parseFloat(String(value ?? "").replace(/[%,$\s]/g, ""));
+  if (!Number.isFinite(n) || n <= BAC_WARN_ABOVE) return null;
+  return `${String(value).trim()} is over ${BAC_WARN_ABOVE}% — is that the commission, or did the price end up here?`;
+}
+
 /** "3" or "3.0" -> "3%"; anything already containing % (or freeform text like
  * "$5,000 flat") is left alone. */
 export function formatBac(value) {

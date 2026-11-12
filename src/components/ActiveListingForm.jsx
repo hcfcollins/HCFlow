@@ -6,6 +6,7 @@ import AgentField from "./AgentField";
 import RadioGroup from "./RadioGroup";
 import EmailListInput from "./EmailListInput";
 import { PROPERTY_STYLES } from "../lib/compFieldOptions";
+import { bacWarning } from "../lib/clientEmail";
 import { SHOWING_ACCESS_OPTIONS } from "../lib/showingAccess";
 import { focusNextOnEnter } from "../lib/formKeyNav";
 import { useToast } from "../lib/ToastContext";
@@ -61,6 +62,7 @@ export default function ActiveListingForm({ currentAgent, onCancel, onSubmitted 
       setError("Pick which agent this listing belongs to.");
       return;
     }
+    if (bacWarning(baComp) && !window.confirm(`${bacWarning(baComp)}\n\nSave it anyway?`)) return;
     setSaving(true);
     setError(null);
     try {
@@ -172,6 +174,7 @@ export default function ActiveListingForm({ currentAgent, onCancel, onSubmitted 
       <label>
         Buyer Agency Commission
         <input value={baComp} onChange={(e) => setBaComp(e.target.value)} placeholder="e.g. 2.5" />
+        {bacWarning(baComp) && <span className="bac-warning">⚠️ {bacWarning(baComp)}</span>}
       </label>
       <label>
         Seller Name(s)

@@ -36,12 +36,7 @@ function DropboxIcon({ size = 16 }) {
   );
 }
 
-const PROPERTY_STYLE_TAGS = {
-  Residential: { emoji: "🏠", label: "Single Family", className: "tx-tag--residential" },
-  Land: { emoji: "🌲", label: "Land", className: "tx-tag--land" },
-  "Multi Family": { emoji: "🏘️", label: "Multi Family", className: "tx-tag--multifamily" },
-  Commercial: { emoji: "🏢", label: "Commercial", className: "tx-tag--commercial" },
-};
+
 
 export default function TransactionList({
   transactions,
@@ -234,12 +229,6 @@ function TxCard({
               </option>
             ))}
           </select>
-          {/* Property type sits right under the stage dropdown. */}
-          {isActiveListing && PROPERTY_STYLE_TAGS[tx.property_style] && (
-            <span className={`tx-icon-badge tx-tag ${PROPERTY_STYLE_TAGS[tx.property_style].className}`} onClick={(e) => e.stopPropagation()}>
-              {PROPERTY_STYLE_TAGS[tx.property_style].emoji} {PROPERTY_STYLE_TAGS[tx.property_style].label}
-            </span>
-          )}
           </div>
         </div>
       </div>

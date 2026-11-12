@@ -1575,3 +1575,5 @@ button { cursor: pointer; }
 /* Showings: solo OK vs. agent present */
 .tx-icon-badge--solo { background: var(--color-success-bg); color: var(--color-success-text); }
 .tx-icon-badge--accompanied { background: rgba(126, 87, 194, 0.12); color: var(--color-accent-purple); }
+.bac-warning { font-size: 12px; font-weight: 600; color: var(--color-danger-text); }
+.detail-style-tag { margin-top: 6px; }

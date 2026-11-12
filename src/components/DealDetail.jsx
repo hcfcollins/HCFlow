@@ -12,9 +12,10 @@ import { useToast } from "../lib/ToastContext";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode } from "../lib/transactions";
 import { clientIsBuyer as isClientBuyer } from "../lib/missingInfo";
 import { stageSelectValue, closingStatusBadge } from "../lib/stages";
-import { formatBac, emailComposeUrl, emailLinkTarget } from "../lib/clientEmail";
+import { formatBac, bacWarning, emailComposeUrl, emailLinkTarget } from "../lib/clientEmail";
 import { sendShowingPacket } from "../lib/showingPacket";
 import { SHOWING_ACCESS_OPTIONS } from "../lib/showingAccess";
+import { PROPERTY_STYLE_TAGS } from "../lib/propertyStyleTags";
 import { focusNextOnEnter } from "../lib/formKeyNav";
 import {
   PROPERTY_STYLES,
@@ -98,6 +99,8 @@ export default function DealDetail({
   const [showTerminateConfirm, setShowTerminateConfirm] = useState(false);
   const [showRelistConfirm, setShowRelistConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  // A commission over 4% waiting on "save anyway?" (usually a typo).
+  const [pendingBac, setPendingBac] = useState(null);
   const [relisting, setRelisting] = useState(false);
   const [relistError, setRelistError] = useState(null);
   const [showSocialMenu, setShowSocialMenu] = useState(false);
@@ -404,9 +407,28 @@ export default function DealDetail({
                 <Pencil size={13} />
               </button>
             </div>
+            {PROPERTY_STYLE_TAGS[transaction.property_style] && (
+              <span className={`tx-icon-badge tx-tag detail-style-tag ${PROPERTY_STYLE_TAGS[transaction.property_style].className}`}>
+                {PROPERTY_STYLE_TAGS[transaction.property_style].emoji} {PROPERTY_STYLE_TAGS[transaction.property_style].label}
+              </span>
+            )}
           </div>
         )}
       </header>
+
+      <ConfirmDialog
+        open={pendingBac != null}
+        title="Double-check the commission"
+        message={pendingBac != null ? bacWarning(pendingBac) : ""}
+        confirmLabel="Save Anyway"
+        cancelLabel="Fix It"
+        onConfirm={() => {
+          const v = pendingBac;
+          setPendingBac(null);
+          handleFieldSave({ ba_comp: v || null });
+        }}
+        onCancel={() => setPendingBac(null)}
+      />
 
       {showBoostPost && <BoostPostPanel transaction={transaction} onClose={() => setShowBoostPost(false)} />}
       {graphicPostType && (
@@ -596,7 +618,13 @@ export default function DealDetail({
                 label="Buyer Agency Commission"
                 value={formatBac(transaction.ba_comp)}
                 placeholder="e.g. 2.5%"
-                onSave={(v) => handleFieldSave({ ba_comp: v || null })}
+                onSave={(v) => {
+                  if (bacWarning(v)) {
+                    setPendingBac(v);
+                    return;
+                  }
+                  handleFieldSave({ ba_comp: v || null });
+                }}
               />
             )}
 
