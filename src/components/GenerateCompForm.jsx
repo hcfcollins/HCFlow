@@ -475,7 +475,7 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
         </label>
       </fieldset>
 
-      <button type="submit" className="google-btn uc-submit" disabled={generating}>
+      <button title="Build the CMA PDF and save it to Dropbox" type="submit" className="google-btn uc-submit" disabled={generating}>
         {generating ? "Generating…" : "Generate Comp"}
       </button>
     </form>

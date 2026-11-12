@@ -169,10 +169,10 @@ export default function ActiveListingForm({ currentAgent, onCancel, onSubmitted 
       </label>
 
       <div className="comp-edit-all-actions">
-        <button type="submit" className="google-btn uc-submit" disabled={saving}>
+        <button title="Save this listing and start a blank form for the next one" type="submit" className="google-btn uc-submit" disabled={saving}>
           {saving ? "Saving…" : "Save & Add Another"}
         </button>
-        <button type="button" className="uc-submit" disabled={saving} onClick={() => save(false)}>
+        <button title="Save this listing and go back" type="button" className="uc-submit" disabled={saving} onClick={() => save(false)}>
           {saving ? "Saving…" : "Save & Done"}
         </button>
       </div>

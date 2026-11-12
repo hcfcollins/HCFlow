@@ -96,7 +96,7 @@ export default function NotificationBell({ transactions, onOpenDeal }) {
                 const tx = transactions.find((t) => t.id === n.transaction_id);
                 return (
                   <li key={n.id}>
-                    <button
+                    <button title="Open this deal"
                       type="button"
                       className={`notif-item${n.read_at ? "" : " notif-item--unread"}`}
                       disabled={!tx}

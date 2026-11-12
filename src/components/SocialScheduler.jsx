@@ -180,7 +180,7 @@ export default function SocialScheduler({ transactions, onBack, onMarkPosted, on
             {closingDue.map((tx) => (
               <li key={tx.id} className="social-queue-row">
                 <span className="tx-address">{tx.address}</span>
-                <button type="button" className="comps-minimize-btn" onClick={() => onMarkClosingPosted(tx.id)}>
+                <button title="Mark today's post as done and move to the next listing" type="button" className="comps-minimize-btn" onClick={() => onMarkClosingPosted(tx.id)}>
                   Mark Posted
                 </button>
               </li>
@@ -189,7 +189,7 @@ export default function SocialScheduler({ transactions, onBack, onMarkPosted, on
         </div>
       )}
 
-      <button type="button" className="sign-inventory-toggle" onClick={() => setView((v) => (v === "queue" ? "calendar" : "queue"))}>
+      <button title={view === "queue" ? "See the rotation on a calendar" : "See the rotation as a list"} type="button" className="sign-inventory-toggle" onClick={() => setView((v) => (v === "queue" ? "calendar" : "queue"))}>
         {view === "queue" ? "Show Calendar" : "Show Queue"}
       </button>
 
@@ -207,10 +207,10 @@ export default function SocialScheduler({ transactions, onBack, onMarkPosted, on
                 <span className="tx-sub"> — {daysSince(tx.social_last_posted_at)}</span>
               </div>
               <div className="social-row-actions">
-                <button type="button" className="comps-minimize-btn" onClick={() => setBoostPostTx(tx)}>
+                <button title="Write a caption for a boosted (paid) post" type="button" className="comps-minimize-btn" onClick={() => setBoostPostTx(tx)}>
                   Boost Post
                 </button>
-                <button type="button" className="comps-minimize-btn" onClick={() => setGraphicTx(tx)}>
+                <button title="Make a New Listing graphic + caption" type="button" className="comps-minimize-btn" onClick={() => setGraphicTx(tx)}>
                   New Listing Graphic
                 </button>
                 <label className="social-mark-posted">
@@ -256,7 +256,7 @@ export default function SocialScheduler({ transactions, onBack, onMarkPosted, on
                     <span className="tx-address">{tx.address}</span>
                     <span className="tx-sub">{daysSince(tx.social_last_posted_at)}</span>
                     <div className="social-row-actions">
-                      <button type="button" className="comps-minimize-btn" onClick={() => setBoostPostTx(tx)}>
+                      <button title="Write a caption for a boosted (paid) post" type="button" className="comps-minimize-btn" onClick={() => setBoostPostTx(tx)}>
                         Boost Post
                       </button>
                       <label className="social-mark-posted">

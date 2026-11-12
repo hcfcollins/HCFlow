@@ -100,10 +100,10 @@ export default function TutorialGuide({ onBack }) {
       </header>
 
       <div className="tutorial-tabs">
-        <button type="button" className={tab === "seller" ? "tutorial-tab tutorial-tab--active" : "tutorial-tab"} onClick={() => setTab("seller")}>
+        <button title="How a listing moves through the app" type="button" className={tab === "seller" ? "tutorial-tab tutorial-tab--active" : "tutorial-tab"} onClick={() => setTab("seller")}>
           For Sellers (Listings)
         </button>
-        <button type="button" className={tab === "buyer" ? "tutorial-tab tutorial-tab--active" : "tutorial-tab"} onClick={() => setTab("buyer")}>
+        <button title="How a buyer deal moves through the app" type="button" className={tab === "buyer" ? "tutorial-tab tutorial-tab--active" : "tutorial-tab"} onClick={() => setTab("buyer")}>
           For Buyers
         </button>
       </div>

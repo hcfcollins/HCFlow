@@ -15,6 +15,11 @@ function todayStr() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/** Open to-dos shown on a deal card before "+N more" — keeps cards in a row
+ * close to the same height. Everything is still on the deal screen and the
+ * To-Dos tab. */
+const CARD_TODO_LIMIT = 3;
+
 const PROPERTY_STYLE_TAGS = {
   Residential: { emoji: "🏠", label: "Single Family", className: "tx-tag--residential" },
   Land: { emoji: "🌲", label: "Land", className: "tx-tag--land" },
@@ -131,7 +136,7 @@ function TxCard({
               </button>
               {showSocialMenu && (
                 <div className="detail-social-menu">
-                  <button
+                  <button title="Make a New Listing graphic + caption"
                     type="button"
                     onClick={() => {
                       setGraphicPostType("newListing");
@@ -140,7 +145,7 @@ function TxCard({
                   >
                     New Listing Post
                   </button>
-                  <button
+                  <button title="Write a caption for a boosted (paid) post"
                     type="button"
                     onClick={() => {
                       setShowBoostPost(true);
@@ -149,7 +154,7 @@ function TxCard({
                   >
                     Boost
                   </button>
-                  <button
+                  <button title="Make an Under Contract graphic + caption"
                     type="button"
                     onClick={() => {
                       setGraphicPostType("underContract");
@@ -158,7 +163,7 @@ function TxCard({
                   >
                     Under Contract
                   </button>
-                  <button
+                  <button title="Make a Sold graphic + caption"
                     type="button"
                     onClick={() => {
                       setGraphicPostType("sold");
@@ -167,7 +172,7 @@ function TxCard({
                   >
                     Closed
                   </button>
-                  <button
+                  <button title="Make an Open House graphic + caption"
                     type="button"
                     onClick={() => {
                       setShowOpenHouse(true);
@@ -233,7 +238,7 @@ function TxCard({
             </span>
           )}
           {isActiveListing && signDeclined && (
-            <button
+            <button title="Seller declined a sign — tap for the note"
               type="button"
               className="tx-icon-badge tx-icon-badge--btn tx-icon-badge--declined"
               onClick={() => setSignNoteOpen((o) => !o)}
@@ -252,7 +257,7 @@ function TxCard({
             </span>
           )}
           {isActiveListing && tx.has_lockbox && (
-            <button type="button" className="tx-icon-badge tx-icon-badge--btn" onClick={() => setLockboxOpen((o) => !o)}>
+            <button title="Show the lockbox code" type="button" className="tx-icon-badge tx-icon-badge--btn" onClick={() => setLockboxOpen((o) => !o)}>
               <Lock size={14} /> Lockbox
             </button>
           )}
@@ -282,7 +287,7 @@ function TxCard({
         <div className="comps-status-toggle" onClick={(e) => e.stopPropagation()}>
           <span className="comps-status-toggle-label">Move to:</span>
           {tx.comps_status === "Waiting to List" ? (
-            <button
+            <button title="Move this comp to Need to Send Comp"
               type="button"
               className="comps-status-btn"
               onClick={() => onCompsStatusChange(tx.id, "Need to Send Comp")}
@@ -290,7 +295,7 @@ function TxCard({
               Need to Send Comp
             </button>
           ) : (
-            <button
+            <button title="Move this comp to Waiting to List"
               type="button"
               className="comps-status-btn"
               onClick={() => onCompsStatusChange(tx.id, "Waiting to List")}
@@ -298,7 +303,7 @@ function TxCard({
               Waiting to List
             </button>
           )}
-          <button type="button" className="comps-status-btn" onClick={() => onStageChange(tx, "won")}>
+          <button title="We won the listing — move it to Private Listing" type="button" className="comps-status-btn" onClick={() => onStageChange(tx, "won")}>
             Won Listing
           </button>
         </div>
@@ -315,7 +320,7 @@ function TxCard({
         />
       ) : (
         onAddTodo && (
-          <div onClick={(e) => e.stopPropagation()}>
+          <div className="tx-card-todos" onClick={(e) => e.stopPropagation()}>
             <MissingInfoTodo tx={tx} onOpen={onOpenDetail} />
             <TodoList
               todos={(tx.todos || []).filter((t) => !t.done)}
@@ -323,6 +328,9 @@ function TxCard({
               onToggle={(todo, done) => onToggleTodo(todo, done)}
               onEdit={onEditTodo}
               onDelete={onDeleteTodo}
+              maxVisible={CARD_TODO_LIMIT}
+              onShowMore={() => onOpenDetail?.(tx)}
+              emptyHint="✓ All caught up"
             />
           </div>
         )

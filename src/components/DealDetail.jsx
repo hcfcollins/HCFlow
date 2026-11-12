@@ -250,7 +250,7 @@ export default function DealDetail({
               </button>
               {showSocialMenu && (
                 <div className="detail-social-menu">
-                  <button
+                  <button title="Make a New Listing graphic + caption"
                     type="button"
                     onClick={() => {
                       setGraphicPostType("newListing");
@@ -259,7 +259,7 @@ export default function DealDetail({
                   >
                     New Listing Post
                   </button>
-                  <button
+                  <button title="Write a caption for a boosted (paid) post"
                     type="button"
                     onClick={() => {
                       setShowBoostPost(true);
@@ -268,7 +268,7 @@ export default function DealDetail({
                   >
                     Boost
                   </button>
-                  <button
+                  <button title="Make an Under Contract graphic + caption"
                     type="button"
                     onClick={() => {
                       setGraphicPostType("underContract");
@@ -277,7 +277,7 @@ export default function DealDetail({
                   >
                     Under Contract
                   </button>
-                  <button
+                  <button title="Make a Sold graphic + caption"
                     type="button"
                     onClick={() => {
                       setGraphicPostType("sold");
@@ -286,7 +286,7 @@ export default function DealDetail({
                   >
                     Closed
                   </button>
-                  <button
+                  <button title="Make an Open House graphic + caption"
                     type="button"
                     onClick={() => {
                       setShowOpenHouse(true);
@@ -356,7 +356,7 @@ export default function DealDetail({
               <p className="field-help">
                 Closed for compliance {formatDate(transaction.compliance_closed_at.slice(0, 10))}.
               </p>
-              <button
+              <button title="Move this deal back into compliance review"
                 type="button"
                 className="comps-status-btn"
                 onClick={async () => {
@@ -379,7 +379,7 @@ export default function DealDetail({
                 send the closing docs + review link to the agent, add buyer and seller to the Postable list), then mark it
                 closed for compliance — the final step.
               </p>
-              <button
+              <button title="Final step — the file has been reviewed and is complete"
                 type="button"
                 className="google-btn"
                 onClick={async () => {
@@ -403,7 +403,7 @@ export default function DealDetail({
         <div className="comps-status-toggle">
           <span className="comps-status-toggle-label">Move to:</span>
           {transaction.comps_status === "Waiting to List" ? (
-            <button
+            <button title="Move this comp to Need to Send Comp"
               type="button"
               className="comps-status-btn"
               onClick={() => onCompsStatusChange(transaction.id, "Need to Send Comp")}
@@ -411,7 +411,7 @@ export default function DealDetail({
               Need to Send Comp
             </button>
           ) : (
-            <button
+            <button title="Move this comp to Waiting to List"
               type="button"
               className="comps-status-btn"
               onClick={() => onCompsStatusChange(transaction.id, "Waiting to List")}
@@ -419,7 +419,7 @@ export default function DealDetail({
               Waiting to List
             </button>
           )}
-          <button type="button" className="comps-status-btn" onClick={() => onStageChange(transaction, "won")}>
+          <button title="We won the listing — move it to Private Listing" type="button" className="comps-status-btn" onClick={() => onStageChange(transaction, "won")}>
             Won Listing
           </button>
         </div>
@@ -435,7 +435,7 @@ export default function DealDetail({
       {transaction.stage === "comps" && (
         <div className="detail-section">
           <h2 className="comps-section-title">Comp / CMA</h2>
-          <button type="button" className="cma-export-btn" onClick={() => setShowGenerateComp(true)}>
+          <button title="Build the CMA PDF for this property" type="button" className="cma-export-btn" onClick={() => setShowGenerateComp(true)}>
             <FileText size={14} /> {transaction.last_comp_url ? "Regenerate Comp" : "Generate Comp"}
           </button>
           {transaction.last_comp_url && (
@@ -452,7 +452,7 @@ export default function DealDetail({
 
       {transaction.stage !== "comps" && (
         <div className="detail-section">
-          <button
+          <button title="Show or hide the comp data"
             type="button"
             className="comps-section-header comps-collapse-toggle"
             onClick={() => setCompDetailsCollapsed((c) => !c)}
@@ -463,7 +463,7 @@ export default function DealDetail({
           {!compDetailsCollapsed && (
             <>
               <CompDetailsGrid transaction={transaction} handleFieldSave={handleFieldSave} />
-              <button type="button" className="cma-export-btn" onClick={() => setShowGenerateComp(true)}>
+              <button title="Build the CMA PDF for this property" type="button" className="cma-export-btn" onClick={() => setShowGenerateComp(true)}>
                 <FileText size={14} /> {transaction.last_comp_url ? "Regenerate Comp" : "Generate Comp"}
               </button>
               {transaction.last_comp_url && (
@@ -622,7 +622,7 @@ export default function DealDetail({
 
       {transaction.stage !== "comps" && (
         <div className="detail-section">
-          <button
+          <button title="Show or hide the utility providers"
             type="button"
             className="comps-section-header comps-collapse-toggle"
             onClick={() => setUtilitiesCollapsed((c) => !c)}
@@ -769,7 +769,7 @@ export default function DealDetail({
           )}
 
           {isBroker && (
-            <button type="button" className="cma-export-btn" onClick={() => setShowCloseoutCalculator(true)}>
+            <button title="Broker only — review the commission split and close out the file" type="button" className="cma-export-btn" onClick={() => setShowCloseoutCalculator(true)}>
               <FileText size={14} /> {transaction.closeouts?.commission_after_referral != null ? "Edit Close-Out" : "Run Close-Out Calculator"}
             </button>
           )}
@@ -786,7 +786,7 @@ export default function DealDetail({
                 <FolderOpen size={14} /> Open Dropbox Folder
               </a>
               {transaction.side !== "Buy" && (
-                <button type="button" className="cma-export-btn" disabled={emailingPacket} onClick={handleEmailShowingPacket}>
+                <button title="Create a Gmail draft with the showing packet attached" type="button" className="cma-export-btn" disabled={emailingPacket} onClick={handleEmailShowingPacket}>
                   <Mail size={14} /> {emailingPacket ? "Creating draft…" : "Email Showing Packet"}
                 </button>
               )}
@@ -795,7 +795,7 @@ export default function DealDetail({
             (transaction.stage === "won" || (transaction.side === "Buy" && transaction.stage === "contract")) && (
               <>
                 <p className="field-help">Dropbox folder not created yet.</p>
-                <button
+                <button title="Try creating this deal's Dropbox folder again"
                   type="button"
                   className="cma-export-btn"
                   disabled={retryingDropbox}
@@ -845,7 +845,7 @@ export default function DealDetail({
       {["won", "market", "contract"].includes(transaction.stage) && (
         <div className="detail-section danger-zone">
           {transaction.terminated_at ? (
-            <button
+            <button title="Bring this terminated deal back to active"
               type="button"
               className="comps-status-btn"
               onClick={() => {
@@ -865,7 +865,7 @@ export default function DealDetail({
               {!isBuySide && transaction.stage === "contract" && (
                 <>
                   {relistError && <div className="error-banner">{relistError}</div>}
-                  <button
+                  <button title="The buyer backed out — put this listing back on the market"
                     type="button"
                     className="comps-status-btn comps-status-btn--danger"
                     onClick={() => setShowRelistConfirm(true)}
@@ -880,7 +880,7 @@ export default function DealDetail({
                   </p>
                 </>
               )}
-              <button type="button" className="comps-status-btn comps-status-btn--danger" onClick={() => setShowTerminateConfirm(true)}>
+              <button title="The deal fell through — keeps a record, removes it from active pages" type="button" className="comps-status-btn comps-status-btn--danger" onClick={() => setShowTerminateConfirm(true)}>
                 Terminate Deal
               </button>
             </>
@@ -890,7 +890,7 @@ export default function DealDetail({
 
       {isBroker && (
         <div className="detail-section danger-zone">
-          <button type="button" className="comps-status-btn delete-deal-btn" onClick={() => setShowDeleteConfirm(true)}>
+          <button title="Broker only — permanently delete this deal (for test entries and mistakes)" type="button" className="comps-status-btn delete-deal-btn" onClick={() => setShowDeleteConfirm(true)}>
             Delete Deal
           </button>
           <p className="field-help">
@@ -966,7 +966,7 @@ function CompDetailsGrid({ transaction, handleFieldSave }) {
   return (
     <div className="detail-grid">
       <div className="detail-grid-full">
-        <button type="button" className="comps-minimize-btn" onClick={() => setEditing(true)}>
+        <button title="Edit all of these fields at once" type="button" className="comps-minimize-btn" onClick={() => setEditing(true)}>
           <Pencil size={12} /> Edit All
         </button>
       </div>
@@ -1257,10 +1257,10 @@ function CompDetailsEditForm({ transaction, handleFieldSave, onDone }) {
       </fieldset>
 
       <div className="comp-edit-all-actions">
-        <button type="button" onClick={onDone} disabled={saving}>
+        <button title="Discard changes" type="button" onClick={onDone} disabled={saving}>
           Cancel
         </button>
-        <button type="button" className="google-btn" onClick={handleSave} disabled={saving}>
+        <button title="Save changes" type="button" className="google-btn" onClick={handleSave} disabled={saving}>
           {saving ? "Saving…" : "Save"}
         </button>
       </div>
@@ -1290,7 +1290,7 @@ function UtilityProvidersEditor({ utilities: rawUtilities, onSave }) {
             </div>
           ))}
         </div>
-        <button type="button" className="comps-status-btn utility-edit-all-btn" onClick={() => setEditing(true)}>
+        <button title="Edit all of these fields at once" type="button" className="comps-status-btn utility-edit-all-btn" onClick={() => setEditing(true)}>
           <Pencil size={12} /> Edit All
         </button>
       </>
@@ -1352,11 +1352,11 @@ function UtilityProvidersEditor({ utilities: rawUtilities, onSave }) {
         )
       )}
       <div className="utility-edit-actions">
-        <button type="submit" className="google-btn" disabled={saving}>
+        <button title="Save the utility providers" type="submit" className="google-btn" disabled={saving}>
           {saving ? "Saving…" : "Save Utilities"}
         </button>
         {hasAny && (
-          <button
+          <button title="Discard changes"
             type="button"
             className="comps-status-btn"
             disabled={saving}
@@ -1393,7 +1393,7 @@ function EditableText({ label, value, placeholder, type = "text", attorneyList, 
         <div className="detail-label">{label}</div>
         <div className="editable-missing">
           {placeholder}
-          <button type="button" className="edit-icon-btn" onClick={startEditing}>
+          <button title="Edit" type="button" className="edit-icon-btn" onClick={startEditing}>
             <Pencil size={12} />
           </button>
         </div>
@@ -1485,20 +1485,20 @@ function EditableEmailList({ label, values, onSave }) {
           <div key={i} className="email-list-input-row">
             <input type="email" autoFocus={i === 0} value={v} onChange={(e) => updateDraft(i, e.target.value)} />
             {drafts.length > 1 && (
-              <button type="button" className="email-list-remove-btn" onClick={() => removeDraft(i)} aria-label="Remove email">
+              <button title="Remove this email" type="button" className="email-list-remove-btn" onClick={() => removeDraft(i)} aria-label="Remove email">
                 ×
               </button>
             )}
           </div>
         ))}
-        <button type="button" className="email-list-add-btn" onClick={addDraft}>
+        <button title="Add another email address" type="button" className="email-list-add-btn" onClick={addDraft}>
           + Add another email
         </button>
         <div className="comp-edit-all-actions">
-          <button type="button" onClick={() => setEditing(false)}>
+          <button title="Discard changes" type="button" onClick={() => setEditing(false)}>
             Cancel
           </button>
-          <button type="button" className="google-btn" onClick={save}>
+          <button title="Save" type="button" className="google-btn" onClick={save}>
             Save
           </button>
         </div>
@@ -1521,7 +1521,7 @@ function EditableEmailList({ label, values, onSave }) {
       ) : (
         <div className="editable-missing">—</div>
       )}
-      <button type="button" className="edit-icon-btn" onClick={startEditing}>
+      <button title="Edit" type="button" className="edit-icon-btn" onClick={startEditing}>
         <Pencil size={12} />
       </button>
     </div>
@@ -1537,7 +1537,7 @@ function EditableSelect({ label, value, options, onSave }) {
         <div className="detail-label">{label}</div>
         <div className="editable-missing">
           —
-          <button type="button" className="edit-icon-btn" onClick={() => setEditing(true)}>
+          <button title="Edit" type="button" className="edit-icon-btn" onClick={() => setEditing(true)}>
             <Pencil size={12} />
           </button>
         </div>

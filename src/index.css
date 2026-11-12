@@ -1242,7 +1242,16 @@ button { cursor: pointer; }
    into columns instead of just stretching a single centered column. ===== */
 @media (min-width: 700px) {
   .app { max-width: 900px; }
-  .tx-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); align-items: start; gap: 12px; }
+  /* Cards in a row stretch to the same height (to-dos capped at 3 per card,
+     see CARD_TODO_LIMIT) with the add-a-to-do box and Email Client pinned
+     to the bottom edge, so a row reads as one even band instead of a short
+     card next to a tall one. */
+  .tx-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); align-items: stretch; gap: 14px; }
+  .tx-list > .tx-card { display: flex; flex-direction: column; }
+  .tx-list > .tx-card > .tx-card-todos { flex: 1; display: flex; flex-direction: column; }
+  .tx-list > .tx-card > .tx-card-todos > .todo-list { flex: 1; }
+  .tx-list > .tx-card > .tx-card-todos .todo-add { margin-top: auto; padding-top: 6px; }
+  .tx-list > .tx-card > .tx-email-client-btn { align-self: flex-start; }
   .detail-grid { grid-template-columns: repeat(3, 1fr); }
   .sign-inventory-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
   .social-calendar { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); align-items: start; }
@@ -1403,3 +1412,34 @@ button { cursor: pointer; }
 .standing-reminders { margin-bottom: 14px; }
 .standing-reminder { cursor: default; background: #EEF3FA; border-color: var(--color-border-blue); color: var(--color-navy); }
 .delete-deal-btn { color: #B42318; border-color: #F4C7C3; }
+
+/* ===== Deal card to-do overflow + empty state ===== */
+.todo-more-btn { align-self: flex-start; border: none; background: none; padding: 2px 0; color: var(--color-navy); font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; }
+.todo-more-btn:hover { color: var(--color-pink); }
+.todo-empty-hint { font-size: 12px; color: var(--color-text-faint); padding: 2px 0; }
+
+/* ===== All Deals screen (was the "All" tab) ===== */
+.all-deals-screen { border-radius: 16px; padding: 12px 10px 120px; }
+.all-deals-cta { background: var(--color-tan); }
+
+/* ===== App-wide tooltip (components/Tooltips.jsx) ===== */
+.app-tooltip {
+  position: fixed;
+  z-index: 10000;
+  max-width: 260px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--color-navy);
+  color: var(--color-white);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  box-shadow: 0 4px 14px rgba(var(--black-rgb), 0.18);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.app-tooltip--below { transform: translateY(-3px); }
+.app-tooltip--shown { opacity: 1; transform: none; }

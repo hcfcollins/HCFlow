@@ -46,10 +46,10 @@ export default function ConfirmDialog({
           </label>
         )}
         <div className="confirm-dialog-actions">
-          <button type="button" onClick={handleCancel}>
+          <button title="Go back without doing anything" type="button" onClick={handleCancel}>
             {cancelLabel}
           </button>
-          <button
+          <button title={confirmLabel}
             type="button"
             className={danger ? "comps-status-btn comps-status-btn--danger confirm-dialog-confirm" : "google-btn confirm-dialog-confirm"}
             onClick={handleConfirm}

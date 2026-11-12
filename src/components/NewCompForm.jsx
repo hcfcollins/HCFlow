@@ -138,7 +138,7 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
           <div className="brand-eyebrow">New Deal</div>
           <h1>New Comp</h1>
         </div>
-        <button
+        <button title="Close without saving"
           type="button"
           onClick={() => {
             clearDraft();
@@ -366,10 +366,10 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
       </label>
 
       <div className="comp-edit-all-actions">
-        <button type="submit" className="google-btn uc-submit" disabled={saving}>
+        <button title="Save it to Comps — you can build the CMA later" type="submit" className="google-btn uc-submit" disabled={saving}>
           {saving ? "Saving…" : "Add to Comps"}
         </button>
-        <button type="button" className="uc-submit" disabled={saving} onClick={(e) => handleSubmit(e, true)}>
+        <button title="Save it and go straight to building the CMA PDF" type="button" className="uc-submit" disabled={saving} onClick={(e) => handleSubmit(e, true)}>
           {saving ? "Saving…" : "Add & Build CMA PDF"}
         </button>
       </div>

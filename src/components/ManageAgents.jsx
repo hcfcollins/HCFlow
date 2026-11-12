@@ -244,7 +244,7 @@ function AddAgentForm({ onAdded }) {
           Personalized Cover Sheet PDF <span className="field-help">(optional — falls back to the generic cover)</span>
           <input type="file" accept="application/pdf" onChange={(e) => setCoverFile(e.target.files?.[0] || null)} />
         </label>
-        <button type="submit" className="google-btn uc-submit" disabled={saving}>
+        <button title="Add this agent to the roster" type="submit" className="google-btn uc-submit" disabled={saving}>
           {saving ? "Adding…" : "Add Agent"}
         </button>
       </fieldset>
@@ -272,10 +272,10 @@ function OnboardingPackage({ text, onDone }) {
       <p className="field-help">Copy this and send it to them however you'd like (email, text, etc.).</p>
       <textarea className="onboarding-package-text" readOnly rows={14} value={text} onClick={(e) => e.target.select()} />
       <div className="comp-edit-all-actions">
-        <button type="button" onClick={onDone}>
+        <button title="Close" type="button" onClick={onDone}>
           Done
         </button>
-        <button type="button" className="google-btn" onClick={handleCopy}>
+        <button title="Copy to clipboard" type="button" className="google-btn" onClick={handleCopy}>
           {copied ? (
             <>
               <Check size={14} /> Copied!
@@ -381,7 +381,7 @@ function OnboardingTodos({ agents, onChanged }) {
         })}
       </div>
       {complete.length > 0 && (
-        <button type="button" className="comps-minimize-btn" onClick={() => setShowDone((v) => !v)}>
+        <button title="Show or hide agents who finished onboarding" type="button" className="comps-minimize-btn" onClick={() => setShowDone((v) => !v)}>
           {showDone ? "Hide" : "Show"} fully onboarded ({complete.length})
         </button>
       )}
@@ -466,7 +466,7 @@ function AgentRow({ agent, onChanged }) {
             {agent.role} {agent.is_active ? "" : "· inactive"}
           </div>
         </div>
-        <button type="button" className="agent-deactivate-btn" onClick={handleToggleActive} disabled={saving}>
+        <button title={agent.is_active ? "Turn off this agent's access (keeps their deals)" : "Turn this agent's access back on"} type="button" className="agent-deactivate-btn" onClick={handleToggleActive} disabled={saving}>
           {agent.is_active ? "Deactivate" : "Reactivate"}
         </button>
       </div>
@@ -498,13 +498,13 @@ function AgentRow({ agent, onChanged }) {
           )}
 
           {isDirty && (
-            <button type="button" className="google-btn uc-submit" onClick={handleSave} disabled={saving}>
+            <button title="Save changes" type="button" className="google-btn uc-submit" onClick={handleSave} disabled={saving}>
               {saving ? "Saving…" : "Save"}
             </button>
           )}
 
           {agent.role !== "coordinator" && !isTrackingOnboarding(agent) && (
-            <button
+            <button title="Track this agent's new-agent onboarding to-dos"
               type="button"
               className="comps-status-btn"
               disabled={saving}

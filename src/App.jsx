@@ -36,7 +36,7 @@ import { Bell, Mail } from "lucide-react";
 import versionInfo from "./version.json";
 import { useToast } from "./lib/ToastContext";
 import NotificationBell from "./components/NotificationBell";
-import DealPages from "./components/DealPages";
+import DealPages, { AllPage } from "./components/DealPages";
 import LoginScreen from "./components/LoginScreen";
 import UnderContractForm from "./components/UnderContractForm";
 import NewCompForm from "./components/NewCompForm";
@@ -48,7 +48,7 @@ import SpreadsheetView from "./components/SpreadsheetView";
 import TutorialGuide from "./components/TutorialGuide";
 import AgentSpreadsheetView from "./components/AgentSpreadsheetView";
 import { SkeletonList } from "./components/Skeleton";
-import { LogOut, HelpCircle } from "lucide-react";
+import { LogOut, HelpCircle, ArrowLeft } from "lucide-react";
 
 const STAGES = [
   { key: "comps", label: "Comp" },
@@ -105,6 +105,7 @@ export default function App() {
   const [showSpreadsheetView, setShowSpreadsheetView] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showMySpreadsheet, setShowMySpreadsheet] = useState(false);
+  const [showAllDeals, setShowAllDeals] = useState(false);
   // Broker-only previews: null (normal), "agent", or "coordinator" (TC View).
   const [viewAs, setViewAs] = useState(null);
   const viewAsAgent = viewAs === "agent";
@@ -376,7 +377,7 @@ export default function App() {
             <div className="remind-menu" role="menu">
               <div className="remind-menu-title">Remind…</div>
               {people.map((p) => (
-                <button key={p.id} type="button" role="menuitem" onClick={() => handleNotifyTodoOwner(todo, p.id)}>
+                <button title="Send this person a reminder email + in-app notification" key={p.id} type="button" role="menuitem" onClick={() => handleNotifyTodoOwner(todo, p.id)}>
                   {p.name}
                   {p.id === tx.agent_id ? <span className="remind-menu-hint"> · deal agent</span> : null}
                 </button>
@@ -497,7 +498,7 @@ export default function App() {
           Signed in as <strong>{session.user.email}</strong>, but this account isn't set up as an
           agent yet. Ask Fran or Holly to add you in Manage Agents with this exact email.
         </p>
-        <button onClick={signOut}>
+        <button title="Sign out" onClick={signOut}>
           <LogOut size={16} /> Sign out
         </button>
       </div>
@@ -676,6 +677,41 @@ export default function App() {
       )
     : [];
 
+  // Rendered after the selectedTransaction check on purpose: opening a deal
+  // from here and hitting Back lands you back on All Deals, not the tabs.
+  if (showAllDeals) {
+    return (
+      <TodoActionsContext.Provider value={renderTodoActions}>
+        <div className="app">
+          <header className="app-header">
+            <div>
+              <div className="brand-eyebrow">Pipeline &amp; Archive</div>
+              <h1>All Deals</h1>
+            </div>
+            <button type="button" className="header-icon-btn" onClick={() => setShowAllDeals(false)} aria-label="Back" title="Back">
+              <ArrowLeft size={20} />
+            </button>
+          </header>
+          <div className="deal-page--all all-deals-screen">
+            <AllPage
+              transactions={visibleTxs}
+              stages={viewerStages}
+              currentAgent={effectiveAgent}
+              onStageChange={handleStageChangeRequest}
+              onNotesChange={handleNotesChange}
+              onCompsStatusChange={handleCompsStatusChange}
+              onAddTodo={handleAddTodo}
+              onToggleTodo={handleToggleTodo}
+              onEditTodo={handleEditTodo}
+              onDeleteTodo={handleDeleteTodo}
+              onOpenDetail={setSelectedTransaction}
+            />
+          </div>
+        </div>
+      </TodoActionsContext.Provider>
+    );
+  }
+
   return (
     <TodoActionsContext.Provider value={renderTodoActions}>
     <div className="app">
@@ -783,13 +819,21 @@ export default function App() {
         />
       )}
 
-      {!isCoordinator && (
-        <div className="cta-button-row">
-          <button type="button" className="my-earnings-cta" onClick={() => setShowMySpreadsheet(true)}>
+      <div className="cta-button-row">
+        <button
+          type="button"
+          className="my-earnings-cta all-deals-cta"
+          title="Every deal in one place — including Closed, Terminated, and prior years"
+          onClick={() => setShowAllDeals(true)}
+        >
+          All Deals
+        </button>
+        {!isCoordinator && (
+          <button title="Your own deals and commission totals in one table" type="button" className="my-earnings-cta" onClick={() => setShowMySpreadsheet(true)}>
             My Spreadsheet
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
     </TodoActionsContext.Provider>
   );

@@ -19,12 +19,14 @@ function useAutoCollapse(length) {
   return [collapsed, setCollapsed];
 }
 
+// "All" used to be a tab here too — it's now its own screen (the All Deals
+// button at the bottom, next to My Spreadsheet), since it's an archive you
+// visit occasionally rather than a working page.
 export const PAGES = [
-  { key: "comps", label: "Comps / Limbo", match: (tx) => tx.stage === "comps" },
-  { key: "active", label: "Active Listings", match: (tx) => tx.stage === "won" || tx.stage === "market" },
-  { key: "contract", label: "Under Contract", match: (tx) => tx.stage === "contract" },
-  { key: "all", label: "All", match: () => true },
-  { key: "todos", label: "To-Dos", match: () => true },
+  { key: "comps", label: "Comps / Limbo", title: "Comps to send and sellers waiting to list", match: (tx) => tx.stage === "comps" },
+  { key: "active", label: "Active Listings", title: "Private and on-market listings", match: (tx) => tx.stage === "won" || tx.stage === "market" },
+  { key: "contract", label: "Under Contract", title: "Deals under contract, by closing date", match: (tx) => tx.stage === "contract" },
+  { key: "todos", label: "To-Dos", title: "Every open to-do across every deal", match: () => true },
 ];
 
 const SWIPE_THRESHOLD = 60;
@@ -114,7 +116,7 @@ export default function DealPages({
               ? activeTransactions.reduce((sum, tx) => sum + (tx.todos?.filter((t) => !t.done).length || 0), 0)
               : activeTransactions.filter(p.match).length;
           return (
-            <button
+            <button title={p.title}
               key={p.key}
               type="button"
               className={`deal-pages-tab ${i === pageIndex ? "active" : ""}`}
@@ -127,13 +129,13 @@ export default function DealPages({
         })}
       </div>
 
-      {/* Active Listings and All only ever contain cards for deals that already
+      {/* Active Listings only ever contains cards for deals that already
           exist, each with its own stage dropdown that opens the Under Contract
           form pre-filled with that deal's details — a blank "+ Under Contract"
           button here would just invite a manually-typed, possibly mismatched or
           duplicate address. */}
-      {currentPageKey !== "active" && currentPageKey !== "all" && (onCompsPage ? onNewComp : onNewUnderContract) && (
-        <button
+      {currentPageKey !== "active" && (onCompsPage ? onNewComp : onNewUnderContract) && (
+        <button title={onCompsPage ? "Add a new property to send a comp for" : "Add a new deal that just went under contract"}
           className={`google-btn uc-launch ${onCompsPage ? "uc-launch--comps" : "uc-launch--contract"}`}
           onClick={() => (onCompsPage ? onNewComp() : onNewUnderContract())}
         >
@@ -143,7 +145,7 @@ export default function DealPages({
       {/* For bringing listings that already exist outside the app in — a short
           form, not the full New Comp → Won → On Market path. */}
       {currentPageKey === "active" && onNewActiveListing && (
-        <button className="google-btn uc-launch uc-launch--comps" onClick={onNewActiveListing}>
+        <button title="Quickly add a listing that already exists outside the app" className="google-btn uc-launch uc-launch--comps" onClick={onNewActiveListing}>
           + Active Listing
         </button>
       )}
@@ -222,24 +224,10 @@ export default function DealPages({
                       onDeleteTodo={onDeleteTodo}
                       onOpenDetail={onOpenDetail}
                     />
-                  ) : p.key === "todos" ? (
+                  ) : (
                     <AllTodosPage
                       transactions={activeTransactions}
                       currentAgent={currentAgent}
-                      onToggleTodo={onToggleTodo}
-                      onEditTodo={onEditTodo}
-                      onDeleteTodo={onDeleteTodo}
-                      onOpenDetail={onOpenDetail}
-                    />
-                  ) : (
-                    <AllPage
-                      transactions={transactions}
-                      stages={stages}
-                      currentAgent={currentAgent}
-                      onStageChange={onStageChange}
-                      onNotesChange={onNotesChange}
-                      onCompsStatusChange={onCompsStatusChange}
-                      onAddTodo={onAddTodo}
                       onToggleTodo={onToggleTodo}
                       onEditTodo={onEditTodo}
                       onDeleteTodo={onDeleteTodo}
@@ -263,7 +251,7 @@ export default function DealPages({
           onChange={(e) => onSearchChange(e.target.value)}
         />
         {isSearching && (
-          <button
+          <button title="Clear search"
             type="button"
             className="search-bar-clear"
             onClick={() => onSearchChange("")}
@@ -287,7 +275,7 @@ function CollapsibleSection({ title, count, colorClass, onTitleClick, children, 
       <div className="comps-section-header">
         <h2 className="comps-section-title">
           {onTitleClick ? (
-            <button type="button" className="comps-section-title-btn" onClick={onTitleClick}>
+            <button title="Open this deal" type="button" className="comps-section-title-btn" onClick={onTitleClick}>
               {title}
             </button>
           ) : (
@@ -295,7 +283,7 @@ function CollapsibleSection({ title, count, colorClass, onTitleClick, children, 
           )}{" "}
           <span className="comps-section-count">{count}</span>
         </h2>
-        <button type="button" className="comps-minimize-btn" onClick={() => setCollapsed((c) => !c)}>
+        <button title={collapsed ? "Show this section" : "Collapse this section"} type="button" className="comps-minimize-btn" onClick={() => setCollapsed((c) => !c)}>
           {collapsed ? "Show" : "Minimize"}
         </button>
       </div>
@@ -361,10 +349,10 @@ function AllTodosPage({ transactions, currentAgent, onToggleTodo, onEditTodo, on
         </div>
       )}
       <div className="tutorial-tabs">
-        <button type="button" className={!groupByProperty ? "tutorial-tab tutorial-tab--active" : "tutorial-tab"} onClick={() => setGroupByProperty(false)}>
+        <button title="List every to-do by due date, most urgent first" type="button" className={!groupByProperty ? "tutorial-tab tutorial-tab--active" : "tutorial-tab"} onClick={() => setGroupByProperty(false)}>
           Sort by Date
         </button>
-        <button type="button" className={groupByProperty ? "tutorial-tab tutorial-tab--active" : "tutorial-tab"} onClick={() => setGroupByProperty(true)}>
+        <button title="Group to-dos under their property" type="button" className={groupByProperty ? "tutorial-tab tutorial-tab--active" : "tutorial-tab"} onClick={() => setGroupByProperty(true)}>
           Group by Property
         </button>
       </div>
@@ -401,7 +389,9 @@ function closedYear(tx) {
   return Number.isNaN(year) ? new Date().getFullYear() : year;
 }
 
-function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange, onAddTodo, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail }) {
+/** The full pipeline + archive (closed, terminated, prior years) — rendered as
+ * its own screen from App (All Deals button), not a swipe page. */
+export function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange, onAddTodo, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail }) {
   const active = transactions.filter((tx) => !tx.terminated_at);
   const terminated = transactions.filter((tx) => tx.terminated_at);
   const currentYear = new Date().getFullYear();
@@ -551,7 +541,7 @@ function ActiveListingsPage({
     <div className="comps-page">
       <div className="listing-filter-toggles">
         {currentAgent?.role !== "coordinator" && (
-          <button
+          <button title="See which listings need a sign"
             type="button"
             className="sign-inventory-toggle"
             onClick={() => setActiveFilter((f) => (f === "signs" ? null : "signs"))}
@@ -562,7 +552,7 @@ function ActiveListingsPage({
         {/* Not ready for general use yet — limited to Fran while the feature is
             still being worked on. Remove this gate once it's ready for everyone. */}
         {currentAgent?.email === "fran.collins@hallcollins.com" && currentAgent?.role !== "coordinator" && (
-          <button
+          <button title="See where each listing is in the social media rotation"
             type="button"
             className="sign-inventory-toggle"
             onClick={() => setActiveFilter((f) => (f === "social" ? null : "social"))}
@@ -583,7 +573,7 @@ function ActiveListingsPage({
               <h2 className="comps-section-title">
                 Private Listing <span className="comps-section-count">{privateListings.length}</span>
               </h2>
-              <button type="button" className="comps-minimize-btn" onClick={() => setPrivateCollapsed((c) => !c)}>
+              <button title={privateCollapsed ? "Show this section" : "Collapse this section"} type="button" className="comps-minimize-btn" onClick={() => setPrivateCollapsed((c) => !c)}>
                 {privateCollapsed ? "Show" : "Minimize"}
               </button>
             </div>
@@ -611,7 +601,7 @@ function ActiveListingsPage({
               <h2 className="comps-section-title">
                 On Market <span className="comps-section-count">{onMarket.length}</span>
               </h2>
-              <button type="button" className="comps-minimize-btn" onClick={() => setOnMarketCollapsed((c) => !c)}>
+              <button title={onMarketCollapsed ? "Show this section" : "Collapse this section"} type="button" className="comps-minimize-btn" onClick={() => setOnMarketCollapsed((c) => !c)}>
                 {onMarketCollapsed ? "Show" : "Minimize"}
               </button>
             </div>
@@ -636,7 +626,7 @@ function ActiveListingsPage({
               <h2 className="comps-section-title">
                 Land <span className="comps-section-count">{onMarketLand.length}</span>
               </h2>
-              <button type="button" className="comps-minimize-btn" onClick={() => setLandCollapsed((c) => !c)}>
+              <button title={landCollapsed ? "Show this section" : "Collapse this section"} type="button" className="comps-minimize-btn" onClick={() => setLandCollapsed((c) => !c)}>
                 {landCollapsed ? "Show" : "Minimize"}
               </button>
             </div>
@@ -810,7 +800,7 @@ function UnderContractPage({ transactions: allTransactions, stages, currentAgent
     <div className="comps-page">
       {canFilterByAgent && agentCounts.length > 1 && (
         <div className="agent-filter-chips" role="group" aria-label="Filter by agent">
-          <button
+          <button title="Show every agent's deals"
             type="button"
             className={`agent-filter-chip${activeFilter ? "" : " agent-filter-chip--active"}`}
             onClick={() => setAgentFilter(null)}
@@ -818,7 +808,7 @@ function UnderContractPage({ transactions: allTransactions, stages, currentAgent
             All <span className="agent-filter-chip-count">{allTransactions.length}</span>
           </button>
           {agentCounts.map((a) => (
-            <button
+            <button title={`Show only ${a.name}'s deals`}
               key={a.id}
               type="button"
               className={`agent-filter-chip${activeFilter === a.id ? " agent-filter-chip--active" : ""}`}
@@ -835,7 +825,7 @@ function UnderContractPage({ transactions: allTransactions, stages, currentAgent
           <h2 className="comps-section-title">
             Sellers <span className="comps-section-count">{sellers.length}</span>
           </h2>
-          <button type="button" className="comps-minimize-btn" onClick={() => setSellersCollapsed((c) => !c)}>
+          <button title={sellersCollapsed ? "Show this section" : "Collapse this section"} type="button" className="comps-minimize-btn" onClick={() => setSellersCollapsed((c) => !c)}>
             {sellersCollapsed ? "Show" : "Minimize"}
           </button>
         </div>
@@ -860,7 +850,7 @@ function UnderContractPage({ transactions: allTransactions, stages, currentAgent
           <h2 className="comps-section-title">
             Buyers <span className="comps-section-count">{buyers.length}</span>
           </h2>
-          <button type="button" className="comps-minimize-btn" onClick={() => setBuyersCollapsed((c) => !c)}>
+          <button title={buyersCollapsed ? "Show this section" : "Collapse this section"} type="button" className="comps-minimize-btn" onClick={() => setBuyersCollapsed((c) => !c)}>
             {buyersCollapsed ? "Show" : "Minimize"}
           </button>
         </div>
@@ -910,7 +900,7 @@ function CompsPage({
           <h2 className="comps-section-title">
             Need to Send Comp <span className="comps-section-count">{needToSend.length}</span>
           </h2>
-          <button type="button" className="comps-minimize-btn" onClick={() => setNeedCollapsed((c) => !c)}>
+          <button title={needCollapsed ? "Show this section" : "Collapse this section"} type="button" className="comps-minimize-btn" onClick={() => setNeedCollapsed((c) => !c)}>
             {needCollapsed ? "Show" : "Minimize"}
           </button>
         </div>
@@ -932,7 +922,7 @@ function CompsPage({
           <h2 className="comps-section-title">
             Won Listing <span className="comps-section-count">{wonListings.length}</span>
           </h2>
-          <button type="button" className="comps-minimize-btn" onClick={() => setWonCollapsed((c) => !c)}>
+          <button title={wonCollapsed ? "Show this section" : "Collapse this section"} type="button" className="comps-minimize-btn" onClick={() => setWonCollapsed((c) => !c)}>
             {wonCollapsed ? "Show" : "Minimize"}
           </button>
         </div>
@@ -957,7 +947,7 @@ function CompsPage({
           <h2 className="comps-section-title">
             Waiting to List <span className="comps-section-count">{waitingToList.length}</span>
           </h2>
-          <button type="button" className="comps-minimize-btn" onClick={() => setWaitingCollapsed((c) => !c)}>
+          <button title={waitingCollapsed ? "Show this section" : "Collapse this section"} type="button" className="comps-minimize-btn" onClick={() => setWaitingCollapsed((c) => !c)}>
             {waitingCollapsed ? "Show" : "Minimize"}
           </button>
         </div>

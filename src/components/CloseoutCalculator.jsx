@@ -350,7 +350,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
           This deal already closed outside the app — just mark it Closed, don't notify the Deal Tracker sheet or Xero
         </label>
         {alreadyClosedExternally && (
-          <button type="button" className="google-btn closeout-external-save-btn" onClick={handleSave} disabled={saving}>
+          <button title="Mark Closed without emailing the Deal Tracker sheet or Xero" type="button" className="google-btn closeout-external-save-btn" onClick={handleSave} disabled={saving}>
             {saving ? "Saving…" : saveButtonLabel}
           </button>
         )}
@@ -501,16 +501,16 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
           would be, using the numbers currently shown above — nothing goes to the agent, Holly, or
           partners@hallcollins.com from this button, and nothing needs to be saved first.
         </p>
-        <button type="button" className="comps-minimize-btn" onClick={handleSendTestEmail} disabled={sendingTestEmail}>
+        <button title="Send the closeout email to yourself only, to check it" type="button" className="comps-minimize-btn" onClick={handleSendTestEmail} disabled={sendingTestEmail}>
           {sendingTestEmail ? "Sending…" : "Send Test Closeout Email"}
         </button>
       </fieldset>
 
       <div className="comp-edit-all-actions">
-        <button type="button" onClick={onCancel} disabled={saving}>
+        <button title="Close without saving" type="button" onClick={onCancel} disabled={saving}>
           Cancel
         </button>
-        <button type="button" className="google-btn" onClick={handleSave} disabled={saving}>
+        <button title="Save the close-out and mark this deal Closed" type="button" className="google-btn" onClick={handleSave} disabled={saving}>
           {saving ? "Saving…" : saveButtonLabel}
         </button>
       </div>

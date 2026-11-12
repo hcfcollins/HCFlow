@@ -146,7 +146,13 @@ export function MissingInfoTodo({ tx, onOpen }) {
   );
 }
 
-export default function TodoList({ todos = [], onAdd, onToggle, onEdit, onDelete, renderActions }) {
+const dueSortKey = (t) => (t.due_date ? new Date(`${t.due_date}T00:00:00`).getTime() : Infinity);
+
+/** `maxVisible` (deal cards): show only the N most urgent open to-dos —
+ * overdue/soonest-due first, undated after — with a "+N more" link
+ * (`onShowMore`, opens the deal) so one busy deal doesn't make its card
+ * three times taller than its neighbors. */
+export default function TodoList({ todos = [], onAdd, onToggle, onEdit, onDelete, renderActions, maxVisible, onShowMore, emptyHint }) {
   const [text, setText] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [showDueDate, setShowDueDate] = useState(false);
@@ -163,13 +169,25 @@ export default function TodoList({ todos = [], onAdd, onToggle, onEdit, onDelete
   // Open items first (front and center), completed ones pushed to the bottom —
   // a stable sort, so within each group they keep whatever order they already
   // had (creation order).
-  const sortedTodos = [...todos].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
+  let sortedTodos = [...todos].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
+  let hiddenCount = 0;
+  if (maxVisible && sortedTodos.length > maxVisible) {
+    sortedTodos = sortedTodos.sort((a, b) => a.done - b.done || dueSortKey(a) - dueSortKey(b));
+    hiddenCount = sortedTodos.length - maxVisible;
+    sortedTodos = sortedTodos.slice(0, maxVisible);
+  }
 
   return (
     <div className="todo-list">
       {sortedTodos.map((t) => (
         <TodoRow key={t.id} todo={t} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} renderActions={renderActions} />
       ))}
+      {todos.length === 0 && emptyHint && <div className="todo-empty-hint">{emptyHint}</div>}
+      {hiddenCount > 0 && (
+        <button type="button" className="todo-more-btn" onClick={onShowMore} title="Open the deal to see every to-do">
+          + {hiddenCount} more to-do{hiddenCount > 1 ? "s" : ""}
+        </button>
+      )}
       <form className="todo-add" onSubmit={handleAdd}>
         <MentionInput
           value={text}
@@ -185,7 +203,7 @@ export default function TodoList({ todos = [], onAdd, onToggle, onEdit, onDelete
         >
           📅
         </button>
-        <button type="submit">Add</button>
+        <button title="Add this to-do (anyone you @tag gets notified)" type="submit">Add</button>
       </form>
       {showDueDate && (
         <input

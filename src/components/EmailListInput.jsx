@@ -19,13 +19,13 @@ export default function EmailListInput({ values, onChange }) {
         <div key={i} className="email-list-input-row">
           <input type="email" value={v} onChange={(e) => update(i, e.target.value)} placeholder="email@example.com" />
           {list.length > 1 && (
-            <button type="button" className="email-list-remove-btn" onClick={() => remove(i)} aria-label="Remove email">
+            <button title="Remove this email" type="button" className="email-list-remove-btn" onClick={() => remove(i)} aria-label="Remove email">
               ×
             </button>
           )}
         </div>
       ))}
-      <button type="button" className="email-list-add-btn" onClick={add}>
+      <button title="Add another email address" type="button" className="email-list-add-btn" onClick={add}>
         + Add another email
       </button>
     </div>

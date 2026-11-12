@@ -118,7 +118,7 @@ export default function MentionInput({ value, onChange, onKeyDown, className, ..
         <ul className="mention-menu" role="listbox">
           {matches.map((a, i) => (
             <li key={a.id}>
-              <button
+              <button title={`Tag ${a.name}`}
                 type="button"
                 className={`mention-option${i === highlight ? " mention-option--active" : ""}`}
                 // mousedown, not click — a click would blur the input first,

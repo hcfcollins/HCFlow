@@ -61,7 +61,7 @@ function PhotoThumbGrid({ transactionId, photos, onPick }) {
     <div className="social-photo-grid">
       {photos.map((p) =>
         thumbs[p.path] ? (
-          <button
+          <button title={`Use ${p.name}`}
             key={p.path}
             type="button"
             className="social-photo-thumb social-photo-thumb--btn"
@@ -177,7 +177,7 @@ export function BoostPostPanel({ transaction, onClose }) {
             <p className="confirm-dialog-message">Pick a different photo for this slot.</p>
             <PhotoThumbGrid transactionId={transaction.id} photos={swapCandidates} onPick={handleSwapPick} />
             <div className="confirm-dialog-actions">
-              <button type="button" onClick={() => setSwapIndex(null)}>
+              <button title="Close without making a post" type="button" onClick={() => setSwapIndex(null)}>
                 Cancel
               </button>
             </div>
@@ -223,7 +223,7 @@ export function BoostPostPanel({ transaction, onClose }) {
             </label>
             {captionNote && <p className="field-help">{captionNote}</p>}
             <div className="comp-edit-all-actions">
-              <button type="button" className="comps-minimize-btn" onClick={handleCopyCaption} disabled={!caption}>
+              <button title="Copy the caption to your clipboard" type="button" className="comps-minimize-btn" onClick={handleCopyCaption} disabled={!caption}>
                 Copy Caption
               </button>
             </div>
@@ -231,7 +231,7 @@ export function BoostPostPanel({ transaction, onClose }) {
         )}
 
         <div className="confirm-dialog-actions">
-          <button type="button" onClick={onClose}>
+          <button title="Close" type="button" onClick={onClose}>
             Close
           </button>
         </div>
@@ -320,10 +320,10 @@ export function ListingGraphicPanel({ transaction, postType, onClose }) {
             <p className="confirm-dialog-message">Use this photo?</p>
             <img src={candidate.url} alt={candidate.name} className="social-photo-preview-large" />
             <div className="confirm-dialog-actions">
-              <button type="button" onClick={() => setStep("picking")}>
+              <button title="Pick a different photo" type="button" onClick={() => setStep("picking")}>
                 Back
               </button>
-              <button type="button" className="google-btn confirm-dialog-confirm" onClick={handleConfirm}>
+              <button title="Make the graphic with this photo" type="button" className="google-btn confirm-dialog-confirm" onClick={handleConfirm}>
                 Use This Photo
               </button>
             </div>
@@ -348,7 +348,7 @@ export function ListingGraphicPanel({ transaction, postType, onClose }) {
         )}
 
         <div className="confirm-dialog-actions">
-          <button type="button" onClick={onClose}>
+          <button title="Close" type="button" onClick={onClose}>
             Close
           </button>
         </div>
@@ -396,10 +396,10 @@ export function OpenHousePanel({ transaction, onClose }) {
               )}
             </fieldset>
             <div className="confirm-dialog-actions">
-              <button type="button" onClick={onClose}>
+              <button title="Close without making a post" type="button" onClick={onClose}>
                 Cancel
               </button>
-              <button
+              <button title="Continue to the next step"
                 type="button"
                 className="google-btn confirm-dialog-confirm"
                 disabled={!date || !timeLabel}
@@ -420,7 +420,7 @@ export function OpenHousePanel({ transaction, onClose }) {
               Under Contract, and Closed already do.
             </p>
             <div className="confirm-dialog-actions">
-              <button type="button" onClick={onClose}>
+              <button title="Close" type="button" onClick={onClose}>
                 Close
               </button>
             </div>

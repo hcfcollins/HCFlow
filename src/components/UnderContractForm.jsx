@@ -205,7 +205,7 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
           <div className="brand-eyebrow">{initialData ? "Moving to Under Contract" : "New Deal"}</div>
           <h1>Under Contract</h1>
         </div>
-        <button
+        <button title="Close without saving"
           type="button"
           onClick={() => {
             clearDraft();
@@ -481,7 +481,7 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
         </select>
       </label>
 
-      <button type="submit" className="google-btn uc-submit" disabled={saving}>
+      <button title="Save this deal as Under Contract" type="submit" className="google-btn uc-submit" disabled={saving}>
         {saving ? "Saving…" : "Submit"}
       </button>
     </form>

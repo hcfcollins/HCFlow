@@ -343,7 +343,7 @@ function EditableCell({ value, displayValue, type, options, format, readOnly, on
 
   if (!editing) {
     return (
-      <button type="button" className="sv-cell-btn" onClick={() => setEditing(true)}>
+      <button title="Click to edit" type="button" className="sv-cell-btn" onClick={() => setEditing(true)}>
         {display === "—" ? <span className="sv-cell-missing">— add —</span> : display}
       </button>
     );
@@ -955,7 +955,7 @@ export default function SpreadsheetView({ transactions: rawTransactions, onBack,
                       </button>
                     )}
                   </div>
-                  <button type="button" className="comps-minimize-btn" onClick={() => onOpenDetail(tx)}>
+                  <button title="Open this deal" type="button" className="comps-minimize-btn" onClick={() => onOpenDetail(tx)}>
                     Open →
                   </button>
                 </td>
@@ -973,7 +973,7 @@ export default function SpreadsheetView({ transactions: rawTransactions, onBack,
       <div className="sv-summary">
         <h2 className="comps-section-title">Commission Summary</h2>
         <div className="sv-filters">
-          <button
+          <button title="Show every deal"
             type="button"
             className={`comps-minimize-btn${!pendingOnly && summaryMonth === "" ? " sv-preset-active" : ""}`}
             onClick={() => {
@@ -983,7 +983,7 @@ export default function SpreadsheetView({ transactions: rawTransactions, onBack,
           >
             All Time
           </button>
-          <button
+          <button title="Show deals closing this month"
             type="button"
             className={`comps-minimize-btn${!pendingOnly && summaryMonth === monthStrOffset(0) ? " sv-preset-active" : ""}`}
             onClick={() => {
@@ -993,7 +993,7 @@ export default function SpreadsheetView({ transactions: rawTransactions, onBack,
           >
             This Month
           </button>
-          <button
+          <button title="Show deals closing next month"
             type="button"
             className={`comps-minimize-btn${!pendingOnly && summaryMonth === monthStrOffset(1) ? " sv-preset-active" : ""}`}
             onClick={() => {
@@ -1003,7 +1003,7 @@ export default function SpreadsheetView({ transactions: rawTransactions, onBack,
           >
             Next Month
           </button>
-          <button
+          <button title="Show every deal still under contract"
             type="button"
             className={`comps-minimize-btn${pendingOnly ? " sv-preset-active" : ""}`}
             onClick={() => {

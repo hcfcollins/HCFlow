@@ -110,7 +110,7 @@ function AgentCell({ value, type = "text", onSave }) {
 
   if (!editing) {
     return (
-      <button type="button" className="sv-cell-btn" onClick={() => setEditing(true)}>
+      <button title="Click to edit" type="button" className="sv-cell-btn" onClick={() => setEditing(true)}>
         {value ? (type === "date" ? formatDateShort(value) : value) : <span className="sv-cell-missing">— add —</span>}
       </button>
     );
@@ -296,7 +296,7 @@ export default function AgentSpreadsheetView({ transactions, currentAgent, onBac
                       <strong>{d.address}</strong>
                       <div className="tx-sub">Missing: {missingFieldsFor(d).join(", ")}</div>
                     </div>
-                    <button
+                    <button title="Open this deal"
                       type="button"
                       className="comps-minimize-btn"
                       onClick={() => {
@@ -375,7 +375,7 @@ export default function AgentSpreadsheetView({ transactions, currentAgent, onBac
                         )}
                       </td>
                       <td>
-                        <button type="button" className="comps-minimize-btn" onClick={() => tx && onOpenDetail(tx)}>
+                        <button title="Open this deal" type="button" className="comps-minimize-btn" onClick={() => tx && onOpenDetail(tx)}>
                           Open →
                         </button>
                       </td>
@@ -390,21 +390,21 @@ export default function AgentSpreadsheetView({ transactions, currentAgent, onBac
           <div className="sv-summary">
             <h2 className="comps-section-title">Commission Summary</h2>
             <div className="sv-filters">
-              <button
+              <button title="Show deals closing this year"
                 type="button"
                 className={`comps-minimize-btn${summaryMode === "year" ? " sv-preset-active" : ""}`}
                 onClick={() => setSummaryMode("year")}
               >
                 This Year
               </button>
-              <button
+              <button title="Show deals closing this month"
                 type="button"
                 className={`comps-minimize-btn${summaryMode === "thisMonth" ? " sv-preset-active" : ""}`}
                 onClick={() => setSummaryMode("thisMonth")}
               >
                 This Month
               </button>
-              <button
+              <button title="Show deals closing next month"
                 type="button"
                 className={`comps-minimize-btn${summaryMode === "nextMonth" ? " sv-preset-active" : ""}`}
                 onClick={() => setSummaryMode("nextMonth")}
