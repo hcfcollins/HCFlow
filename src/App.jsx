@@ -855,7 +855,7 @@ export default function App() {
           onReviveLead={async (tx) => {
             try {
               await handleReactivate(tx.id);
-              showToast(`${tx.address} is back in Comps`);
+              showToast(tx.stage === "comps" ? `${tx.address} is back in Comps` : `${tx.address} relisted`);
             } catch (e) {
               showToast(`Couldn't update: ${e.message}`);
             }

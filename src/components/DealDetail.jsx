@@ -11,7 +11,7 @@ import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPos
 import { useToast } from "../lib/ToastContext";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents } from "../lib/transactions";
 import { clientIsBuyer as isClientBuyer } from "../lib/missingInfo";
-import { stageSelectValue, closingStatusBadge } from "../lib/stages";
+import { stageSelectValue, closingStatusBadge, isExpiredListing, terminatedLabel, EXPIRED_REASON } from "../lib/stages";
 import { formatBac, bacWarning, emailComposeUrl, emailLinkTarget } from "../lib/clientEmail";
 import { sendShowingPacket } from "../lib/showingPacket";
 import { SHOWING_ACCESS_OPTIONS } from "../lib/showingAccess";
@@ -97,6 +97,7 @@ export default function DealDetail({
   const [showCloseoutCalculator, setShowCloseoutCalculator] = useState(Boolean(transaction._openCloseout));
   const [utilitiesCollapsed, setUtilitiesCollapsed] = useState(true);
   const [showTerminateConfirm, setShowTerminateConfirm] = useState(false);
+  const [showExpireConfirm, setShowExpireConfirm] = useState(false);
   const [showRelistConfirm, setShowRelistConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   // A commission over 4% waiting on "save anyway?" (usually a typo).
@@ -438,7 +439,7 @@ export default function DealDetail({
 
       {transaction.terminated_at && (
         <div className="error-banner">
-          <strong>Terminated</strong> {formatDate(transaction.terminated_at.slice(0, 10))}
+          <strong>{terminatedLabel(transaction)}</strong> {formatDate(transaction.terminated_at.slice(0, 10))}
           {transaction.termination_reason ? ` — ${transaction.termination_reason}` : ""}
         </div>
       )}
@@ -1107,15 +1108,19 @@ export default function DealDetail({
       {["won", "market", "contract"].includes(transaction.stage) && (
         <div className="detail-section danger-zone">
           {transaction.terminated_at ? (
-            <button title="Bring this terminated deal back to active"
+            <button title={isExpiredListing(transaction) ? "Put this listing back on the active pages (e.g. the seller re-signed)" : "Bring this terminated deal back to active"}
               type="button"
               className="comps-status-btn"
               onClick={() => {
                 onReactivate(transaction.id);
-                showToast("Deal reactivated");
+                showToast(isExpiredListing(transaction) ? "Listing relisted" : "Deal reactivated");
               }}
             >
-              Reactivate Deal
+              {isExpiredListing(transaction) ? "Relist" : "Reactivate Deal"}
+            </button>
+          ) : ["won", "market"].includes(transaction.stage) && !isBuySide && isWonWithoutAgreement ? (
+            <button title="The listing agreement ran out without a sale — moves it to Expired (you can relist it later)" type="button" className="comps-status-btn comps-status-btn--expired" onClick={() => setShowExpireConfirm(true)}>
+              ⏳ Listing Expired
             </button>
           ) : isWonWithoutAgreement ? (
             <p className="field-help">
@@ -1141,6 +1146,11 @@ export default function DealDetail({
                     is still selling, just this buyer fell through.
                   </p>
                 </>
+              )}
+              {["won", "market"].includes(transaction.stage) && !isBuySide && (
+                <button title="The listing agreement ran out without a sale — moves it to Expired (you can relist it later)" type="button" className="comps-status-btn comps-status-btn--expired" onClick={() => setShowExpireConfirm(true)}>
+                  ⏳ Listing Expired
+                </button>
               )}
               <button title="The deal fell through — keeps a record, removes it from active pages" type="button" className="comps-status-btn comps-status-btn--danger" onClick={() => setShowTerminateConfirm(true)}>
                 Terminate Deal
@@ -1192,6 +1202,21 @@ export default function DealDetail({
         danger
         onConfirm={handleRelistConfirm}
         onCancel={() => setShowRelistConfirm(false)}
+      />
+
+      <ConfirmDialog
+        open={showExpireConfirm}
+        title="Mark this listing expired?"
+        message={`${transaction.address} moves to Expired at the bottom of Active Listings (and out of the social rotation). Relist it anytime if the seller re-signs.`}
+        promptLabel="Note (optional)"
+        promptPlaceholder="e.g. Seller taking it off the market until spring"
+        confirmLabel="Listing Expired"
+        onConfirm={(note) => {
+          setShowExpireConfirm(false);
+          onTerminate(transaction.id, note?.trim() ? `${EXPIRED_REASON}: ${note.trim()}` : EXPIRED_REASON);
+          showToast("⏳ Listing marked expired");
+        }}
+        onCancel={() => setShowExpireConfirm(false)}
       />
 
       <ConfirmDialog

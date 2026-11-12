@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X, Signpost } from "lucide-react";
 import TransactionList from "./TransactionList";
 import ConfirmDialog from "./ConfirmDialog";
+import { isExpiredListing, EXPIRED_REASON } from "../lib/stages";
 import Tombstone from "./icons/Tombstone";
 import { TodoRow } from "./TodoList";
 import MentionInput from "./MentionInput";
@@ -234,6 +235,8 @@ export default function DealPages({
                   ) : p.key === "active" ? (
                     <ActiveListingsPage
                       transactions={activeTransactions.filter(p.match)}
+                      expiredListings={transactions.filter(isExpiredListing)}
+                      onRelist={onReviveLead}
                       stages={stages}
                       currentAgent={currentAgent}
                       onStageChange={onStageChange}
@@ -484,7 +487,8 @@ function closedYear(tx) {
  * its own screen from App (All Deals button), not a swipe page. */
 export function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange, onAddTodo, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail }) {
   const active = transactions.filter((tx) => !tx.terminated_at);
-  const terminated = transactions.filter((tx) => tx.terminated_at && tx.stage !== "comps");
+  const terminated = transactions.filter((tx) => tx.terminated_at && tx.stage !== "comps" && !isExpiredListing(tx));
+  const expired = transactions.filter(isExpiredListing);
   const deadLeads = transactions.filter((tx) => tx.terminated_at && tx.stage === "comps");
   const currentYear = new Date().getFullYear();
 
@@ -536,6 +540,12 @@ export function AllPage({ transactions, stages, currentAgent, onStageChange, onN
       title: "Terminated",
       colorClass: "comps-section--terminated",
       items: terminated,
+    },
+    {
+      key: "expired",
+      title: "Expired Listings",
+      colorClass: "comps-section--terminated",
+      items: expired,
     },
     {
       key: "dead",
@@ -616,6 +626,8 @@ export function AllPage({ transactions, stages, currentAgent, onStageChange, onN
 
 function ActiveListingsPage({
   transactions,
+  expiredListings = [],
+  onRelist,
   stages,
   currentAgent,
   onStageChange,
@@ -634,6 +646,8 @@ function ActiveListingsPage({
   const [onMarketCollapsed, setOnMarketCollapsed] = useAutoCollapse(onMarket.length);
   const [landCollapsed, setLandCollapsed] = useAutoCollapse(onMarketLand.length);
   const [activeFilter, setActiveFilter] = useState(null); // null | "signs" | "social"
+  const [expiredCollapsed, setExpiredCollapsed] = useState(true);
+  const sortedExpired = [...expiredListings].sort((a, b) => String(b.terminated_at).localeCompare(String(a.terminated_at)));
 
   return (
     <div className="comps-page">
@@ -745,6 +759,40 @@ function ActiveListingsPage({
             )}
           </div>
         </>
+      )}
+      {!activeFilter && sortedExpired.length > 0 && (
+        <div className="comps-section comps-section--dead">
+          <div className="comps-section-header">
+            <h2 className="comps-section-title">
+              ⏳ Expired <span className="comps-section-count">{sortedExpired.length}</span>
+            </h2>
+            <button title={expiredCollapsed ? "Show this section" : "Collapse this section"} type="button" className="comps-minimize-btn" onClick={() => setExpiredCollapsed((c) => !c)}>
+              {expiredCollapsed ? "Show" : "Minimize"}
+            </button>
+          </div>
+          {!expiredCollapsed && (
+            <ul className="dead-lead-list">
+              {sortedExpired.map((tx) => (
+                <li key={tx.id}>
+                  <button type="button" className="dead-lead-main" onClick={() => onOpenDetail(tx)} title="Open this listing">
+                    <span className="tx-address">{tx.address}</span>
+                    <span className="tx-sub">
+                      {[tx.town, tx.agent?.name, `expired ${new Date(tx.terminated_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`]
+                        .filter(Boolean)
+                        .join(" · ")}
+                      {tx.termination_reason && tx.termination_reason !== EXPIRED_REASON ? ` — ${tx.termination_reason.slice(EXPIRED_REASON.length).replace(/^:\s*/, "")}` : ""}
+                    </span>
+                  </button>
+                  {onRelist && (
+                    <button type="button" className="comps-status-btn" onClick={() => onRelist(tx)} title="Seller re-signed — put it back on the active pages">
+                      Relist
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );

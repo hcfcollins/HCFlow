@@ -1577,3 +1577,4 @@ button { cursor: pointer; }
 .tx-icon-badge--accompanied { background: rgba(126, 87, 194, 0.12); color: var(--color-accent-purple); }
 .bac-warning { font-size: 12px; font-weight: 600; color: var(--color-danger-text); }
 .detail-style-tag { margin-top: 6px; }
+.comps-status-btn--expired { color: #8A5A00; border-color: #F5C26B; background: #FEF6E4; }

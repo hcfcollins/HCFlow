@@ -17,3 +17,10 @@ export function closingStatusBadge(tx) {
   if (tx.stage === "closed") return { label: "Compliance Review", className: "tx-status-badge--review" };
   return null;
 }
+
+/** "Listing expired" is stored like a termination (terminated_at + a reason
+ * starting "Listing expired") so it drops off the working pages the same way,
+ * but it's labeled and grouped separately. */
+export const EXPIRED_REASON = "Listing expired";
+export const isExpiredListing = (tx) => Boolean(tx?.terminated_at) && String(tx.termination_reason || "").startsWith(EXPIRED_REASON);
+export const terminatedLabel = (tx) => (isExpiredListing(tx) ? "Expired" : tx?.stage === "comps" ? "Dead/Lost" : "Terminated");

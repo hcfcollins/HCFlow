@@ -5,7 +5,7 @@ import { useToast } from "../lib/ToastContext";
 import { createPortal } from "react-dom";
 import { Signpost, Lock, Mail, Instagram, Send, User, Users } from "lucide-react";
 import { SHOWING_ACCESS_TAGS } from "../lib/showingAccess";
-import { stageSelectValue, closingStatusBadge } from "../lib/stages";
+import { stageSelectValue, closingStatusBadge, terminatedLabel } from "../lib/stages";
 import { formatBac, openEmailCompose } from "../lib/clientEmail";
 import TodoList, { MissingInfoTodo } from "./TodoList";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
@@ -126,7 +126,7 @@ function TxCard({
         <div>
           <div className="tx-address">
             {tx.address}
-            {tx.terminated_at && <span className="tx-terminated-badge">Terminated</span>}
+            {tx.terminated_at && <span className="tx-terminated-badge">{terminatedLabel(tx)}</span>}
             {statusBadge && <span className={`tx-status-badge ${statusBadge.className}`}>{statusBadge.label}</span>}
             {!tx.terminated_at && dueTodoCount > 0 && (
               <span className="tx-due-badge">
