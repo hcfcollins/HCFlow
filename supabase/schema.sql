@@ -585,3 +585,9 @@ create policy brokerage_licenses_select on brokerage_licenses for select using (
 drop policy if exists brokerage_licenses_write on brokerage_licenses;
 create policy brokerage_licenses_write on brokerage_licenses for all using (is_broker()) with check (is_broker());
 notify pgrst, 'reload schema';
+
+-- Signed paperwork on each agent (Manage Agents → Signed Documents), stored
+-- in the private agent-licenses bucket in that agent's folder.
+alter table agents add column if not exists policy_manual_path text;
+alter table agents add column if not exists ica_path text;
+notify pgrst, 'reload schema';

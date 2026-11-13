@@ -33,6 +33,11 @@ export function agentMissingItems(agent) {
     else if (agent.broker_license_expires < today) out.push("Broker license EXPIRED");
     if (!has(agent.broker_license_path)) out.push("Broker license copy");
   }
+  // Signed paperwork — agents only (not the owners/brokers).
+  if (agent.role === "agent" && "policy_manual_path" in agent) {
+    if (!has(agent.policy_manual_path)) out.push("Signed policy manual");
+    if (!has(agent.ica_path)) out.push("Signed independent contractor agreement");
+  }
   if (!has(agent.cover_sheet_url)) out.push("Cover sheet");
   if (!has(agent.dropbox_listing_path)) out.push("Dropbox listing folder");
   if (!has(agent.dropbox_buyer_path)) out.push("Dropbox buyer folder");

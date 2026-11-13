@@ -1671,3 +1671,18 @@ button { cursor: pointer; }
 .dbx-picker .won-setup-overlay { position: fixed; }
 .all-deals-search { position: static; margin-bottom: 14px; }
 .search-scope-note { margin: 0 0 10px; }
+
+/* Manage Agents: roster "+" and clearer license / document status rows */
+.roster-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.roster-add-btn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border-radius: 50%; background: var(--color-navy); color: #fff; border: none; cursor: pointer; flex-shrink: 0; }
+.roster-add-btn--open { background: var(--color-white); color: var(--color-navy); border: 2px solid var(--color-navy); }
+.license-status-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 9px 10px; border-radius: 9px; margin-top: 8px; font-size: 14px; }
+.license-status-row--ok { background: rgba(63, 125, 58, 0.09); color: #2f5f2b; }
+.license-status-row--missing { background: rgba(214, 140, 0, 0.11); color: #7a4d00; }
+.license-status-row--bad { background: rgba(160, 60, 60, 0.11); color: #8a2f2f; }
+.license-status-text { flex: 1; min-width: 140px; }
+.license-status-sub { font-weight: 400; opacity: 0.85; }
+.license-status-actions { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.license-mini-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 7px; border: 1px solid currentColor; background: var(--color-white); color: var(--color-navy); font-size: 12px; font-weight: 600; cursor: pointer; margin: 0; width: auto; }
+.license-date-edit { margin-top: 8px; }
+.license-date-edit input[type="date"] { width: 100%; }

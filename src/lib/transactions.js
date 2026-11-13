@@ -1171,6 +1171,20 @@ export async function uploadAgentLicense(agentId, state, file) {
   return path;
 }
 
+/** A signed agent document (docKey "policy_manual" | "ica") → the private
+ * agent-licenses bucket, in that agent's folder; saved as {docKey}_path. */
+export async function uploadAgentDocument(agentId, docKey, file) {
+  const ext = (file.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "") || "pdf";
+  const path = `${agentId}/${docKey}-${Date.now()}.${ext}`;
+  const { error } = await supabase.storage.from("agent-licenses").upload(path, file, {
+    contentType: file.type || "application/octet-stream",
+    upsert: true,
+  });
+  if (error) throw error;
+  await updateAgentFields(agentId, { [`${docKey}_path`]: path });
+  return path;
+}
+
 /** Hall Collins Real Estate Group's own firm licenses (VT, NH). */
 export async function fetchBrokerageLicenses() {
   const { data, error } = await supabase.from("brokerage_licenses").select("*");

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FileText, Copy, Check, ArrowLeft, Mail } from "lucide-react";
+import { FileText, Copy, Check, ArrowLeft, Mail, Plus, X, CheckCircle2, AlertCircle, Upload, CalendarDays } from "lucide-react";
 import { isTrackingOnboarding, onboardingItemsFor, buildWelcomeEmail } from "../lib/onboarding";
 import { openEmailCompose } from "../lib/clientEmail";
 import RadioGroup from "./RadioGroup";
@@ -15,6 +15,7 @@ import {
   uploadAgentCoverSheet,
   uploadAgentLicense,
   agentLicenseUrl,
+  uploadAgentDocument,
   fetchBrokerageLicenses,
   saveBrokerageLicense,
   uploadBrokerageLicense,
@@ -53,6 +54,7 @@ export default function ManageAgents({ onBack, focusAgentId = null }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showAddAgent, setShowAddAgent] = useState(false);
 
   function load() {
     setLoading(true);
@@ -78,22 +80,32 @@ export default function ManageAgents({ onBack, focusAgentId = null }) {
 
       {error && <div className="error-banner">{error}</div>}
 
-      <div className="detail-section">
-        <h2 className="comps-section-title">Payroll</h2>
-        <p className="field-help">
-          Gusto's direct API is partner-only right now, so there's no automatic push — use "Copy for Gusto" on the
-          Close-Out Calculator to paste payments in manually.
-        </p>
-      </div>
-
       {!loading && <OnboardingTodos agents={agents} onChanged={load} />}
 
       <BrokerageLicenses focused={focusAgentId === "brokerage"} />
 
-      <AddAgentForm onAdded={load} />
+      {showAddAgent && (
+        <AddAgentForm
+          onAdded={() => {
+            load();
+            setShowAddAgent(false);
+          }}
+        />
+      )}
 
       <div className="detail-section">
-        <h2 className="comps-section-title">Roster</h2>
+        <div className="roster-header">
+          <h2 className="comps-section-title">Roster</h2>
+          <button
+            type="button"
+            className={`roster-add-btn ${showAddAgent ? "roster-add-btn--open" : ""}`}
+            onClick={() => setShowAddAgent((v) => !v)}
+            title={showAddAgent ? "Close the new agent form" : "Add a new agent"}
+            aria-label={showAddAgent ? "Close the new agent form" : "Add a new agent"}
+          >
+            {showAddAgent ? <X size={18} /> : <Plus size={18} />}
+          </button>
+        </div>
         {loading ? (
           <SkeletonList count={3} />
         ) : (
@@ -555,6 +567,16 @@ function AgentRow({ agent, onChanged, focused = false }) {
             </div>
           )}
 
+          {agent.role === "agent" && "policy_manual_path" in agent && (
+            <div className="license-section">
+              <div className="license-section-title">Signed Documents</div>
+              <div className="license-editor">
+                <AgentDocumentField agent={agent} docKey="policy_manual" label="Signed Policy Manual" onChanged={onChanged} />
+                <AgentDocumentField agent={agent} docKey="ica" label="Signed Independent Contractor Agreement" onChanged={onChanged} />
+              </div>
+            </div>
+          )}
+
           {isDirty && (
             <button title="Save changes" type="button" className="google-btn uc-submit" onClick={handleSave} disabled={saving}>
               {saving ? "Saving…" : "Save"}
@@ -702,6 +724,10 @@ function LicenseFields({ record, expKey, pathKey, label, saveFields, uploadFile,
     }
   }
 
+  const hasCopy = Boolean(agent[pathKey]);
+  const expires = agent[expKey] || "";
+  const [editingDate, setEditingDate] = useState(false);
+
   return (
     <div className="license-editor">
       <div className="license-editor-head">
@@ -713,35 +739,158 @@ function LicenseFields({ record, expKey, pathKey, label, saveFields, uploadFile,
         )}
       </div>
       {error && <div className="error-banner">{error}</div>}
-      <label>
-        Expiration date
-        {/* Not saved on every change — phone date wheels fire a change for
-            each spin. Pick the date, then tap Save. */}
-        <input type="date" value={draftDate} disabled={busy} onChange={(e) => setDraftDate(e.target.value)} />
-      </label>
-      {draftDate !== (agent[expKey] || "") && (
-        <div className="license-date-actions">
-          <button type="button" className="google-btn" disabled={busy} onClick={() => saveDate(draftDate)} title="Save this expiration date">
-            {busy ? "Saving…" : "Save date"}
-          </button>
-          <button type="button" disabled={busy} onClick={() => setDraftDate(agent[expKey] || "")} title="Undo the change">
-            Cancel
-          </button>
-        </div>
-      )}
-      <div className="license-editor-actions">
-        <label className="license-upload-btn" title={`Upload a copy of the ${label} license (PDF or photo)`}>
-          {busy ? "Saving…" : agent[pathKey] ? "Replace copy" : "Upload copy"}
-          <input type="file" accept="application/pdf,image/*" hidden disabled={busy} onChange={(e) => upload(e.target.files?.[0])} />
-        </label>
-        {agent[pathKey] && (
-          <button type="button" className="cma-export-btn" onClick={view} title={`View the ${label} license copy`}>
-            <FileText size={14} /> View license
-          </button>
+
+      {/* Copy on file? */}
+      <div className={`license-status-row ${hasCopy ? "license-status-row--ok" : "license-status-row--missing"}`}>
+        {hasCopy ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+        <span className="license-status-text">
+          {hasCopy ? (
+            <>
+              <strong>Copy uploaded</strong>
+              {uploadedOn(agent[pathKey]) && <span className="license-status-sub"> · {uploadedOn(agent[pathKey])}</span>}
+            </>
+          ) : (
+            <strong>No copy uploaded</strong>
+          )}
+        </span>
+        <span className="license-status-actions">
+          {hasCopy && (
+            <button type="button" className="license-mini-btn" onClick={view} title={`View the ${label} copy`}>
+              <FileText size={14} /> View
+            </button>
+          )}
+          <label className="license-mini-btn" title={`Upload a copy of the ${label} (PDF or photo)`}>
+            <Upload size={14} /> {busy ? "Saving…" : hasCopy ? "Replace" : "Upload"}
+            <input type="file" accept="application/pdf,image/*" hidden disabled={busy} onChange={(e) => upload(e.target.files?.[0])} />
+          </label>
+        </span>
+      </div>
+
+      {/* Expiration date */}
+      <div className={`license-status-row ${expires ? (left < 0 ? "license-status-row--bad" : "license-status-row--ok") : "license-status-row--missing"}`}>
+        {expires && left >= 0 ? <CalendarDays size={18} /> : <AlertCircle size={18} />}
+        <span className="license-status-text">
+          {expires ? (
+            <>
+              <strong>{left < 0 ? "Expired" : "Expires"} {longExp(expires)}</strong>
+            </>
+          ) : (
+            <strong>No expiration date</strong>
+          )}
+        </span>
+        {!editingDate && (
+          <span className="license-status-actions">
+            <button type="button" className="license-mini-btn" onClick={() => setEditingDate(true)} title="Set the expiration date">
+              {expires ? "Change" : "Add date"}
+            </button>
+          </span>
         )}
       </div>
+      {editingDate && (
+        <div className="license-date-edit">
+          {/* Not saved on every change — phone date wheels fire a change for
+              each spin. Pick the date, then tap Save. */}
+          <input type="date" value={draftDate} disabled={busy} onChange={(e) => setDraftDate(e.target.value)} />
+          <div className="license-date-actions">
+            <button
+              type="button"
+              className="google-btn"
+              disabled={busy || !draftDate || draftDate === expires}
+              onClick={async () => {
+                await saveDate(draftDate);
+                setEditingDate(false);
+              }}
+              title="Save this expiration date"
+            >
+              {busy ? "Saving…" : "Save date"}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setDraftDate(expires);
+                setEditingDate(false);
+              }}
+              title="Close without changing"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+/** A signed document on file for the agent (policy manual, contractor
+ * agreement): uploaded or not, with View / Upload. */
+function AgentDocumentField({ agent, docKey, label, onChanged }) {
+  const pathKey = `${docKey}_path`;
+  const path = agent[pathKey];
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const showToast = useToast();
+
+  async function upload(file) {
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await uploadAgentDocument(agent.id, docKey, file);
+      onChanged();
+      showToast(`${label} uploaded`);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function view() {
+    const tab = window.open("", "_blank");
+    try {
+      const url = await agentLicenseUrl(path);
+      if (tab) tab.location.href = url;
+      else window.location.href = url;
+    } catch (e) {
+      if (tab) tab.close();
+      setError(e.message);
+    }
+  }
+
+  return (
+    <>
+      {error && <div className="error-banner">{error}</div>}
+      <div className={`license-status-row ${path ? "license-status-row--ok" : "license-status-row--missing"}`}>
+        {path ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+        <span className="license-status-text">
+          <strong>{label}</strong>
+          <span className="license-status-sub"> · {path ? `uploaded${uploadedOn(path) ? ` ${uploadedOn(path)}` : ""}` : "not uploaded"}</span>
+        </span>
+        <span className="license-status-actions">
+          {path && (
+            <button type="button" className="license-mini-btn" onClick={view} title={`View the ${label}`}>
+              <FileText size={14} /> View
+            </button>
+          )}
+          <label className="license-mini-btn" title={`Upload the ${label} (PDF or photo)`}>
+            <Upload size={14} /> {busy ? "Saving…" : path ? "Replace" : "Upload"}
+            <input type="file" accept="application/pdf,image/*" hidden disabled={busy} onChange={(e) => upload(e.target.files?.[0])} />
+          </label>
+        </span>
+      </div>
+    </>
+  );
+}
+
+/** Upload date from the file name ("…-1763049600000.pdf") → "Nov 13, 2026". */
+function uploadedOn(path) {
+  const m = /-(\d{13})\.[a-z0-9]+$/i.exec(path || "");
+  return m ? new Date(Number(m[1])).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+}
+/** "2027-03-31" → "March 31, 2027" */
+function longExp(ymd) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
 /** The firm's own licenses (Hall Collins Real Estate Group, VT + NH) —
