@@ -34,7 +34,10 @@ export function useAuth() {
     const { data, error } = await supabase
       .from("agents")
       .select("*")
-      .eq("email", email)
+      // Case-insensitive: Google signs people in with a lowercase email, but
+      // a roster entry may have been typed "Rachel.noyes@…". "_" is escaped
+      // so it can't act as a wildcard.
+      .ilike("email", String(email || "").replace(/[\\%_]/g, (c) => `\\${c}`))
       .single();
 
     if (error) {

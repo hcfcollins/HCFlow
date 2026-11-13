@@ -1111,7 +1111,7 @@ export async function addAgent({
 }) {
   const row = {
     name,
-    email,
+    email: email ? email.trim().toLowerCase() : email,
     role,
     dropbox_listing_path: dropboxListingPath,
     dropbox_buyer_path: dropboxBuyerPath,
@@ -1132,6 +1132,7 @@ export async function addAgent({
 
 /** Generic patch for editing an agent's own fields, and for reactivating (is_active: true). */
 export async function updateAgentFields(id, patch) {
+  if (typeof patch.email === "string") patch = { ...patch, email: patch.email.trim().toLowerCase() };
   const { error } = await supabase.from("agents").update(patch).eq("id", id);
   if (error) throw error;
 }

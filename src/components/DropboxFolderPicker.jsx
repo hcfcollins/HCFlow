@@ -96,6 +96,15 @@ export default function DropboxFolderPicker({ agentId, side, address, onPick, on
 
   return (
     <div className="dbx-picker" onClick={(e) => e.stopPropagation()}>
+      {busy && (
+        <div className="won-setup-overlay" role="status" aria-live="polite">
+          <div className="won-setup-card">
+            <div className="won-setup-spinner" aria-hidden="true" />
+            <div className="won-setup-title">Pairing the Dropbox folder…</div>
+            <div className="won-setup-sub">Linking it to this deal and making its share link. This can take a few seconds.</div>
+          </div>
+        </div>
+      )}
       <div className="dbx-picker-head">
         <strong>Pair an existing Dropbox folder</strong>
         {state.root && <span className="field-help">from {state.root}</span>}

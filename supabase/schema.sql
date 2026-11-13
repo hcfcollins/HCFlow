@@ -541,3 +541,24 @@ notify pgrst, 'reload schema';
 -- for an NH license (Manage Agents, broker To-Dos, renewal reminders).
 alter table agents add column if not exists nh_not_licensed boolean not null default false;
 notify pgrst, 'reload schema';
+
+-- ============================================================
+-- Email matching ignores capitalization. Google signs people in with a
+-- lowercase email; a roster entry typed "Rachel.noyes@…" never matched, so
+-- that agent couldn't sign in. Store emails lowercase and compare lowercase.
+-- ============================================================
+update agents set email = lower(trim(email)) where email is not null and email <> lower(trim(email));
+
+create or replace function public.is_broker() returns boolean
+language sql stable security definer as $$
+  select exists (select 1 from agents where lower(email) = lower(auth.jwt() ->> 'email') and role = 'broker');
+$$;
+create or replace function public.current_agent_id() returns uuid
+language sql stable security definer as $$
+  select id from agents where lower(email) = lower(auth.jwt() ->> 'email');
+$$;
+create or replace function public.is_staff() returns boolean
+language sql stable security definer as $$
+  select exists (select 1 from agents where lower(email) = lower(auth.jwt() ->> 'email') and role in ('broker', 'coordinator'));
+$$;
+notify pgrst, 'reload schema';

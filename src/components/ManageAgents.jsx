@@ -623,6 +623,8 @@ function LicenseEditor({ agent, state, label, onChanged }) {
   const pathKey = `${state}_license_path`;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [draftDate, setDraftDate] = useState(agent[expKey] || "");
+  useEffect(() => setDraftDate(agent[expKey] || ""), [agent[expKey]]); // eslint-disable-line react-hooks/exhaustive-deps
   const showToast = useToast();
   const left = daysUntil(agent[expKey]);
 
@@ -681,8 +683,20 @@ function LicenseEditor({ agent, state, label, onChanged }) {
       {error && <div className="error-banner">{error}</div>}
       <label>
         Expiration date
-        <input type="date" defaultValue={agent[expKey] || ""} disabled={busy} onChange={(e) => saveDate(e.target.value)} />
+        {/* Not saved on every change — phone date wheels fire a change for
+            each spin. Pick the date, then tap Save. */}
+        <input type="date" value={draftDate} disabled={busy} onChange={(e) => setDraftDate(e.target.value)} />
       </label>
+      {draftDate !== (agent[expKey] || "") && (
+        <div className="license-date-actions">
+          <button type="button" className="google-btn" disabled={busy} onClick={() => saveDate(draftDate)} title="Save this expiration date">
+            {busy ? "Saving…" : "Save date"}
+          </button>
+          <button type="button" disabled={busy} onClick={() => setDraftDate(agent[expKey] || "")} title="Undo the change">
+            Cancel
+          </button>
+        </div>
+      )}
       <div className="license-editor-actions">
         <label className="license-upload-btn" title={`Upload a copy of the ${label} license (PDF or photo)`}>
           {busy ? "Saving…" : agent[pathKey] ? "Replace copy" : "Upload copy"}

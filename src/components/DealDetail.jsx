@@ -10,7 +10,7 @@ import DropboxFolderPicker from "./DropboxFolderPicker";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents, fetchOtherSideAgentName } from "../lib/transactions";
-import { clientIsBuyer as isClientBuyer, missingInfoItems, sideLabel } from "../lib/missingInfo";
+import { clientIsBuyer as isClientBuyer, missingInfoItems, sideLabel, closedOptionalItems } from "../lib/missingInfo";
 import { stageSelectValue, closingStatusBadge, isExpiredListing, terminatedLabel, EXPIRED_REASON } from "../lib/stages";
 import { formatBac, bacWarning, emailComposeUrl, emailLinkTarget } from "../lib/clientEmail";
 import { sendShowingPacket } from "../lib/showingPacket";
@@ -451,6 +451,19 @@ export default function DealDetail({
             <MissingInfoTodo tx={transaction} onPick={focusField} review />
           ) : (
             <div className="review-complete">✓ Everything's filled in on this one.</div>
+          )}
+          {closedOptionalItems(transaction).length > 0 && (
+            <div className="review-optional">
+              Optional, if you have time:{" "}
+              {closedOptionalItems(transaction).map((m, i) => (
+                <span key={m.field}>
+                  {i > 0 && " · "}
+                  <button type="button" className="missing-info-link" onClick={() => focusField(m.field)} title={`Go to ${m.label}`}>
+                    {m.label}
+                  </button>
+                </span>
+              ))}
+            </div>
           )}
         </div>
       )}

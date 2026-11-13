@@ -59,10 +59,22 @@ const REVIEW_EXTRA = [
   { field: "property_style", label: "Property Style", get: (tx) => tx.property_style },
   { field: "dropbox", label: "Dropbox Folder", get: (tx) => tx.dropbox_folder_url },
 ];
+// Closed deals: client emails and attorneys are nice to have, not required —
+// listed separately as optional (closedOptionalItems) for when there's time.
+const CLOSED_OPTIONAL_FIELDS = ["seller_emails", "seller_attorney", "buyer_attorney"];
 const CLOSED_REVIEW_CHECKS = [
-  ...CONTRACT_CHECKS.filter((c) => c.field !== "inspection_date" && c.field !== "appraiser"),
+  ...CONTRACT_CHECKS.filter((c) => !["inspection_date", "appraiser", ...CLOSED_OPTIONAL_FIELDS].includes(c.field)),
   ...REVIEW_EXTRA,
 ];
+
+/** Closed deals only: optional blanks (client email, attorneys). */
+export function closedOptionalItems(tx) {
+  if (!tx || tx.terminated_at || tx.stage !== "closed") return [];
+  return CONTRACT_CHECKS.filter((c) => CLOSED_OPTIONAL_FIELDS.includes(c.field) && !has(c.get(tx))).map((c) => ({
+    field: c.field,
+    label: c.field === "seller_emails" ? (clientIsBuyer(tx) ? "Buyer Email" : "Seller Email") : c.label,
+  }));
+}
 
 function checksFor(tx, review) {
   if (tx.stage === "contract") return review ? [...CONTRACT_CHECKS, ...REVIEW_EXTRA] : CONTRACT_CHECKS;
