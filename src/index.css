@@ -1686,3 +1686,18 @@ button { cursor: pointer; }
 .license-mini-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 7px; border: 1px solid currentColor; background: var(--color-white); color: var(--color-navy); font-size: 12px; font-weight: 600; cursor: pointer; margin: 0; width: auto; }
 .license-date-edit { margin-top: 8px; }
 .license-date-edit input[type="date"] { width: 100%; }
+
+/* Listing packet builder */
+.packet-panel { max-width: 860px; width: 100%; }
+.packet-review { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-bottom: 12px; }
+@media (max-width: 640px) { .packet-review { grid-template-columns: 1fr; } }
+.packet-cover-preview { border: 1px solid #e3ebf0; border-radius: 10px; overflow: hidden; aspect-ratio: 612 / 792; background: #f4f7f9; display: flex; align-items: center; justify-content: center; }
+.packet-cover-preview iframe { width: 100%; height: 100%; border: 0; }
+.packet-review-info { font-size: 14px; color: var(--color-navy); min-width: 0; }
+.packet-review-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #5b6b78; margin: 10px 0 4px; }
+.packet-file-list { margin: 0 0 8px; padding-left: 20px; font-size: 13px; }
+.packet-file-list li { margin-bottom: 4px; word-break: break-word; }
+.packet-file-list svg { vertical-align: -2px; color: #3f7d3a; }
+.packet-file--skip { color: #8a97a1; }
+.packet-file--skip svg { color: #a15c00; }
+.packet-building { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 12px 0; }

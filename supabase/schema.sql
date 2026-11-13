@@ -591,3 +591,9 @@ notify pgrst, 'reload schema';
 alter table agents add column if not exists policy_manual_path text;
 alter table agents add column if not exists ica_path text;
 notify pgrst, 'reload schema';
+
+-- Agent phone, printed on listing-packet cover sheets (two-agent / single-agent).
+alter table agents add column if not exists phone text;
+update agents set phone = '(802)-431-3421' where lower(email) = 'holly.hall@hallcollins.com' and phone is null;
+update agents set phone = '(802)-272-3533' where lower(email) = 'fran.collins@hallcollins.com' and phone is null;
+notify pgrst, 'reload schema';

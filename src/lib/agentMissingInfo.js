@@ -15,6 +15,7 @@ export function agentMissingItems(agent) {
   if (!agent || agent.is_active === false || agent.role === "coordinator") return [];
   const out = [];
   if (!has(agent.email)) out.push("Email");
+  if ("phone" in agent && !has(agent.phone)) out.push("Phone");
   if ("vt_license_expires" in agent) {
     const today = todayYmd();
     if (!has(agent.vt_license_expires)) out.push("VT license expiration");

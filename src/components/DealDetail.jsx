@@ -7,6 +7,7 @@ import GenerateCompForm from "./GenerateCompForm";
 import CloseoutCalculator from "./CloseoutCalculator";
 import ConfirmDialog from "./ConfirmDialog";
 import DropboxFolderPicker from "./DropboxFolderPicker";
+import ListingPacketPanel from "./ListingPacketPanel";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents, fetchOtherSideAgentName } from "../lib/transactions";
@@ -94,6 +95,7 @@ export default function DealDetail({
   const [compDetailsCollapsed, setCompDetailsCollapsed] = useState(true);
   const [retryingDropbox, setRetryingDropbox] = useState(false);
   const [emailingPacket, setEmailingPacket] = useState(false);
+  const [showPacketBuilder, setShowPacketBuilder] = useState(false);
   // Lets New Comp's "Add & Build CMA PDF" button drop an agent straight into this
   // screen already open, instead of landing on the deal detail view first.
   const [showGenerateComp, setShowGenerateComp] = useState(Boolean(transaction._openGenerateComp));
@@ -1113,6 +1115,11 @@ export default function DealDetail({
               >
                 Change folder
               </button>
+              {!clientIsBuyer && (
+                <button title="Build the listing packet: a cover sheet + everything in Showing Docs, saved back to Showing Docs" type="button" className="cma-export-btn" onClick={() => setShowPacketBuilder(true)}>
+                  <FileText size={14} /> Create Listing Packet
+                </button>
+              )}
               {transaction.side !== "Buy" && (
                 <button title="Open an email from your own account with a view-only link to the “- Packet” file in Showing Docs" type="button" className="cma-export-btn" disabled={emailingPacket} onClick={handleEmailShowingPacket}>
                   <Mail size={14} /> {emailingPacket ? "Getting packet…" : "Email Showing Packet"}
@@ -1283,6 +1290,10 @@ export default function DealDetail({
         }}
         onCancel={() => setShowExpireConfirm(false)}
       />
+
+      {showPacketBuilder && (
+        <ListingPacketPanel transaction={transaction} onClose={() => setShowPacketBuilder(false)} onSaved={() => showToast("Listing packet saved to Showing Docs")} />
+      )}
 
       {showTerminateFlow && (
         <TerminateListingDialog

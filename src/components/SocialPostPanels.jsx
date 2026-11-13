@@ -23,7 +23,7 @@ function sampleRandom(items, count) {
  * reads — thumbnails just pop in as they're ready. Tapping a loaded one calls
  * onPick(photo, {url, blob}). Shared by the hero-photo picker and the Boost Post
  * redo picker so both get the same progressive-load behavior for free. */
-function PhotoThumbGrid({ transactionId, photos, onPick }) {
+export function PhotoThumbGrid({ transactionId, photos, onPick }) {
   const [thumbs, setThumbs] = useState({});
   const blobUrls = useRef([]);
 

@@ -432,6 +432,7 @@ function AgentRow({ agent, onChanged, focused = false }) {
   }, [focused]);
   const missing = agentMissingItems(agent);
   const [email, setEmail] = useState(agent.email || "");
+  const [phone, setPhone] = useState(agent.phone || "");
   const [dropboxListingPath, setDropboxListingPath] = useState(agent.dropbox_listing_path || "");
   const [dropboxBuyerPath, setDropboxBuyerPath] = useState(agent.dropbox_buyer_path || "");
   const [coverFile, setCoverFile] = useState(null);
@@ -442,6 +443,7 @@ function AgentRow({ agent, onChanged, focused = false }) {
 
   const isDirty =
     email !== (agent.email || "") ||
+    phone !== (agent.phone || "") ||
     dropboxListingPath !== (agent.dropbox_listing_path || "") ||
     dropboxBuyerPath !== (agent.dropbox_buyer_path || "") ||
     coverFile !== null;
@@ -454,6 +456,7 @@ function AgentRow({ agent, onChanged, focused = false }) {
       if (coverFile) coverSheetUrl = await uploadAgentCoverSheet(coverFile, agent.name);
       await updateAgentFields(agent.id, {
         email: email || null,
+        ...("phone" in agent ? { phone: phone.trim() || null } : {}),
         dropbox_listing_path: dropboxListingPath || null,
         dropbox_buyer_path: dropboxBuyerPath || null,
         cover_sheet_url: coverSheetUrl,
@@ -516,6 +519,12 @@ function AgentRow({ agent, onChanged, focused = false }) {
             Email
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           </label>
+          {"phone" in agent && (
+            <label>
+              Phone <span className="field-help">(printed on listing packet covers)</span>
+              <input type="tel" value={phone} placeholder="(802)-555-0123" onChange={(e) => setPhone(e.target.value)} />
+            </label>
+          )}
           <label>
             Dropbox Listing Folder
             <input value={dropboxListingPath} onChange={(e) => setDropboxListingPath(e.target.value)} />

@@ -110,6 +110,34 @@ async function getTransactionFolderPath(transactionId: string): Promise<string> 
   return (current || tx.dropbox_folder_path) as string;
 }
 
+const svcHeaders = { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` };
+
+/** Signed-in caller who can see this deal: staff, or its agent / co-list agent. */
+async function callerCanAccess(req: Request, transactionId: string): Promise<boolean> {
+  const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  if (!jwt) return false;
+  const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${jwt}` } });
+  if (!userRes.ok) return false;
+  const user = await userRes.json();
+  if (!user?.email) return false;
+  const aRes = await fetch(`${SUPABASE_URL}/rest/v1/agents?email=ilike.${encodeURIComponent(user.email)}&select=id,role,is_active`, { headers: svcHeaders });
+  const [agent] = await aRes.json();
+  if (!agent || agent.is_active === false) return false;
+  if (agent.role === "broker" || agent.role === "coordinator") return true;
+  const tRes = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}&select=*`, { headers: svcHeaders });
+  const [tx] = await tRes.json();
+  return Boolean(tx) && (tx.agent_id === agent.id || tx.colist_agent_id === agent.id);
+}
+
+/** "3) Showing Docs" files for the listing packet, in file-name order
+ * ("1) MLS Sheet", "2) Disclosure", … — numbers compared as numbers). */
+async function listShowingDocs(accessToken: string, folderPath: string) {
+  const entries = await listFolderIfExists(accessToken, `${folderPath}/${SHOWING_DOCS_SUBFOLDER}`);
+  return entries
+    .map((e: { name: string; path_display: string; size?: number }) => ({ name: e.name, path: e.path_display, size: e.size ?? 0 }))
+    .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+}
+
 async function listFolder(accessToken: string, folderPath: string) {
   const res = await fetch("https://api.dropboxapi.com/2/files/list_folder", {
     method: "POST",
@@ -223,10 +251,12 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { action, transactionId, path } = await req.json();
+    const { action, transactionId, path, fileName } = await req.json();
     if (!action || !transactionId) {
       return jsonResponse({ error: "action and transactionId required" }, 400);
     }
+
+    if (!(await callerCanAccess(req, transactionId))) return jsonResponse({ error: "Not allowed" }, 403);
 
     const accessToken = await getDropboxAccessToken();
     const folderPath = await getTransactionFolderPath(transactionId);
@@ -238,6 +268,8 @@ Deno.serve(async (req) => {
 
     if (action === "fetchFile") {
       if (!path) return jsonResponse({ error: "path required" }, 400);
+      // Only files inside this deal's own folder.
+      if (!String(path).toLowerCase().startsWith(`${folderPath.toLowerCase()}/`)) return jsonResponse({ error: "That file isn't in this deal's folder" }, 403);
       const bytes = await downloadFile(accessToken, path);
       // The Supabase JS client's functions.invoke() only auto-parses a response as a
       // Blob for "application/octet-stream" or "application/pdf" — any other content
@@ -248,6 +280,27 @@ Deno.serve(async (req) => {
       return new Response(bytes, {
         headers: { ...CORS_HEADERS, "Content-Type": "application/octet-stream" },
       });
+    }
+
+    if (action === "listShowingDocs") {
+      return jsonResponse({ files: await listShowingDocs(accessToken, folderPath), folder: `${folderPath}/${SHOWING_DOCS_SUBFOLDER}` });
+    }
+
+    // A one-time Dropbox upload link for the finished listing packet, so the
+    // browser sends the (possibly large) PDF straight to Dropbox instead of
+    // through this function. Saved in Showing Docs, replacing an older copy.
+    if (action === "packetUploadLink") {
+      const safe = String(fileName || "").replace(/[\\/:*?"<>|]/g, "").trim();
+      if (!safe.toLowerCase().endsWith(".pdf")) return jsonResponse({ error: "fileName must be a .pdf" }, 400);
+      const target = `${folderPath}/${SHOWING_DOCS_SUBFOLDER}/${safe}`;
+      const res = await fetch("https://api.dropboxapi.com/2/files/get_temporary_upload_link", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
+        body: JSON.stringify({ commit_info: { path: target, mode: "overwrite", autorename: false, mute: true }, duration: 3600 }),
+      });
+      const data = await res.json();
+      if (!res.ok) return jsonResponse({ error: `Couldn't get an upload link: ${JSON.stringify(data)}` }, 500);
+      return jsonResponse({ link: data.link, path: target });
     }
 
     if (action === "extractDescription") {
