@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { listListingPhotos, fetchListingFile, extractListingDescription } from "../lib/transactions";
-import { composeListingGraphic, POST_TYPES } from "../lib/instagramPost";
+import { composeListingGraphic, composeOpenHouseGraphic, openHouseDateText, openHouseTimeText, POST_TYPES } from "../lib/instagramPost";
 import { useToast } from "../lib/ToastContext";
 import RadioGroup from "./RadioGroup";
 
@@ -357,29 +357,80 @@ export function ListingGraphicPanel({ transaction, postType, onClose }) {
   );
 }
 
-/** Captures the open house date/time — the branded graphic itself is on hold
- * until Fran provides the Open House template (the ported combiner repo never
- * had one; Under Contract/Sold reused existing templates, this one doesn't
- * exist yet). Collecting date/time now means nothing has to be re-asked once
- * the template's in and this wires up to composeListingGraphic like the rest. */
+/** Open House graphic: date + time, then pick a listing photo → the square
+ * Instagram post (composeOpenHouseGraphic) to download. */
 export function OpenHousePanel({ transaction, onClose }) {
   const [date, setDate] = useState("");
   const [timeChoice, setTimeChoice] = useState(OPEN_HOUSE_TIME_OPTIONS[0]);
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
-  const [confirmed, setConfirmed] = useState(false);
+  const [step, setStep] = useState("details"); // details | loading | picking | previewing | composing | result | error
+  const [photos, setPhotos] = useState([]);
+  const [candidate, setCandidate] = useState(null);
+  const [resultUrl, setResultUrl] = useState(null);
+  const [error, setError] = useState(null);
+  const blobUrls = useRef([]);
 
-  const timeLabel = timeChoice === "Other" ? (customStart && customEnd ? `${customStart} – ${customEnd}` : "") : timeChoice;
-  const dateLabel = date
-    ? new Date(`${date}T00:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
-    : "";
+  useEffect(() => () => blobUrls.current.forEach((url) => URL.revokeObjectURL(url)), []);
+
+  const timeText =
+    timeChoice === "Other"
+      ? customStart && customEnd
+        ? `${openHouseTimeText(customStart)} - ${openHouseTimeText(customEnd)}`
+        : ""
+      : timeChoice
+          .split("-")
+          .map((t) => openHouseTimeText(t))
+          .join(" - ");
+  const dateLine = date && timeText ? `${openHouseDateText(date)} at ${timeText}` : "";
+  // "408 Ridge Road Brookfield, VT" — add the town/state unless the address already has them.
+  const town = (transaction.town || "").trim();
+  const addressLine = [
+    transaction.address,
+    town && !transaction.address.toLowerCase().includes(town.toLowerCase()) ? `${town}${transaction.region ? `, ${transaction.region}` : ""}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  function loadPhotos() {
+    setStep("loading");
+    listListingPhotos(transaction.id)
+      .then(({ photos: list }) => {
+        setPhotos(list);
+        setStep("picking");
+      })
+      .catch((e) => {
+        setError(e.message);
+        setStep("error");
+      });
+  }
+
+  function handlePick(photo, thumb) {
+    blobUrls.current.push(thumb.url);
+    setCandidate({ ...photo, ...thumb });
+    setStep("previewing");
+  }
+
+  async function handleConfirm() {
+    setStep("composing");
+    try {
+      const blob = await composeOpenHouseGraphic({ photoBlob: candidate.blob, addressLine, dateLine });
+      const url = URL.createObjectURL(blob);
+      blobUrls.current.push(url);
+      setResultUrl(url);
+      setStep("result");
+    } catch (e) {
+      setError(e.message);
+      setStep("error");
+    }
+  }
 
   return (
     <div className="confirm-dialog-overlay" onClick={onClose}>
       <div className="confirm-dialog social-post-panel" onClick={(e) => e.stopPropagation()}>
         <h2 className="confirm-dialog-title">Open House — {transaction.address}</h2>
 
-        {!confirmed ? (
+        {step === "details" && (
           <>
             <label>
               Date
@@ -395,36 +446,77 @@ export function OpenHousePanel({ transaction, onClose }) {
                 </div>
               )}
             </fieldset>
+            {dateLine && <p className="field-help">On the graphic: “{dateLine}”</p>}
             <div className="confirm-dialog-actions">
               <button title="Close without making a post" type="button" onClick={onClose}>
                 Cancel
               </button>
-              <button title="Continue to the next step"
-                type="button"
-                className="google-btn confirm-dialog-confirm"
-                disabled={!date || !timeLabel}
-                onClick={() => setConfirmed(true)}
-              >
-                Continue
+              <button title="Pick the photo next" type="button" className="google-btn confirm-dialog-confirm" disabled={!dateLine} onClick={loadPhotos}>
+                Pick Photo
               </button>
             </div>
           </>
-        ) : (
+        )}
+
+        {step === "loading" && <p className="field-help">Loading photos…</p>}
+        {step === "error" && <p className="field-note">{error}</p>}
+
+        {step === "picking" && (
           <>
-            <p className="confirm-dialog-message">
-              Open house: <strong>{dateLabel}</strong>, {timeLabel}.
-            </p>
-            <p className="field-help">
-              The branded Open House graphic isn't built yet — Fran still needs to provide the
-              template for it. Once that's in, this will generate it the same way New Listing,
-              Under Contract, and Closed already do.
-            </p>
+            <p className="confirm-dialog-message">Pick the photo for the open house graphic.</p>
+            <PhotoThumbGrid transactionId={transaction.id} photos={photos} onPick={handlePick} />
             <div className="confirm-dialog-actions">
-              <button title="Close" type="button" onClick={onClose}>
-                Close
+              <button title="Change the date or time" type="button" onClick={() => setStep("details")}>
+                Back
               </button>
             </div>
           </>
+        )}
+
+        {step === "previewing" && candidate && (
+          <>
+            <p className="confirm-dialog-message">Use this photo?</p>
+            <img src={candidate.url} alt={candidate.name} className="social-photo-preview-large" />
+            <div className="confirm-dialog-actions">
+              <button title="Pick a different photo" type="button" onClick={() => setStep("picking")}>
+                Back
+              </button>
+              <button title="Make the graphic with this photo" type="button" className="google-btn confirm-dialog-confirm" onClick={handleConfirm}>
+                Use This Photo
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === "composing" && <p className="field-help">Generating graphic…</p>}
+
+        {step === "result" && resultUrl && (
+          <>
+            <img src={resultUrl} alt="Open house graphic" className="social-photo-preview-large" />
+            <div className="confirm-dialog-actions">
+              <button title="Pick a different photo" type="button" onClick={() => setStep("picking")}>
+                Different Photo
+              </button>
+              <a className="google-btn confirm-dialog-confirm" href={resultUrl} download={`${transaction.address} - Open House - Instagram.png`}>
+                Download
+              </a>
+            </div>
+          </>
+        )}
+
+        {step !== "details" && step !== "result" && step !== "previewing" && step !== "picking" && (
+          <div className="confirm-dialog-actions">
+            <button title="Close" type="button" onClick={onClose}>
+              Close
+            </button>
+          </div>
+        )}
+        {(step === "result" || step === "picking") && (
+          <div className="confirm-dialog-actions">
+            <button title="Close" type="button" onClick={onClose}>
+              Close
+            </button>
+          </div>
         )}
       </div>
     </div>
