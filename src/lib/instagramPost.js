@@ -125,7 +125,7 @@ function drawSpacedCentered(ctx, text, cx, cy, spacing) {
 /**
  * @param {{photoBlob: Blob, addressLine: string, dateLine: string}} args
  *   addressLine: "408 Ridge Road Brookfield, VT"
- *   dateLine: "Sunday August 10th at 8:00 am - 11:00 am"
+ *   dateLine: "Saturday, November 14th || 10 am - 12 pm"
  * @returns {Promise<Blob>} PNG
  */
 export async function composeOpenHouseGraphic({ photoBlob, addressLine, dateLine }) {
@@ -182,25 +182,26 @@ export async function composeOpenHouseGraphic({ photoBlob, addressLine, dateLine
   return canvasToBlob(canvas);
 }
 
-/** "2026-08-10" → "Sunday August 10th" */
+/** "2026-11-14" → "Saturday, November 14th" */
 export function openHouseDateText(ymd) {
   const [y, m, d] = ymd.split("-").map(Number);
   const dt = new Date(y, m - 1, d);
   const day = dt.toLocaleDateString("en-US", { weekday: "long" });
   const month = dt.toLocaleDateString("en-US", { month: "long" });
   const suffix = d % 100 >= 11 && d % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][d % 10] || "th";
-  return `${day} ${month} ${d}${suffix}`;
+  return `${day}, ${month} ${d}${suffix}`;
 }
 
-/** "13:30" → "1:30 pm"; "10:00 AM" → "10:00 am" */
+/** "13:30" → "1:30 pm"; "10:00 AM" → "10 am" (":00" dropped on the hour). */
 export function openHouseTimeText(t) {
   const s = String(t || "").trim();
+  const fmt = (h, m, ap) => `${h}${m === "00" ? "" : `:${m}`} ${ap}`;
   const ampm = /^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/.exec(s);
-  if (ampm) return `${Number(ampm[1])}:${ampm[2]} ${ampm[3].toLowerCase()}`;
+  if (ampm) return fmt(Number(ampm[1]), ampm[2], ampm[3].toLowerCase());
   const h24 = /^(\d{1,2}):(\d{2})$/.exec(s);
   if (h24) {
     const h = Number(h24[1]);
-    return `${h % 12 || 12}:${h24[2]} ${h >= 12 ? "pm" : "am"}`;
+    return fmt(h % 12 || 12, h24[2], h >= 12 ? "pm" : "am");
   }
   return s;
 }

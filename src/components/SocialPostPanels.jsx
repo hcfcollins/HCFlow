@@ -382,7 +382,7 @@ export function OpenHousePanel({ transaction, onClose }) {
           .split("-")
           .map((t) => openHouseTimeText(t))
           .join(" - ");
-  const dateLine = date && timeText ? `${openHouseDateText(date)} at ${timeText}` : "";
+  const dateLine = date && timeText ? `${openHouseDateText(date)} || ${timeText}` : "";
   // "408 Ridge Road Brookfield, VT" — add the town/state unless the address already has them.
   const town = (transaction.town || "").trim();
   const addressLine = [
