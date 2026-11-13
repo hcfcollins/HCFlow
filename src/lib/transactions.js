@@ -1171,6 +1171,34 @@ export async function uploadAgentLicense(agentId, state, file) {
   return path;
 }
 
+/** Hall Collins Real Estate Group's own firm licenses (VT, NH). */
+export async function fetchBrokerageLicenses() {
+  const { data, error } = await supabase.from("brokerage_licenses").select("*");
+  if (error) throw error;
+  return data || [];
+}
+
+export async function saveBrokerageLicense(state, patch) {
+  const { error } = await supabase
+    .from("brokerage_licenses")
+    .upsert({ state, ...patch, updated_at: new Date() }, { onConflict: "state" });
+  if (error) throw error;
+}
+
+/** Firm license copies live in the same private bucket, under "brokerage/"
+ * (brokers only — not inside any agent's folder). */
+export async function uploadBrokerageLicense(state, file) {
+  const ext = (file.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "") || "pdf";
+  const path = `brokerage/${state}-brokerage-license-${Date.now()}.${ext}`;
+  const { error } = await supabase.storage.from("agent-licenses").upload(path, file, {
+    contentType: file.type || "application/octet-stream",
+    upsert: true,
+  });
+  if (error) throw error;
+  await saveBrokerageLicense(state, { license_path: path });
+  return path;
+}
+
 /** A short-lived (5 minute) link to view a license copy. */
 export async function agentLicenseUrl(path) {
   const { data, error } = await supabase.storage.from("agent-licenses").createSignedUrl(path, 300);

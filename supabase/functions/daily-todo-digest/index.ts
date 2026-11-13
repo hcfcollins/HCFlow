@@ -227,7 +227,7 @@ const LICENSE_STEPS: { days: number; when: string; note: string }[] = [
   { days: 14, when: "in 2 weeks", note: "Please renew as soon as possible." },
   { days: 1, when: "tomorrow", note: "Please renew today — you can't practice on an expired license." },
 ];
-const STATE_NAME: Record<string, string> = { VT: "Vermont", NH: "New Hampshire" };
+const STATE_NAME: Record<string, string> = { VT: "Vermont", NH: "New Hampshire", BROKER: "broker" };
 
 function daysBetween(fromYmd: string, toYmd: string) {
   const [a, b] = [fromYmd, toYmd].map((d) => {
@@ -255,7 +255,7 @@ async function sendLicenseReminders(accessToken: string, today: string, testMode
   for (const agent of agents) {
     const sentLog: Record<string, number[]> = agent.license_reminders || {};
     let changed = false;
-    for (const st of ["VT", "NH"]) {
+    for (const st of ["VT", "NH", "BROKER"]) {
       if (st === "NH" && agent.nh_not_licensed) continue; // NH is optional
       const expires = agent[`${st.toLowerCase()}_license_expires`];
       if (!expires) continue;
@@ -272,9 +272,10 @@ async function sendLicenseReminders(accessToken: string, today: string, testMode
 
       const first = agent.name.split(/\s+/)[0];
       const stateName = STATE_NAME[st];
-      const subject = `License reminder: your ${stateName} license expires ${step.when}`;
+      const licenseName = st === "BROKER" ? "real estate broker license" : `${stateName} real estate license`;
+      const subject = `License reminder: your ${st === "BROKER" ? "broker" : stateName} license expires ${step.when}`;
       const html = `<p>Hi ${escapeHtml(first)},</p>
-<p>Your <strong>${stateName} real estate license</strong> expires <strong>${step.when}</strong>, on <strong>${longDate(expires)}</strong>.</p>
+<p>Your <strong>${licenseName}</strong> expires <strong>${step.when}</strong>, on <strong>${longDate(expires)}</strong>.</p>
 <p>${step.note}</p>
 <p>Once you've renewed, send Fran a copy of your new license so it can be updated in HC Flow.</p>
 <p><em>Love, Jeeves — your happy Hall Collins robot!</em></p>`;
@@ -309,6 +310,49 @@ async function sendLicenseReminders(accessToken: string, today: string, testMode
         headers: { ...serviceHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
         body: JSON.stringify({ license_reminders: sentLog }),
       });
+    }
+  }
+  // The firm's own licenses (Hall Collins Real Estate Group) → Fran only.
+  const firmRes = await fetch(`${SUPABASE_URL}/rest/v1/brokerage_licenses?select=*`, { headers: serviceHeaders });
+  if (firmRes.ok) {
+    const firmRows = await firmRes.json();
+    for (const row of firmRows) {
+      if (!row.expires) continue;
+      const left = daysBetween(today, row.expires);
+      if (left < 1) continue;
+      const key = `${row.state}:${row.expires}`;
+      const log: Record<string, number[]> = row.reminders || {};
+      const already = log[key] || [];
+      const due = LICENSE_STEPS.filter((s) => left <= s.days && !already.includes(s.days));
+      if (!due.length) continue;
+      const step = due[due.length - 1];
+      const stateName = STATE_NAME[row.state] || row.state;
+      const subject = `License reminder: the ${stateName} BROKERAGE license expires ${step.when}`;
+      const html = `<p>Hi Fran,</p>
+<p>Hall Collins Real Estate Group's <strong>${stateName} brokerage (firm) license</strong> expires <strong>${step.when}</strong>, on <strong>${longDate(row.expires)}</strong>.</p>
+<p>${step.days >= 30 ? "Time to get the renewal started." : "Please renew as soon as possible."} Once it's renewed, upload the new license and expiration date on Manage Agents → Brokerage Licenses.</p>
+<p><em>Love, Jeeves — your happy Hall Collins robot!</em></p>`;
+      try {
+        await sendGmail(accessToken, FRAN_EMAIL, subject, html);
+        results.push({ agent: "Hall Collins Real Estate Group", state: row.state, step: step.days });
+        if (record) {
+          if (fran?.id) {
+            await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
+              method: "POST",
+              headers: { ...serviceHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+              body: JSON.stringify([{ recipient_agent_id: fran.id, transaction_id: null, kind: "todo_assigned", message: `The ${stateName} brokerage license expires ${step.when} (${longDate(row.expires)}).` }]),
+            });
+          }
+          log[key] = [...new Set([...already, ...LICENSE_STEPS.filter((s) => s.days >= step.days).map((s) => s.days)])];
+          await fetch(`${SUPABASE_URL}/rest/v1/brokerage_licenses?state=eq.${row.state}`, {
+            method: "PATCH",
+            headers: { ...serviceHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+            body: JSON.stringify({ reminders: log }),
+          });
+        }
+      } catch (e) {
+        errors.push(`Brokerage license reminder ${row.state}: ${String(e)}`);
+      }
     }
   }
   return results;

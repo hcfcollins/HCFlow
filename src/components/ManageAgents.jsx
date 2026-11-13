@@ -7,7 +7,18 @@ import ConfirmDialog from "./ConfirmDialog";
 import { SkeletonList } from "./Skeleton";
 import { useToast } from "../lib/ToastContext";
 import { loadDraft, useDraftPersistence } from "../lib/useDraftPersistence";
-import { fetchAllAgents, addAgent, updateAgentFields, removeAgent, uploadAgentCoverSheet, uploadAgentLicense, agentLicenseUrl } from "../lib/transactions";
+import {
+  fetchAllAgents,
+  addAgent,
+  updateAgentFields,
+  removeAgent,
+  uploadAgentCoverSheet,
+  uploadAgentLicense,
+  agentLicenseUrl,
+  fetchBrokerageLicenses,
+  saveBrokerageLicense,
+  uploadBrokerageLicense,
+} from "../lib/transactions";
 import { focusNextOnEnter } from "../lib/formKeyNav";
 import { agentMissingItems } from "../lib/agentMissingInfo";
 
@@ -76,6 +87,8 @@ export default function ManageAgents({ onBack, focusAgentId = null }) {
       </div>
 
       {!loading && <OnboardingTodos agents={agents} onChanged={load} />}
+
+      <BrokerageLicenses focused={focusAgentId === "brokerage"} />
 
       <AddAgentForm onAdded={load} />
 
@@ -536,6 +549,9 @@ function AgentRow({ agent, onChanged, focused = false }) {
                 </label>
               )}
               {!agent.nh_not_licensed && <LicenseEditor agent={agent} state="nh" label="New Hampshire" onChanged={onChanged} />}
+              {agent.role === "broker" && "broker_license_expires" in agent && (
+                <LicenseEditor agent={agent} state="broker" label="Broker License" onChanged={onChanged} />
+              )}
             </div>
           )}
 
@@ -618,9 +634,25 @@ function LicenseBadges({ agent }) {
 }
 
 /** One state's license: expiration date (saves on change) + upload/view a copy. */
+/** An agent's own license: state "vt" | "nh" | "broker" (columns
+ * {state}_license_expires / {state}_license_path on agents). */
 function LicenseEditor({ agent, state, label, onChanged }) {
-  const expKey = `${state}_license_expires`;
-  const pathKey = `${state}_license_path`;
+  return (
+    <LicenseFields
+      record={agent}
+      expKey={`${state}_license_expires`}
+      pathKey={`${state}_license_path`}
+      label={label}
+      saveFields={(patch) => updateAgentFields(agent.id, patch)}
+      uploadFile={(file) => uploadAgentLicense(agent.id, state, file)}
+      onChanged={onChanged}
+    />
+  );
+}
+
+/** Expiration date (saved with a button) + upload/view a copy, for any license record. */
+function LicenseFields({ record, expKey, pathKey, label, saveFields, uploadFile, onChanged }) {
+  const agent = record;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [draftDate, setDraftDate] = useState(agent[expKey] || "");
@@ -632,7 +664,7 @@ function LicenseEditor({ agent, state, label, onChanged }) {
     setBusy(true);
     setError(null);
     try {
-      await updateAgentFields(agent.id, { [expKey]: value || null });
+      await saveFields({ [expKey]: value || null });
       onChanged();
       showToast(value ? `${label} expiration saved` : `${label} expiration cleared`);
     } catch (e) {
@@ -647,7 +679,7 @@ function LicenseEditor({ agent, state, label, onChanged }) {
     setBusy(true);
     setError(null);
     try {
-      await uploadAgentLicense(agent.id, state, file);
+      await uploadFile(file);
       onChanged();
       showToast(`${label} license uploaded`);
     } catch (e) {
@@ -708,6 +740,57 @@ function LicenseEditor({ agent, state, label, onChanged }) {
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+/** The firm's own licenses (Hall Collins Real Estate Group, VT + NH) —
+ * renewal reminders go to Fran only. Stored in brokerage_licenses. */
+function BrokerageLicenses({ focused = false }) {
+  const [rows, setRows] = useState(null);
+  const [error, setError] = useState(null);
+  const ref = useRef(null);
+  const load = () =>
+    fetchBrokerageLicenses()
+      .then(setRows)
+      .catch((e) => setError(e.message));
+  useEffect(() => {
+    load();
+  }, []);
+  useEffect(() => {
+    if (focused && rows) setTimeout(() => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
+  }, [focused, rows]);
+
+  return (
+    <div className="detail-section" ref={ref}>
+      <h2 className="comps-section-title">Brokerage Licenses</h2>
+      <p className="field-help">
+        Hall Collins Real Estate Group's own firm licenses. Renewal reminders go to Fran at 3 months, 1 month, 2 weeks, and 1 day before
+        expiration.
+      </p>
+      {error ? (
+        <p className="field-help dbx-picker-error">
+          {/brokerage_licenses/.test(error) ? "Run the brokerage license SQL first." : error}
+        </p>
+      ) : !rows ? (
+        <p className="field-help">Loading…</p>
+      ) : (
+        ["VT", "NH"].map((st) => {
+          const row = rows.find((r) => r.state === st) || { state: st };
+          return (
+            <LicenseFields
+              key={st}
+              record={row}
+              expKey="expires"
+              pathKey="license_path"
+              label={st === "VT" ? "Vermont Brokerage License" : "New Hampshire Brokerage License"}
+              saveFields={(patch) => saveBrokerageLicense(st, patch)}
+              uploadFile={(file) => uploadBrokerageLicense(st, file)}
+              onChanged={load}
+            />
+          );
+        })
+      )}
     </div>
   );
 }

@@ -26,8 +26,28 @@ export function agentMissingItems(agent) {
       if (!has(agent.nh_license_path)) out.push("NH license copy");
     }
   }
+  // Broker license: Fran's is required (it's the designated broker's).
+  if ("broker_license_expires" in agent && (agent.email || "").toLowerCase() === "fran.collins@hallcollins.com") {
+    const today = todayYmd();
+    if (!has(agent.broker_license_expires)) out.push("Broker license expiration");
+    else if (agent.broker_license_expires < today) out.push("Broker license EXPIRED");
+    if (!has(agent.broker_license_path)) out.push("Broker license copy");
+  }
   if (!has(agent.cover_sheet_url)) out.push("Cover sheet");
   if (!has(agent.dropbox_listing_path)) out.push("Dropbox listing folder");
   if (!has(agent.dropbox_buyer_path)) out.push("Dropbox buyer folder");
+  return out;
+}
+
+/** The firm's own VT + NH licenses (brokerage_licenses rows). */
+export function brokerageMissingItems(rows) {
+  const today = todayYmd();
+  const out = [];
+  for (const st of ["VT", "NH"]) {
+    const r = (rows || []).find((x) => x.state === st) || {};
+    if (!has(r.expires)) out.push(`${st} brokerage license expiration`);
+    else if (r.expires < today) out.push(`${st} brokerage license EXPIRED`);
+    if (!has(r.license_path)) out.push(`${st} brokerage license copy`);
+  }
   return out;
 }

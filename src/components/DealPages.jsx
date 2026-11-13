@@ -8,8 +8,8 @@ import { TodoRow } from "./TodoList";
 import MentionInput from "./MentionInput";
 import { STANDING_REMINDERS } from "../lib/onboarding";
 import { useMentionRoster, splitMentions } from "../lib/mentions";
-import { agentMissingItems } from "../lib/agentMissingInfo";
-import { fetchAllAgents } from "../lib/transactions";
+import { agentMissingItems, brokerageMissingItems } from "../lib/agentMissingInfo";
+import { fetchAllAgents, fetchBrokerageLicenses } from "../lib/transactions";
 
 /** Starts collapsed only while a section is empty, then auto-opens the moment
  * something first lands in it — `useState(length === 0)` alone only looks at the
@@ -391,8 +391,15 @@ function AllTodosPage({ transactions, currentAgent, onToggleTodo, onEditTodo, on
   useEffect(() => {
     if (!isBroker) return;
     let live = true;
-    fetchAllAgents()
-      .then((agents) => live && setAgentGaps(agents.map((a) => ({ agent: a, items: agentMissingItems(a) })).filter((g) => g.items.length)))
+    Promise.all([fetchAllAgents(), fetchBrokerageLicenses().catch(() => null)])
+      .then(([agents, firm]) => {
+        if (!live) return;
+        const gaps = agents.map((a) => ({ agent: a, items: agentMissingItems(a) })).filter((g) => g.items.length);
+        // The firm's own licenses (null = that table isn't set up yet).
+        const firmItems = firm ? brokerageMissingItems(firm) : [];
+        if (firmItems.length) gaps.unshift({ agent: { id: "brokerage", name: "Hall Collins Real Estate Group" }, items: firmItems });
+        setAgentGaps(gaps);
+      })
       .catch(() => {});
     return () => {
       live = false;

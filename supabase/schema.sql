@@ -562,3 +562,26 @@ language sql stable security definer as $$
   select exists (select 1 from agents where lower(email) = lower(auth.jwt() ->> 'email') and role in ('broker', 'coordinator'));
 $$;
 notify pgrst, 'reload schema';
+
+-- ============================================================
+-- Broker license (on a broker's own card — Fran's is required) and the
+-- firm's own licenses (Hall Collins Real Estate Group, VT + NH). Firm
+-- renewal reminders go to Fran only (daily-todo-digest).
+-- ============================================================
+alter table agents add column if not exists broker_license_path text;
+alter table agents add column if not exists broker_license_expires date;
+
+create table if not exists brokerage_licenses (
+  state text primary key check (state in ('VT', 'NH')),
+  license_path text, -- in the private agent-licenses bucket, under brokerage/
+  expires date,
+  reminders jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+insert into brokerage_licenses (state) values ('VT'), ('NH') on conflict (state) do nothing;
+alter table brokerage_licenses enable row level security;
+drop policy if exists brokerage_licenses_select on brokerage_licenses;
+create policy brokerage_licenses_select on brokerage_licenses for select using (is_staff());
+drop policy if exists brokerage_licenses_write on brokerage_licenses;
+create policy brokerage_licenses_write on brokerage_licenses for all using (is_broker()) with check (is_broker());
+notify pgrst, 'reload schema';
