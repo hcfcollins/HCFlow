@@ -132,7 +132,7 @@ export default function ListingPacketPanel({ transaction, onClose, onSaved }) {
                   </p>
                 )}
 
-                <div className="packet-review-label">Then, in this order (from 3) Showing Docs)</div>
+                <div className="packet-review-label">After the cover, in this order (from 3) Showing Docs)</div>
                 {files.length === 0 && <p className="field-note">Showing Docs is empty — the packet will just be the cover.</p>}
                 <ol className="packet-file-list">
                   {files.map((f) => (

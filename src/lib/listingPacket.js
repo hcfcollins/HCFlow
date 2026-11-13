@@ -70,7 +70,8 @@ export function splitAddress(tx) {
 
 export function packetFileName(tx) {
   const { street } = splitAddress(tx);
-  return `${(street || tx.address).replace(/[\\/:*?"<>|]/g, "")} - Packet.pdf`;
+  // "1) 1431 Gulf Rd - Packet.pdf" — same style as the packets made by hand.
+  return `1) ${(street || tx.address).replace(/[\\/:*?"<>|]/g, "")} - Packet.pdf`;
 }
 
 async function fetchBytes(url) {
@@ -191,17 +192,48 @@ export async function buildCoverSheet({ tx, plan, photoBlob }) {
   return doc.save();
 }
 
-/** Showing Docs files for the packet, each marked include/skip. */
+// Packet order (Fran): cover, MLS sheet, Mandatory Consumer Disclosure, SPIR,
+// everything else (file-name order), then the Vendor sheet and the ANR map last.
+// Files are recognized by name.
+const ORDER = [
+  { rank: 1, test: /\bmls\b/i },
+  { rank: 2, test: /consumer disclosure|mandatory/i },
+  { rank: 3, test: /\bspir\b|property information report/i },
+  { rank: 5, test: /vendor/i },
+  { rank: 6, test: /\banr\b|natural resources/i },
+];
+const rankOf = (name) => ORDER.find((o) => o.test.test(name))?.rank ?? 4;
+
+// Used when the listing's Showing Docs doesn't have its own copy.
+const STANDARD_DISCLOSURE = {
+  name: "Mandatory Consumer Disclosure (standard Hall Collins form)",
+  path: "/packet-docs/mandatory-consumer-disclosure.pdf",
+  bundled: true,
+  skip: null,
+};
+
+/** Showing Docs files for the packet, in packet order, each marked include/skip. */
 export async function listShowingDocs(transactionId) {
   const { data, error } = await supabase.functions.invoke("social-post-assets", { body: { action: "listShowingDocs", transactionId } });
   if (error) throw error;
-  return (data?.files || []).map((f) => {
+  const files = (data?.files || []).map((f) => {
     const lower = f.name.toLowerCase();
     let skip = null;
     if (/packet/.test(lower)) skip = "an earlier packet";
+    else if (/^instagram\b/.test(lower)) skip = "Instagram graphic";
     else if (!/\.(pdf|jpe?g|png)$/.test(lower)) skip = "not a PDF or image";
     return { ...f, skip };
   });
+  // Only one disclosure: the listing's own if there is one, else the standard form.
+  const disclosures = files.filter((f) => !f.skip && rankOf(f.name) === 2);
+  disclosures.slice(1).forEach((f) => (f.skip = "a second copy of the disclosure"));
+  if (!disclosures.length) files.push(STANDARD_DISCLOSURE);
+  return files.sort(
+    (a, b) =>
+      (a.skip ? 1 : 0) - (b.skip ? 1 : 0) ||
+      rankOf(a.name) - rankOf(b.name) ||
+      a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })
+  );
 }
 
 /** Cover + every included Showing Docs file → one PDF. onProgress(text). */
@@ -216,8 +248,7 @@ export async function buildPacket({ tx, plan, photoBlob, files, onProgress }) {
     const f = included[i];
     onProgress?.(`Adding ${i + 1} of ${included.length}: ${f.name}`);
     try {
-      const blob = await fetchListingFile(tx.id, f.path);
-      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const bytes = f.bundled ? await fetchBytes(f.path) : new Uint8Array(await (await fetchListingFile(tx.id, f.path)).arrayBuffer());
       if (/\.pdf$/i.test(f.name)) {
         const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
         const pages = await doc.copyPages(src, src.getPageIndices());
