@@ -173,6 +173,7 @@ export default function DealPages({
 
       {isSearching ? (
         <div className="search-results">
+          <p className="field-help search-scope-note">Searching live deals only. Closed and terminated deals are searched from All Deals.</p>
           <TransactionList
             transactions={searchResults}
             stages={stages}
@@ -528,7 +529,58 @@ function closedYear(tx) {
 
 /** The full pipeline + archive (closed, terminated, prior years) — rendered as
  * its own screen from App (All Deals button), not a swipe page. */
-export function AllPage({ transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange, onAddTodo, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail }) {
+export function AllPage(props) {
+  const { transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange, onAddTodo, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail } = props;
+  // All Deals has its own search — the one place closed/terminated deals
+  // are searched (the main search bar sticks to live deals).
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const searchBox = (
+    <div className="search-bar all-deals-search">
+      <Search size={16} className="search-bar-icon" />
+      <input
+        type="text"
+        className="search-bar-input"
+        placeholder="Search every deal, including closed…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      {q && (
+        <button title="Clear search" type="button" className="search-bar-clear" onClick={() => setQuery("")} aria-label="Clear search">
+          <X size={16} />
+        </button>
+      )}
+    </div>
+  );
+  if (q) {
+    const hits = transactions.filter((tx) => [tx.address, tx.seller_name, tx.buyer_name].some((f) => f?.toLowerCase().includes(q)));
+    return (
+      <div className="comps-page">
+        {searchBox}
+        {hits.length ? (
+          <TransactionList
+            transactions={hits}
+            stages={stages}
+            currentAgent={currentAgent}
+            onStageChange={onStageChange}
+            onNotesChange={onNotesChange}
+            onCompsStatusChange={onCompsStatusChange}
+            onAddTodo={onAddTodo}
+            onToggleTodo={onToggleTodo}
+            onEditTodo={onEditTodo}
+            onDeleteTodo={onDeleteTodo}
+            onOpenDetail={onOpenDetail}
+          />
+        ) : (
+          <p className="empty-state">No deals match “{query.trim()}”.</p>
+        )}
+      </div>
+    );
+  }
+  return <AllPageSections {...props} searchBox={searchBox} />;
+}
+
+function AllPageSections({ transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange, onAddTodo, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail, searchBox }) {
   const active = transactions.filter((tx) => !tx.terminated_at);
   const terminated = transactions.filter((tx) => tx.terminated_at && tx.stage !== "comps" && !isExpiredListing(tx));
   const expired = transactions.filter(isExpiredListing);
@@ -605,6 +657,7 @@ export function AllPage({ transactions, stages, currentAgent, onStageChange, onN
 
   return (
     <div className="comps-page">
+      {searchBox}
       {buckets.map((b) => (
         <CollapsibleSection key={b.key} title={b.title} count={b.items.length} colorClass={b.colorClass}>
           <TransactionList

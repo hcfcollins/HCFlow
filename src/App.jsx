@@ -807,9 +807,11 @@ export default function App() {
   const trimmedQuery = searchQuery.trim().toLowerCase();
   const isSearching = trimmedQuery.length > 0;
   const searchResults = isSearching
-    ? visibleTxs.filter((tx) =>
-        [tx.address, tx.seller_name, tx.buyer_name].some((field) => field?.toLowerCase().includes(trimmedQuery))
-      )
+    ? visibleTxs
+        // Live deals only — closed/terminated/expired/dead are searched from
+        // the All Deals screen instead, so the archive doesn't crowd results.
+        .filter((tx) => !tx.terminated_at && tx.stage !== "closed")
+        .filter((tx) => [tx.address, tx.seller_name, tx.buyer_name].some((field) => field?.toLowerCase().includes(trimmedQuery)))
     : [];
 
   // Rendered after the selectedTransaction check on purpose: opening a deal

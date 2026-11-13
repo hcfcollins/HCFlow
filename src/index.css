@@ -1669,3 +1669,5 @@ button { cursor: pointer; }
 .license-date-actions button { flex: 1; margin-top: 0; }
 .review-optional { margin-top: 8px; font-size: 13px; color: #6b7883; }
 .dbx-picker .won-setup-overlay { position: fixed; }
+.all-deals-search { position: static; margin-bottom: 14px; }
+.search-scope-note { margin: 0 0 10px; }
