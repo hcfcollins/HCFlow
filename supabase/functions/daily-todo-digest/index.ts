@@ -4,6 +4,10 @@
 // redeploy) only once Fran explicitly authorizes going live to everyone.
 // notify-todo has its own matching constant.
 const EMAILS_LIVE = false;
+// Partial go-live (Fran, Nov 13 2026): the daily TO-DO DIGEST goes for real to
+// just these people; everyone else's still comes to Fran in test mode.
+// Closing and license reminders are still fully in test mode.
+const DIGEST_LIVE_FOR = new Set(["fran.collins@hallcollins.com", "kerry.dawson@hallcollins.com", "rachel.noyes@hallcollins.com"]);
 
 // Runs three daily automations off the one pg_cron trigger:
 //  3. License renewal reminders (sendLicenseReminders) — VT/NH real estate
@@ -417,7 +421,11 @@ Deno.serve(async (req) => {
       // empty body from cron is fine
     }
     if (fromBroker) body = { force: true, testMode: true };
-    // Not live yet -> every run is a test run, the 6:15 cron included.
+    // The test button always previews everything to Fran — even the people
+    // who are live.
+    const previewOnly = fromBroker || body.testMode === true;
+    // Not live yet -> every run is a test run, the 6:15 cron included
+    // (except the digest for DIGEST_LIVE_FOR, below).
     if (!EMAILS_LIVE) body.testMode = true;
     const { date: today, hour } = nowInVermont();
     if (!body.force && hour !== 6) return json({ skipped: `It's ${hour}:xx in Vermont, not 6` });
@@ -484,8 +492,10 @@ Deno.serve(async (req) => {
 <p><em>Love, Jeeves — your happy Hall Collins robot!</em></p>`;
 
       const subject = overdue || dueToday ? `Today's To-Dos: ${[overdue ? `${overdue} overdue` : null, dueToday ? `${dueToday} due today` : null].filter(Boolean).join(", ")}` : "Today's To-Dos";
-      const to = body.testMode ? FRAN_EMAIL : agent.email!;
-      const finalHtml = body.testMode
+      // Live for this person? (Everyone, once EMAILS_LIVE; until then only DIGEST_LIVE_FOR.)
+      const liveForAgent = !previewOnly && Boolean(agent.email) && (EMAILS_LIVE || DIGEST_LIVE_FOR.has(agent.email!.toLowerCase()));
+      const to = liveForAgent ? agent.email! : FRAN_EMAIL;
+      const finalHtml = !liveForAgent
         ? `<div style="background:#FBF2D5;border:1px solid #E0C23A;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:13px;">🧪 <strong>TEST MODE</strong> — this would have gone to <strong>${agent.email ? escapeHtml(agent.email) : `${escapeHtml(agent.name)} — no email on file yet`}</strong>.</div>${html}`
         : html;
       try {
