@@ -531,9 +531,14 @@ function CommissionCheckUpload({ transaction }) {
   const [savedPath, setSavedPath] = useState(onFile?.file_name || null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [dragging, setDragging] = useState(false);
 
   async function upload(file) {
     if (!file) return;
+    if (!/\.(pdf|jpe?g|png|heic)$/i.test(file.name)) {
+      setError("That file type won't work — drop a PDF or a photo of the check.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -582,12 +587,34 @@ function CommissionCheckUpload({ transaction }) {
               View
             </button>
           )}
-          <label className="license-mini-btn" title="Upload a scan or photo of the commission check (PDF or photo)">
-            {busy ? "Uploading…" : savedPath ? "Replace" : "Upload check"}
-            <input type="file" accept="application/pdf,image/*" hidden disabled={busy} onChange={(e) => upload(e.target.files?.[0])} />
-          </label>
         </span>
       </div>
+      {/* Drag a scan/PDF straight from the computer, or click to choose one. */}
+      <label
+        className={`check-dropzone ${dragging ? "check-dropzone--over" : ""} ${busy ? "check-dropzone--busy" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          if (!busy) upload(e.dataTransfer.files?.[0]);
+        }}
+        title="Drop the commission check here, or click to choose the file"
+      >
+        <input type="file" accept="application/pdf,image/*" hidden disabled={busy} onChange={(e) => upload(e.target.files?.[0])} />
+        {busy ? (
+          <span>Uploading to Dropbox…</span>
+        ) : (
+          <span>
+            <strong>Drag the commission check here</strong> or click to choose a file
+            <br />
+            <span className="field-help">PDF or photo{savedPath ? " — replaces the copy on file" : ""}</span>
+          </span>
+        )}
+      </label>
       <p className="field-help">Saved in this deal's Dropbox folder (contract / closing docs) as “{String(transaction.address || "").split(",")[0].trim()} - Commission Check”.</p>
     </fieldset>
   );

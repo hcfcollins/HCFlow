@@ -39,7 +39,9 @@ export function agentMissingItems(agent) {
     if (!has(agent.policy_manual_path)) out.push("Signed policy manual");
     if (!has(agent.ica_path)) out.push("Signed independent contractor agreement");
   }
-  if (!has(agent.cover_sheet_url)) out.push("Cover sheet");
+  // Fran's cover sheet is the default one, so she never needs her own.
+  const isFran = (agent.email || "").toLowerCase() === "fran.collins@hallcollins.com";
+  if (!isFran && !has(agent.cover_sheet_url)) out.push("Cover sheet");
   if (!has(agent.dropbox_listing_path)) out.push("Dropbox listing folder");
   if (!has(agent.dropbox_buyer_path)) out.push("Dropbox buyer folder");
   return out;
