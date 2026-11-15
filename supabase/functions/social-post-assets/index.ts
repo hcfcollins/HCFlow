@@ -303,6 +303,35 @@ Deno.serve(async (req) => {
       return jsonResponse({ link: data.link, path: target });
     }
 
+    // Commission check copy (Close-Out Calculator) → the deal's contract
+    // paperwork folder: "5) Under Contract" / "5) Contract Docs" on a listing,
+    // "4) Closing Docs" on a buyer folder, else the deal folder itself.
+    if (action === "commissionCheckUploadLink") {
+      const safe = String(fileName || "").replace(/[\\/:*?"<>|]/g, "").trim();
+      if (!/\.(pdf|jpe?g|png|heic)$/i.test(safe)) return jsonResponse({ error: "fileName must be a PDF or photo" }, 400);
+      const listRes = await fetch("https://api.dropboxapi.com/2/files/list_folder", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
+        body: JSON.stringify({ path: folderPath }),
+      });
+      const listed = listRes.ok ? await listRes.json() : { entries: [] };
+      const subfolders = (listed.entries || []).filter((e: { [k: string]: string }) => e[".tag"] === "folder").map((e: { name: string }) => e.name);
+      const target =
+        subfolders.find((n: string) => /under contract|contract docs/i.test(n)) ||
+        subfolders.find((n: string) => /closing docs/i.test(n)) ||
+        subfolders.find((n: string) => /contract|closing/i.test(n)) ||
+        null;
+      const path = `${folderPath}${target ? `/${target}` : ""}/${safe}`;
+      const res = await fetch("https://api.dropboxapi.com/2/files/get_temporary_upload_link", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
+        body: JSON.stringify({ commit_info: { path, mode: "overwrite", autorename: false, mute: true }, duration: 3600 }),
+      });
+      const data = await res.json();
+      if (!res.ok) return jsonResponse({ error: `Couldn't get an upload link: ${JSON.stringify(data)}` }, 500);
+      return jsonResponse({ link: data.link, path });
+    }
+
     if (action === "extractDescription") {
       const packet = await findPacketFile(accessToken, folderPath);
       if (!packet) {

@@ -9,6 +9,9 @@ import {
   sendCloseoutEmail,
   fetchSignInventory,
   incrementSignInventory,
+  uploadCommissionCheck,
+  fetchListingFile,
+  COMMISSION_CHECK_DOC,
 } from "../lib/transactions";
 import { calculateCloseout, applyTcFee, TC_FEE_AMOUNTS, round2 } from "../lib/commissionCalc";
 import { useToast } from "../lib/ToastContext";
@@ -494,6 +497,8 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         )}
       </fieldset>
 
+      <CommissionCheckUpload transaction={transaction} />
+
       <fieldset>
         <legend>Closeout Email</legend>
         <p className="field-help">
@@ -515,5 +520,75 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         </button>
       </div>
     </div>
+  );
+}
+
+/** Copy of the commission check → the deal's Dropbox folder. Doesn't need the
+ * close-out saved first; shows what's on file. */
+function CommissionCheckUpload({ transaction }) {
+  const showToast = useToast();
+  const onFile = (transaction.documents || []).find((d) => d.name === COMMISSION_CHECK_DOC);
+  const [savedPath, setSavedPath] = useState(onFile?.file_name || null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function upload(file) {
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const path = await uploadCommissionCheck(transaction, file);
+      setSavedPath(path);
+      showToast("Commission check saved to Dropbox");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function view() {
+    const tab = window.open("", "_blank");
+    try {
+      const blob = await fetchListingFile(transaction.id, savedPath);
+      const typed = new Blob([blob], { type: /\.pdf$/i.test(savedPath) ? "application/pdf" : blob.type });
+      const url = URL.createObjectURL(typed);
+      if (tab) tab.location.href = url;
+      else window.location.href = url;
+    } catch (e) {
+      if (tab) tab.close();
+      setError(e.message);
+    }
+  }
+
+  return (
+    <fieldset>
+      <legend>Commission Check</legend>
+      {error && <div className="error-banner">{error}</div>}
+      <div className={`license-status-row ${savedPath ? "license-status-row--ok" : "license-status-row--missing"}`}>
+        <span className="license-status-text">
+          {savedPath ? (
+            <>
+              <strong>✓ Copy on file</strong>
+              <span className="license-status-sub"> · {savedPath.split("/").slice(-2).join(" / ")}</span>
+            </>
+          ) : (
+            <strong>No copy of the check uploaded yet</strong>
+          )}
+        </span>
+        <span className="license-status-actions">
+          {savedPath && (
+            <button type="button" className="license-mini-btn" onClick={view} title="View the commission check">
+              View
+            </button>
+          )}
+          <label className="license-mini-btn" title="Upload a scan or photo of the commission check (PDF or photo)">
+            {busy ? "Uploading…" : savedPath ? "Replace" : "Upload check"}
+            <input type="file" accept="application/pdf,image/*" hidden disabled={busy} onChange={(e) => upload(e.target.files?.[0])} />
+          </label>
+        </span>
+      </div>
+      <p className="field-help">Saved in this deal's Dropbox folder (contract / closing docs) as “{String(transaction.address || "").split(",")[0].trim()} - Commission Check”.</p>
+    </fieldset>
   );
 }

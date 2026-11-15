@@ -1337,6 +1337,32 @@ export async function createActiveListing(fields) {
   return tx;
 }
 
+export const COMMISSION_CHECK_DOC = "Commission Check";
+
+/** Uploads a copy of the commission check into the deal's Dropbox folder
+ * (contract / closing docs subfolder) as "<address> - Commission Check.<ext>",
+ * and records it on the deal (documents row "Commission Check"). */
+export async function uploadCommissionCheck(tx, file) {
+  if (!tx.dropbox_folder_url && !tx.dropbox_folder_path) throw new Error("This deal has no Dropbox folder yet — pair or create one first.");
+  const ext = (file.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "") || "pdf";
+  const street = String(tx.address || "").split(",")[0].trim();
+  const fileName = `${street} - Commission Check.${ext}`;
+  const { data, error } = await supabase.functions.invoke("social-post-assets", {
+    body: { action: "commissionCheckUploadLink", transactionId: tx.id, fileName },
+  });
+  if (error) throw await functionError(error);
+  if (data?.error) throw new Error(data.error);
+  const res = await fetch(data.link, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file });
+  if (!res.ok) throw new Error(`Dropbox upload failed (${res.status})`);
+  const existing = (tx.documents || []).find((d) => d.name === COMMISSION_CHECK_DOC);
+  const row = { name: COMMISSION_CHECK_DOC, file_name: data.path, status: "complete", doc_date: new Date().toISOString().slice(0, 10) };
+  const { error: dbError } = existing
+    ? await supabase.from("documents").update(row).eq("id", existing.id)
+    : await supabase.from("documents").insert({ transaction_id: tx.id, ...row });
+  if (dbError) throw dbError;
+  return data.path;
+}
+
 /** Pulls the real error message out of a failed Edge Function call. */
 async function functionError(error) {
   if (error?.context?.json) {
