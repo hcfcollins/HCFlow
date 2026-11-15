@@ -25,7 +25,6 @@ import {
   notifyTodo,
   todoHasMention,
   setReadyForCloseout,
-  sendTestDailyDigest,
   initialsFor,
   backfillDropboxFolderIds,
   fillAllZipCodes,
@@ -120,7 +119,6 @@ export default function App() {
   // Broker-only previews: null (normal), "agent", or "coordinator" (TC View).
   const [viewAs, setViewAs] = useState(null);
   const viewAsAgent = viewAs === "agent";
-  const [sendingTestDigest, setSendingTestDigest] = useState(false);
   const showToast = useToast();
 
   useEffect(() => {
@@ -373,21 +371,6 @@ export default function App() {
       return;
     }
     loadTransactions({ silent: true });
-  }
-
-  async function handleSendTestDigest() {
-    setSendingTestDigest(true);
-    try {
-      const result = await sendTestDailyDigest();
-      const n = result?.sent?.length || 0;
-      const c = result?.closingReminders?.length || 0;
-      showToast(`Sent to your inbox: ${n} to-do digest${n === 1 ? "" : "s"}, ${c} closing reminder${c === 1 ? "" : "s"}`);
-      if (result?.errors?.length) console.error("Digest errors:", result.errors);
-    } catch (e) {
-      showToast(`Couldn't send the test digest: ${e.message}`);
-    } finally {
-      setSendingTestDigest(false);
-    }
   }
 
   /** Staff bell on a to-do: email + in-app remind the deal's agent about it. */
@@ -898,14 +881,6 @@ export default function App() {
             {isRealBroker && (
               <button onClick={() => setViewAs((v) => (v === "coordinator" ? null : "coordinator"))} title="Broker only — preview the app as the transaction coordinator would see it">
                 {viewAs === "coordinator" ? "View as Broker" : "TC View"}
-              </button>
-            )}
-            {/* TEMPORARY — for trying out the daily digest email. Sends every
-                agent's digest to Fran only (test mode is forced server-side
-                for this path). Remove once the digest is dialed in. */}
-            {isRealBroker && !viewAs && (
-              <button disabled={sendingTestDigest} onClick={handleSendTestDigest} title="Temporary — email every agent's daily digest to you, in test mode">
-                {sendingTestDigest ? "Sending…" : "Test Daily Emails"}
               </button>
             )}
             {effectiveAgent.role === "broker" && (

@@ -30,10 +30,8 @@ const DIGEST_LIVE_FOR = new Set(["fran.collins@hallcollins.com", "kerry.dawson@h
 // daylight saving — and this function only actually sends on the run where
 // it's 6 AM in America/New_York, so exactly one goes out per day.
 //
-// Deployed with --no-verify-jwt. Two ways in:
-// - pg_cron, with the x-cron-secret header matching the CRON_SECRET secret.
-// - TEMPORARY: a signed-in broker from the app's "Test Daily Digest" button.
-//   That path always forces testMode + force, so it can never email agents.
+// Deployed with --no-verify-jwt. Only way in: pg_cron, with the x-cron-secret
+// header matching the CRON_SECRET secret.
 //
 // POST body (all optional): { force: true } skips the 6 AM check;
 // { testMode: true } sends every agent's digest to Fran only, with a banner.
@@ -61,18 +59,6 @@ const CORS_HEADERS = {
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
-}
-
-/** True if the Authorization header is a real session for a broker. */
-async function isBrokerCaller(authHeader: string | null): Promise<boolean> {
-  if (!authHeader) return false;
-  const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { Authorization: authHeader, apikey: SERVICE_ROLE_KEY } });
-  if (!userRes.ok) return false;
-  const user = await userRes.json();
-  if (!user.email) return false;
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/agents?email=eq.${encodeURIComponent(user.email)}&role=eq.broker&select=id`, { headers: serviceHeaders });
-  const rows = await res.json();
-  return Array.isArray(rows) && rows.length > 0;
 }
 
 function escapeHtml(s: string): string {
@@ -456,7 +442,9 @@ Deno.serve(async (req) => {
 
   try {
     const fromCron = Boolean(CRON_SECRET) && req.headers.get("x-cron-secret") === CRON_SECRET;
-    const fromBroker = !fromCron && (await isBrokerCaller(req.headers.get("Authorization")));
+    // The broker "Test Daily Emails" button was removed (Nov 15, 2026) — the
+    // 6:15 cron is the only way in now.
+    const fromBroker = false;
     if (!fromCron && !fromBroker) return json({ error: "Forbidden" }, 403);
 
     let body: { force?: boolean; testMode?: boolean } = {};
@@ -493,6 +481,7 @@ Deno.serve(async (req) => {
     // it: only to-dos that are overdue, due today, or due tomorrow on their
     // own deals — plus any to-do anywhere that @-tags them.
     const tomorrow = addDays(today, 1);
+    const overdueCutoff = addDays(today, -3); // overdue by more than 3 days → left out
     for (const agent of agents) {
       if (!agent.email && EMAILS_LIVE) continue;
       const deals = txs
@@ -502,6 +491,9 @@ Deno.serve(async (req) => {
           const isOwn = tx.agent_id === agent.id || (tx as { colist_agent_id?: string }).colist_agent_id === agent.id;
           const open = (tx.todos || [])
             .filter((t) => !t.done)
+            // Overdue to-dos only ride along for 3 days past due — after that
+            // they drop off the email (still in the app) so it stays short.
+            .filter((t) => !t.due_date || t.due_date >= overdueCutoff)
             .filter((t) => (isOwn && t.due_date && t.due_date <= tomorrow) || tagsAgent(t.text, agent.name))
             .sort((a, b) => rank(a, today) - rank(b, today) || (a.due_date || "").localeCompare(b.due_date || ""));
           return { tx, open };
