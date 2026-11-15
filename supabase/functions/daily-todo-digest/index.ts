@@ -3,7 +3,8 @@
 // banner naming who it would really have gone to. Flip to true (and
 // redeploy) only once Fran explicitly authorizes going live to everyone.
 // notify-todo has its own matching constant.
-const EMAILS_LIVE = false;
+// LIVE since Nov 15, 2026 — Fran authorized emails to everyone.
+const EMAILS_LIVE = true;
 // Partial go-live (Fran, Nov 13 2026): the daily TO-DO DIGEST goes for real to
 // just these people; everyone else's still comes to Fran in test mode.
 // Closing and license reminders are still fully in test mode.

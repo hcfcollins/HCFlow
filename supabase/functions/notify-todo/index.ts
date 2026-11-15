@@ -30,7 +30,8 @@ const GMAIL_SENDER_EMAIL = Deno.env.get("GMAIL_SENDER_EMAIL") || "fran.collins@h
 // While false, every email this sends goes ONLY to Fran, with a banner naming
 // the real recipient. In-app bell notifications still go to the real people.
 // Flip to true (and redeploy) only once Fran authorizes going live.
-const EMAILS_LIVE = false;
+// LIVE since Nov 15, 2026 — Fran authorized emails to everyone.
+const EMAILS_LIVE = true;
 const FRAN_EMAIL = "fran.collins@hallcollins.com";
 
 const CORS_HEADERS = {
