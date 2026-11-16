@@ -1356,6 +1356,31 @@ export async function createActiveListing(fields) {
   return tx;
 }
 
+/** Folder organizer: every file in the deal folder except Photos. */
+export async function listDealFiles(transactionId) {
+  const { data, error } = await supabase.functions.invoke("social-post-assets", { body: { action: "listDealFiles", transactionId } });
+  if (error) throw await functionError(error);
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
+/** renames: [{ from: fullPath, toName }] (same folder). Keeps the app's own
+ * records of uploaded docs (Commission Check, Closing Docs) pointing at the
+ * renamed files. Returns { renamed, failed }. */
+export async function renameDealFiles(transactionId, renames, documents = []) {
+  const { data, error } = await supabase.functions.invoke("social-post-assets", { body: { action: "renameDealFiles", transactionId, renames } });
+  if (error) throw await functionError(error);
+  if (data?.error) throw new Error(data.error);
+  for (const r of renames) {
+    const doc = documents.find((d) => d.file_name && d.file_name.toLowerCase() === r.from.toLowerCase());
+    if (doc) {
+      const to = `${r.from.slice(0, r.from.lastIndexOf("/"))}/${r.toName}`;
+      await supabase.from("documents").update({ file_name: to }).eq("id", doc.id);
+    }
+  }
+  return data;
+}
+
 export const COMMISSION_CHECK_DOC = "Commission Check";
 export const CLOSING_DOCS_DOC = "Closing Docs";
 

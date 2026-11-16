@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Copy, X } from "lucide-react";
 import RadioGroup from "./RadioGroup";
+import FolderOrganizer from "./FolderOrganizer";
 import {
   saveCloseout,
   fetchAllAgents,
@@ -123,6 +124,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const [error, setError] = useState(null);
   const [allAgents, setAllAgents] = useState([]);
   const [sendingTestEmail, setSendingTestEmail] = useState(false);
+  const [showOrganizer, setShowOrganizer] = useState(false);
 
   const hasSign = transaction.side !== "Buy" && transaction.sign_status === "Yes";
 
@@ -602,6 +604,20 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
 
       <DealDocUpload transaction={transaction} docName={CLOSING_DOCS_DOC} label="Closing Docs" hint="Drag the closing docs here" optionalNote="We don't always get these — skip it if you don't have them." />
       <DealDocUpload transaction={transaction} docName={COMMISSION_CHECK_DOC} label="Commission Check" hint="Drag the commission check here" />
+
+      {(transaction.dropbox_folder_url || transaction.dropbox_folder_path) && (
+        <fieldset>
+          <legend>Deal Folder</legend>
+          <p className="field-help">
+            Rename everything in this deal's Dropbox folder (except Photos) to “1) {String(transaction.address || "").split(",")[0].trim()} - …”, in the order it
+            happened, ending with Closing Docs and the Commission Check. You'll see the list before anything changes.
+          </p>
+          <button type="button" className="comps-minimize-btn" onClick={() => setShowOrganizer(true)} title="Review and rename this deal's files">
+            Organize Deal Folder
+          </button>
+        </fieldset>
+      )}
+      {showOrganizer && <FolderOrganizer transaction={transaction} onClose={() => setShowOrganizer(false)} />}
 
       <fieldset>
         <legend>Closeout Email</legend>

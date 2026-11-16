@@ -251,7 +251,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { action, transactionId, path, fileName } = await req.json();
+    const { action, transactionId, path, fileName, renames } = await req.json();
     if (!action || !transactionId) {
       return jsonResponse({ error: "action and transactionId required" }, 400);
     }
@@ -330,6 +330,86 @@ Deno.serve(async (req) => {
       const data = await res.json();
       if (!res.ok) return jsonResponse({ error: `Couldn't get an upload link: ${JSON.stringify(data)}` }, 500);
       return jsonResponse({ link: data.link, path });
+    }
+
+    // ── Folder organizer (Close-Out) ──
+    // Every file in the deal folder except the Photos folder, with when it was
+    // added to Dropbox (the order things happened).
+    if (action === "listDealFiles") {
+      const files: { name: string; path: string; folder: string; added: string; size: number }[] = [];
+      let res = await fetch("https://api.dropboxapi.com/2/files/list_folder", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
+        body: JSON.stringify({ path: folderPath, recursive: true, limit: 2000 }),
+      });
+      for (let guard = 0; guard < 20; guard++) {
+        const data = await res.json();
+        if (!res.ok) return jsonResponse({ error: `Couldn't list the deal folder: ${JSON.stringify(data)}` }, 500);
+        for (const e of data.entries || []) {
+          if (e[".tag"] !== "file") continue;
+          const rel = String(e.path_display).slice(folderPath.length + 1);
+          const parts = rel.split("/");
+          if (parts.slice(0, -1).some((p: string) => /photo/i.test(p))) continue; // skip Photos
+          if (/^(\.|icon\r?$|desktop\.ini$)/i.test(e.name)) continue;
+          files.push({ name: e.name, path: e.path_display, folder: parts.slice(0, -1).join("/"), added: e.server_modified, size: e.size || 0 });
+        }
+        if (!data.has_more) break;
+        res = await fetch("https://api.dropboxapi.com/2/files/list_folder/continue", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
+          body: JSON.stringify({ cursor: data.cursor }),
+        });
+      }
+      return jsonResponse({ root: folderPath, files });
+    }
+
+    // Renames files in place (never moves them to another folder). Two
+    // passes — everything to a temporary name first, then to its final name —
+    // so swapping numbers ("1)" ↔ "2)") never collides.
+    if (action === "renameDealFiles") {
+      const list = Array.isArray(renames) ? renames : [];
+      const lower = folderPath.toLowerCase() + "/";
+      const parentOf = (p: string) => p.slice(0, p.lastIndexOf("/"));
+      for (const r of list) {
+        const from = String(r.from || "");
+        const toName = String(r.toName || "").replace(/[\\/:*?"<>|]/g, "").trim();
+        if (!from.toLowerCase().startsWith(lower) || !toName || /photo/i.test(from.slice(lower.length).split("/").slice(0, -1).join("/"))) {
+          return jsonResponse({ error: `Not allowed: ${from}` }, 400);
+        }
+        r.to = `${parentOf(from)}/${toName}`;
+      }
+      const move = async (from: string, to: string) => {
+        const res = await fetch("https://api.dropboxapi.com/2/files/move_v2", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
+          body: JSON.stringify({ from_path: from, to_path: to, autorename: false }),
+        });
+        if (!res.ok) throw new Error(`${from.split("/").pop()}: ${await res.text()}`);
+      };
+      const todo = list.filter((r: { from: string; to: string }) => r.from !== r.to);
+      const stamp = Date.now();
+      const temps: { temp: string; to: string }[] = [];
+      const done: string[] = [];
+      const failed: string[] = [];
+      for (let i = 0; i < todo.length; i++) {
+        const r = todo[i];
+        const temp = `${parentOf(r.from)}/__renaming_${stamp}_${i}__${r.from.slice(r.from.lastIndexOf("."))}`;
+        try {
+          await move(r.from, temp);
+          temps.push({ temp, to: r.to });
+        } catch (e) {
+          failed.push(String(e));
+        }
+      }
+      for (const t of temps) {
+        try {
+          await move(t.temp, t.to);
+          done.push(t.to);
+        } catch (e) {
+          failed.push(String(e));
+        }
+      }
+      return jsonResponse({ renamed: done.length, failed });
     }
 
     if (action === "extractDescription") {
