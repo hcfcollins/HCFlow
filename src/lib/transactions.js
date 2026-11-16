@@ -1189,6 +1189,16 @@ export async function uploadAgentDocument(agentId, docKey, file) {
   return path;
 }
 
+/** Copies licenses / signed paperwork into Dropbox with consistent names
+ * (sync-agent-docs): a brokers-only copy, plus the agent's own copy for
+ * licenses. body: { agentId, kind } | { brokerage } | { all: true }.
+ * Returns { copied, skipped }. */
+export async function syncAgentDocsToDropbox(body) {
+  const { data, error } = await supabase.functions.invoke("sync-agent-docs", { body });
+  if (error) throw await functionError(error);
+  return data;
+}
+
 /** Hall Collins Real Estate Group's own firm licenses (VT, NH). */
 export async function fetchBrokerageLicenses() {
   const { data, error } = await supabase.from("brokerage_licenses").select("*");

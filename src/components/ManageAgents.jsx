@@ -16,6 +16,7 @@ import {
   uploadAgentLicense,
   agentLicenseUrl,
   uploadAgentDocument,
+  syncAgentDocsToDropbox,
   fetchBrokerageLicenses,
   saveBrokerageLicense,
   uploadBrokerageLicense,
@@ -65,6 +66,14 @@ export default function ManageAgents({ onBack, focusAgentId = null }) {
   }
 
   useEffect(load, []);
+
+  // Catch-up, once per session: anything uploaded before Dropbox copies
+  // existed (or whose copy failed) gets copied now. Same names → no duplicates.
+  useEffect(() => {
+    if (sessionStorageGet("agentDocsSynced")) return;
+    sessionStorageSet("agentDocsSynced", "1");
+    syncAgentDocsToDropbox({ all: true }).catch((e) => console.error("Dropbox license catch-up failed:", e));
+  }, []);
 
   return (
     <div className="deal-detail">
@@ -676,13 +685,14 @@ function LicenseEditor({ agent, state, label, onChanged }) {
       label={label}
       saveFields={(patch) => updateAgentFields(agent.id, patch)}
       uploadFile={(file) => uploadAgentLicense(agent.id, state, file)}
+      afterChange={() => syncAgentDocsToDropbox({ agentId: agent.id, kind: state })}
       onChanged={onChanged}
     />
   );
 }
 
 /** Expiration date (saved with a button) + upload/view a copy, for any license record. */
-function LicenseFields({ record, expKey, pathKey, label, saveFields, uploadFile, onChanged }) {
+function LicenseFields({ record, expKey, pathKey, label, saveFields, uploadFile, afterChange, onChanged }) {
   const agent = record;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -691,12 +701,25 @@ function LicenseFields({ record, expKey, pathKey, label, saveFields, uploadFile,
   const showToast = useToast();
   const left = daysUntil(agent[expKey]);
 
+  /** Dropbox copies (brokers-only + the agent's own), named "<Name> - VT
+   * License - Exp 5-31-28". Best-effort — the upload itself already saved. */
+  function copyToDropbox() {
+    if (!afterChange) return;
+    afterChange()
+      .then((r) => {
+        if (r?.copied?.length) showToast(`Copied to Dropbox: ${r.copied[0].split("/").pop()}`);
+        else if (r?.skipped?.length) showToast(`Not in Dropbox yet — ${r.skipped[0].split(": ").pop()}`);
+      })
+      .catch((e) => showToast(`Saved, but couldn't copy to Dropbox: ${e.message}`));
+  }
+
   async function saveDate(value) {
     setBusy(true);
     setError(null);
     try {
       await saveFields({ [expKey]: value || null });
       onChanged();
+      copyToDropbox();
       showToast(value ? `${label} expiration saved` : `${label} expiration cleared`);
     } catch (e) {
       setError(e.message);
@@ -712,6 +735,7 @@ function LicenseFields({ record, expKey, pathKey, label, saveFields, uploadFile,
     try {
       await uploadFile(file);
       onChanged();
+      copyToDropbox();
       showToast(`${label} license uploaded`);
     } catch (e) {
       setError(e.message.includes("Bucket not found") ? "The license storage isn't set up yet — run the license SQL first." : e.message);
@@ -848,6 +872,9 @@ function AgentDocumentField({ agent, docKey, label, onChanged }) {
       await uploadAgentDocument(agent.id, docKey, file);
       onChanged();
       showToast(`${label} uploaded`);
+      syncAgentDocsToDropbox({ agentId: agent.id, kind: docKey })
+        .then((r) => r?.copied?.length && showToast(`Copied to Dropbox: ${r.copied[0].split("/").pop()}`))
+        .catch((e) => showToast(`Saved, but couldn't copy to Dropbox: ${e.message}`));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -944,6 +971,7 @@ function BrokerageLicenses({ focused = false }) {
               label={st === "VT" ? "Vermont Brokerage License" : "New Hampshire Brokerage License"}
               saveFields={(patch) => saveBrokerageLicense(st, patch)}
               uploadFile={(file) => uploadBrokerageLicense(st, file)}
+              afterChange={() => syncAgentDocsToDropbox({ brokerage: st })}
               onChanged={load}
             />
           );
@@ -951,4 +979,19 @@ function BrokerageLicenses({ focused = false }) {
       )}
     </div>
   );
+}
+
+function sessionStorageGet(k) {
+  try {
+    return window.sessionStorage.getItem(k);
+  } catch {
+    return null;
+  }
+}
+function sessionStorageSet(k, v) {
+  try {
+    window.sessionStorage.setItem(k, v);
+  } catch {
+    /* private mode — just runs again next time */
+  }
 }
