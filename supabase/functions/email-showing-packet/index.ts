@@ -79,7 +79,15 @@ async function getDropboxAccessToken(): Promise<string> {
 /** The packet: a file directly in Showing Docs whose name (before the
  * extension) ends in "- Packet". Newest one wins if there are several. */
 async function findPacket(accessToken: string, listingFolderPath: string) {
-  const path = `${listingFolderPath}/${SHOWING_DOCS_SUBFOLDER}`;
+  // Older folders call it "2) Showing Documents" — find it by name.
+  const sub = await fetch("https://api.dropboxapi.com/2/files/list_folder", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
+    body: JSON.stringify({ path: listingFolderPath }),
+  });
+  const subData = sub.ok ? await sub.json() : { entries: [] };
+  const showing = (subData.entries || []).find((e: { [k: string]: string }) => e[".tag"] === "folder" && /showing/i.test(e.name))?.name;
+  const path = `${listingFolderPath}/${showing || SHOWING_DOCS_SUBFOLDER}`;
   const res = await fetch("https://api.dropboxapi.com/2/files/list_folder", {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },

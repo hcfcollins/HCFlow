@@ -181,8 +181,21 @@ Deno.serve(async (req) => {
     const accessToken = await getDropboxAccessToken();
     const dealFolder = (await resolveDealFolderPath(accessToken, transactionId, tx.dropbox_folder_path)) || tx.dropbox_folder_path;
     const buyerLabel = sanitizeFolderName(tx.buyer_name || "Unknown Buyer");
-    const fromPath = `${dealFolder}/${UNDER_CONTRACT_SUBFOLDER}`;
-    const toPath = `${dealFolder}/${UNDER_CONTRACT_SUBFOLDER} - TERMINATED - ${buyerLabel}`;
+    // Older folders have "4) Under Contract" / "5) Contract Docs" — find the
+    // live one by name (not an already-archived "… - TERMINATED - …" copy).
+    const listRes = await fetch("https://api.dropboxapi.com/2/files/list_folder", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
+      body: JSON.stringify({ path: dealFolder }),
+    });
+    const listed = listRes.ok ? await listRes.json() : { entries: [] };
+    const contractName =
+      (listed.entries || [])
+        .filter((e: { [k: string]: string }) => e[".tag"] === "folder" && !/terminated/i.test(e.name))
+        .map((e: { name: string }) => e.name)
+        .find((n: string) => /under contract|contract docs/i.test(n)) || UNDER_CONTRACT_SUBFOLDER;
+    const fromPath = `${dealFolder}/${contractName}`;
+    const toPath = `${dealFolder}/${contractName} - TERMINATED - ${buyerLabel}`;
 
     await moveDropboxPath(accessToken, fromPath, toPath);
     await createDropboxFolder(accessToken, fromPath);

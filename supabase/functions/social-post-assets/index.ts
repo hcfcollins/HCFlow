@@ -110,6 +110,34 @@ async function getTransactionFolderPath(transactionId: string): Promise<string> 
   return (current || tx.dropbox_folder_path) as string;
 }
 
+
+// Older listing folders are numbered differently ("2) Showing Documents",
+// "3) Photos" vs. today's "3) Showing Docs", "4) Photos"), so subfolders are
+// found by name, whatever their number. Falls back to today's name.
+const subfolderCache = new Map<string, string[]>();
+async function subfolderNames(accessToken: string, folderPath: string): Promise<string[]> {
+  if (subfolderCache.has(folderPath)) return subfolderCache.get(folderPath)!;
+  const res = await fetch("https://api.dropboxapi.com/2/files/list_folder", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
+    body: JSON.stringify({ path: folderPath }),
+  });
+  const data = res.ok ? await res.json() : { entries: [] };
+  const names = (data.entries || []).filter((e: { [k: string]: string }) => e[".tag"] === "folder").map((e: { name: string }) => e.name);
+  subfolderCache.set(folderPath, names);
+  return names;
+}
+async function photosPath(accessToken: string, folderPath: string) {
+  const names = await subfolderNames(accessToken, folderPath);
+  const hit = names.find((n) => /^\s*\d*\)?\s*photos?\s*$/i.test(n)) || names.find((n) => /photo/i.test(n) && !/tour/i.test(n));
+  return `${folderPath}/${hit || PHOTOS_SUBFOLDER}`;
+}
+async function showingDocsPath(accessToken: string, folderPath: string) {
+  const names = await subfolderNames(accessToken, folderPath);
+  const hit = names.find((n) => /showing/i.test(n));
+  return `${folderPath}/${hit || SHOWING_DOCS_SUBFOLDER}`;
+}
+
 const svcHeaders = { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` };
 
 /** Signed-in caller who can see this deal: staff, or its agent / co-list agent. */
@@ -132,7 +160,7 @@ async function callerCanAccess(req: Request, transactionId: string): Promise<boo
 /** "3) Showing Docs" files for the listing packet, in file-name order
  * ("1) MLS Sheet", "2) Disclosure", … — numbers compared as numbers). */
 async function listShowingDocs(accessToken: string, folderPath: string) {
-  const entries = await listFolderIfExists(accessToken, `${folderPath}/${SHOWING_DOCS_SUBFOLDER}`);
+  const entries = await listFolderIfExists(accessToken, await showingDocsPath(accessToken, folderPath));
   return entries
     .map((e: { name: string; path_display: string; size?: number }) => ({ name: e.name, path: e.path_display, size: e.size ?? 0 }))
     .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
@@ -177,22 +205,30 @@ function toPhotoList(entries: { name: string; path_display: string }[]) {
 }
 
 async function listPhotos(accessToken: string, folderPath: string) {
-  const chosenOnes = toPhotoList(await listFolderIfExists(accessToken, `${folderPath}/${PHOTOS_SUBFOLDER}/${CHOSEN_ONES_SUBFOLDER}`));
+  const photos = await photosPath(accessToken, folderPath);
+  const chosenOnes = toPhotoList(await listFolderIfExists(accessToken, `${photos}/${CHOSEN_ONES_SUBFOLDER}`));
   if (chosenOnes.length > 0) return { photos: chosenOnes, source: "Chosen Ones" };
 
   const compressedMls = toPhotoList(
-    await listFolderIfExists(accessToken, `${folderPath}/${PHOTOS_SUBFOLDER}/${COMPRESSED_MLS_SUBFOLDER}`)
+    await listFolderIfExists(accessToken, `${photos}/${COMPRESSED_MLS_SUBFOLDER}`)
   );
   if (compressedMls.length > 0) return { photos: compressedMls, source: "Compressed_MLS" };
 
-  const allPhotos = toPhotoList(await listFolderIfExists(accessToken, `${folderPath}/${PHOTOS_SUBFOLDER}`));
-  return { photos: allPhotos, source: "4) Photos" };
+  const allPhotos = toPhotoList(await listFolderIfExists(accessToken, photos));
+  if (allPhotos.length > 0) return { photos: allPhotos, source: photos.split("/").pop() };
+  // Photos only in other subfolders (e.g. "Photo Tour") — use those.
+  const subs = await subfolderNames(accessToken, photos);
+  for (const sub of subs) {
+    const found = toPhotoList(await listFolderIfExists(accessToken, `${photos}/${sub}`));
+    if (found.length) return { photos: found, source: sub };
+  }
+  return { photos: [], source: photos.split("/").pop() };
 }
 
 /** Finds the packet file (name contains "packet", case-insensitive) in Showing Docs —
  * if more than one matches, the most recently modified wins. */
 async function findPacketFile(accessToken: string, folderPath: string) {
-  const entries = await listFolder(accessToken, `${folderPath}/${SHOWING_DOCS_SUBFOLDER}`);
+  const entries = await listFolder(accessToken, await showingDocsPath(accessToken, folderPath));
   const matches = entries
     .filter((e) => e.name.toLowerCase().includes("packet") && e.name.toLowerCase().endsWith(".pdf"))
     .sort((a, b) => new Date(b.server_modified).getTime() - new Date(a.server_modified).getTime());
@@ -252,6 +288,7 @@ Deno.serve(async (req) => {
 
   try {
     const { action, transactionId, path, fileName, renames } = await req.json();
+    subfolderCache.clear(); // folders can change between requests
     if (!action || !transactionId) {
       return jsonResponse({ error: "action and transactionId required" }, 400);
     }
@@ -283,7 +320,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "listShowingDocs") {
-      return jsonResponse({ files: await listShowingDocs(accessToken, folderPath), folder: `${folderPath}/${SHOWING_DOCS_SUBFOLDER}` });
+      return jsonResponse({ files: await listShowingDocs(accessToken, folderPath), folder: await showingDocsPath(accessToken, folderPath) });
     }
 
     // A one-time Dropbox upload link for the finished listing packet, so the
@@ -292,7 +329,7 @@ Deno.serve(async (req) => {
     if (action === "packetUploadLink") {
       const safe = String(fileName || "").replace(/[\\/:*?"<>|]/g, "").trim();
       if (!safe.toLowerCase().endsWith(".pdf")) return jsonResponse({ error: "fileName must be a .pdf" }, 400);
-      const target = `${folderPath}/${SHOWING_DOCS_SUBFOLDER}/${safe}`;
+      const target = `${await showingDocsPath(accessToken, folderPath)}/${safe}`;
       const res = await fetch("https://api.dropboxapi.com/2/files/get_temporary_upload_link", {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
