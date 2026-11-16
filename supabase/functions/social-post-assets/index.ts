@@ -469,38 +469,52 @@ Deno.serve(async (req) => {
         }
         r.to = `${parentOf(from)}/${toName}`;
       }
-      const move = async (from: string, to: string) => {
-        const res = await fetch("https://api.dropboxapi.com/2/files/move_v2", {
+      // One Dropbox batch per pass (a few seconds total), instead of one call
+      // per file — a big folder one-by-one ran past the function's time limit
+      // and stranded files under temporary names. The temporary name carries
+      // the final name ("__renaming__ 3) 12 Main St - Deed.pdf"), so if
+      // anything is ever interrupted, the next Clean Up finishes the job.
+      const dbx = (endpoint: string, body: unknown) =>
+        fetch(`https://api.dropboxapi.com/2/files/${endpoint}`, {
           method: "POST",
           headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
-          body: JSON.stringify({ from_path: from, to_path: to, autorename: false }),
+          body: JSON.stringify(body),
         });
-        if (!res.ok) throw new Error(`${from.split("/").pop()}: ${await res.text()}`);
+      const moveBatch = async (pairs: { from: string; to: string }[]) => {
+        if (!pairs.length) return [] as { ok: boolean; why?: string }[];
+        const res = await dbx("move_batch_v2", { entries: pairs.map((p) => ({ from_path: p.from, to_path: p.to })), autorename: false });
+        let data = await res.json();
+        if (!res.ok) throw new Error(`Dropbox rename failed: ${JSON.stringify(data)}`);
+        const jobId = data.async_job_id;
+        for (let tries = 0; data[".tag"] === "async_job_id" || data[".tag"] === "in_progress"; tries++) {
+          if (tries > 100) throw new Error("Dropbox is still renaming — check back in a minute");
+          await new Promise((r) => setTimeout(r, 700));
+          const check = await dbx("move_batch/check_v2", { async_job_id: jobId });
+          data = await check.json();
+          if (!check.ok) throw new Error(`Dropbox rename failed: ${JSON.stringify(data)}`);
+        }
+        if (data[".tag"] === "failed") throw new Error(`Dropbox rename failed: ${JSON.stringify(data)}`);
+        return (data.entries || []).map((e: { [k: string]: unknown }) =>
+          e[".tag"] === "success" ? { ok: true } : { ok: false, why: JSON.stringify(e.failure || e) }
+        );
       };
       const todo = list.filter((r: { from: string; to: string }) => r.from !== r.to);
-      const stamp = Date.now();
-      const temps: { temp: string; to: string }[] = [];
-      const done: string[] = [];
       const failed: string[] = [];
-      for (let i = 0; i < todo.length; i++) {
-        const r = todo[i];
-        const temp = `${parentOf(r.from)}/__renaming_${stamp}_${i}__${r.from.slice(r.from.lastIndexOf("."))}`;
-        try {
-          await move(r.from, temp);
-          temps.push({ temp, to: r.to });
-        } catch (e) {
-          failed.push(String(e));
-        }
-      }
-      for (const t of temps) {
-        try {
-          await move(t.temp, t.to);
-          done.push(t.to);
-        } catch (e) {
-          failed.push(String(e));
-        }
-      }
-      return jsonResponse({ renamed: done.length, failed });
+      const firstPass = todo.map((r: { from: string; to: string }) => ({ from: r.from, to: `${parentOf(r.from)}/__renaming__ ${r.to.slice(r.to.lastIndexOf("/") + 1)}`, final: r.to }));
+      const r1 = await moveBatch(firstPass);
+      const moved = firstPass.filter((p, i) => {
+        if (r1[i]?.ok) return true;
+        failed.push(`${p.from.split("/").pop()}: ${r1[i]?.why || "not renamed"}`);
+        return false;
+      });
+      const secondPass = moved.map((p) => ({ from: p.to, to: p.final }));
+      const r2 = await moveBatch(secondPass);
+      let renamed = 0;
+      secondPass.forEach((p, i) => {
+        if (r2[i]?.ok) renamed++;
+        else failed.push(`${p.to.split("/").pop()}: ${r2[i]?.why || "not renamed"}`);
+      });
+      return jsonResponse({ renamed, failed });
     }
 
     if (action === "extractDescription") {

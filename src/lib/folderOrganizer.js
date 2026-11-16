@@ -80,8 +80,10 @@ const SKIP = [
   // The listing packet ("1) 15C Harlow Hill - Packet.pdf") — not a "Signed Packet".
   { test: /\s-\s*packet\.[a-z0-9]+$/i, why: "listing packet (keeps its name)" },
   { test: /^instagram\b/i, why: "Instagram graphic" },
-  { test: /^__renaming_/, why: "in the middle of a rename" },
 ];
+
+/** A file left mid-rename ("__renaming__ 3) 12 Main St - Deed.pdf") → its intended name. */
+const unstrand = (name) => name.replace(/^__renaming__\s*/, "");
 
 /** Dropbox files → [{ folder, items: [{ path, oldName, newName, include, kind, added, skip }] }] */
 export function planRenames(files, tx) {
@@ -97,8 +99,11 @@ export function planRenames(files, tx) {
     .map(([folder, list]) => {
       const items = list
         .map((f) => {
-          const skip = SKIP.find((s) => s.test.test(f.name))?.why || null;
-          return { path: f.path, oldName: f.name, added: f.added, kind: docKind(f.name), skip, include: !skip, desc: describe(f.name, tx) };
+          const name = unstrand(f.name);
+          const skip = SKIP.find((s) => s.test.test(name))?.why || null;
+          // A file left mid-rename always gets renamed (back to its intended name).
+          const stranded = name !== f.name;
+          return { path: f.path, oldName: f.name, added: f.added, kind: docKind(name), skip: stranded ? null : skip, include: stranded || !skip, desc: describe(name, tx) };
         })
         .sort((a, b) => order[a.kind] - order[b.kind] || String(a.added).localeCompare(String(b.added)) || a.oldName.localeCompare(b.oldName));
       return { folder, items: renumber(items, street) };

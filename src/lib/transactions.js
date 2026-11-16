@@ -1439,6 +1439,10 @@ async function functionError(error) {
       // not JSON
     }
   }
+  const status = error?.context?.status;
+  if (status === 546 || status === 504 || status === 502) {
+    return new Error("That took longer than the server allows and was cut off partway. Try again — it picks up where it left off.");
+  }
   return error;
 }
 
