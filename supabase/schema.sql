@@ -597,7 +597,3 @@ alter table agents add column if not exists phone text;
 update agents set phone = '(802)-431-3421' where lower(email) = 'holly.hall@hallcollins.com' and phone is null;
 update agents set phone = '(802)-272-3533' where lower(email) = 'fran.collins@hallcollins.com' and phone is null;
 notify pgrst, 'reload schema';
-
--- "Next Spring" comp timeframe (between 6 months and Next year).
-alter table transactions drop constraint if exists transactions_timeframe_check;
-alter table transactions add constraint transactions_timeframe_check check (timeframe in ('Now', '6 months', 'Next Spring', 'Next year'));

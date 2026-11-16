@@ -1279,7 +1279,7 @@ function CompsPage({
   );
 }
 
-const TIMEFRAME_ORDER = ["Now", "6 months", "Next Spring", "Next year"];
+const TIMEFRAME_ORDER = ["Now", "6 months", "Next year"];
 
 function TimeframeGroups({ transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange, onOpenDetail, onDeadLead }) {
   const groups = [
