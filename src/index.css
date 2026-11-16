@@ -1741,3 +1741,7 @@ button { cursor: pointer; }
 .organizer-arrows { display: flex; flex-direction: column; gap: 2px; }
 .organizer-arrows button { padding: 2px 4px; border: 1px solid #cdd8e0; border-radius: 5px; background: #fff; color: var(--color-navy); line-height: 0; cursor: pointer; }
 .organizer-arrows button:disabled { opacity: 0.3; cursor: default; }
+/* Drop files onto a deal (Documents section) */
+.deal-dropzone { min-height: 72px; margin: 10px 0 4px; }
+.drop-row { align-items: flex-start !important; }
+.drop-row select { width: auto; max-width: 100%; padding: 4px 6px; font-size: 12px; margin-bottom: 4px; }

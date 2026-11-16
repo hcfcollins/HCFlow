@@ -332,7 +332,50 @@ Deno.serve(async (req) => {
       return jsonResponse({ link: data.link, path });
     }
 
-    // ── Folder organizer (Close-Out) ──
+    // ── Drop files onto a deal (deal screen) ──
+    // The deal folder's own subfolders ("1) Pitch Docs", "5) Under Contract", …).
+    if (action === "dealSubfolders") {
+      const res = await fetch("https://api.dropboxapi.com/2/files/list_folder", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
+        body: JSON.stringify({ path: folderPath }),
+      });
+      const data = await res.json();
+      if (!res.ok) return jsonResponse({ error: `Couldn't open the deal folder: ${JSON.stringify(data)}` }, 500);
+      const folders = (data.entries || []).filter((e: { [k: string]: string }) => e[".tag"] === "folder").map((e: { name: string }) => e.name);
+      return jsonResponse({ root: folderPath, folders });
+    }
+
+    // One-time upload link for a file dropped onto the deal: into the deal
+    // folder or one of its own top-level subfolders. Never overwrites — a
+    // same-named file gets "(1)" added.
+    if (action === "dealUploadLink") {
+      const subfolder = path ? String(path) : "";
+      const safe = String(fileName || "").replace(/[\\/:*?"<>|]/g, "").trim();
+      if (!safe) return jsonResponse({ error: "fileName required" }, 400);
+      let target = folderPath;
+      if (subfolder) {
+        const list = await fetch("https://api.dropboxapi.com/2/files/list_folder", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
+          body: JSON.stringify({ path: folderPath }),
+        });
+        const data = await list.json();
+        const ok = (data.entries || []).some((e: { [k: string]: string }) => e[".tag"] === "folder" && e.name === subfolder);
+        if (!ok) return jsonResponse({ error: `No "${subfolder}" folder in this deal` }, 400);
+        target = `${folderPath}/${subfolder}`;
+      }
+      const res = await fetch("https://api.dropboxapi.com/2/files/get_temporary_upload_link", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
+        body: JSON.stringify({ commit_info: { path: `${target}/${safe}`, mode: "add", autorename: true, mute: true }, duration: 3600 }),
+      });
+      const data = await res.json();
+      if (!res.ok) return jsonResponse({ error: `Couldn't get an upload link: ${JSON.stringify(data)}` }, 500);
+      return jsonResponse({ link: data.link, path: `${target}/${safe}` });
+    }
+
+    // ── Folder organizer ──
     // Every file in the deal folder except the Photos folder, with when it was
     // added to Dropbox (the order things happened).
     if (action === "listDealFiles") {

@@ -1356,6 +1356,27 @@ export async function createActiveListing(fields) {
   return tx;
 }
 
+/** The deal folder's own subfolders ("1) Pitch Docs", …). */
+export async function dealSubfolders(transactionId) {
+  const { data, error } = await supabase.functions.invoke("social-post-assets", { body: { action: "dealSubfolders", transactionId } });
+  if (error) throw await functionError(error);
+  if (data?.error) throw new Error(data.error);
+  return data.folders || [];
+}
+
+/** Uploads a dropped file into the deal folder (or one of its subfolders),
+ * straight from the browser. Never overwrites. Returns the Dropbox path. */
+export async function uploadToDealFolder(transactionId, subfolder, fileName, file) {
+  const { data, error } = await supabase.functions.invoke("social-post-assets", {
+    body: { action: "dealUploadLink", transactionId, path: subfolder || "", fileName },
+  });
+  if (error) throw await functionError(error);
+  if (data?.error) throw new Error(data.error);
+  const res = await fetch(data.link, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file });
+  if (!res.ok) throw new Error(`Dropbox upload failed (${res.status})`);
+  return data.path;
+}
+
 /** Folder organizer: every file in the deal folder except Photos. */
 export async function listDealFiles(transactionId) {
   const { data, error } = await supabase.functions.invoke("social-post-assets", { body: { action: "listDealFiles", transactionId } });

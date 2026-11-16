@@ -116,3 +116,40 @@ export function renumber(items, street) {
     return { ...it, newName: `${n}) ${street} - ${it.desc}${ext ? `.${ext.toLowerCase()}` : ""}` };
   });
 }
+
+// ── Dropping new files onto a deal (deal screen) ──
+// Which of the deal's own subfolders a file belongs in, by its name. Listing
+// folders: 1) Pitch Docs, 2) Listing Agreement, 3) Showing Docs, 4) Photos,
+// 5) Under Contract (older ones: 5) Contract Docs). Buyer folders often have
+// no subfolders — then everything goes in the deal folder itself.
+const FOLDER_RULES = [
+  { match: /photo/i, test: /\.(jpe?g|png|heic|webp|gif)$/i },
+  { match: /pitch/i, test: /\b(cma|comps?|market analysis|pitch)\b/i },
+  { match: /listing agreement/i, test: /listing (agreement|contract)|exclusive right|amendment to listing|\bcid\b|listing doc/i },
+  { match: /closing/i, test: /closing doc|\bhud\b|settlement statement|closing disclosure|\balta\b|commission/i },
+  { match: /financ/i, test: /pre-?approval|pre-?qual|commitment|appraisal|lender|financ|proof of funds/i },
+  { match: /inspection/i, test: /inspection|radon|water test|pest|home inspect/i },
+  { match: /under contract|contract docs|purchase & sale|purchase and sale/i, test: /contract|p\s*&\s*s|purchase|addend|deposit|waiver|extension|extend|amend|walkthrough|closing|hud|commission|inspection|appraisal|financ|commitment|pre-?approval/i },
+  { match: /showing/i, test: /\bmls\b|disclosure|\bspir\b|property information|deed|tax bill|list card|survey|septic|\bwell\b|\blbp\b|lead|\banr\b|fema|flood|permit|vendor|plat/i },
+];
+
+/** Best guess of the subfolder (exact name from `folders`) for a dropped file,
+ * or "" for the deal folder itself. */
+export function suggestFolder(fileName, folders) {
+  for (const rule of FOLDER_RULES) {
+    if (!rule.test.test(fileName)) continue;
+    const f = folders.find((name) => rule.match.test(name));
+    if (f) return f;
+  }
+  return "";
+}
+
+export const isPhoto = (name) => /\.(jpe?g|png|heic|webp|gif)$/i.test(name);
+
+/** Highest "N)" already used in a folder's file names (0 if none). */
+export function highestNumber(names) {
+  return names.reduce((max, n) => {
+    const m = /^\s*(\d+)\s*[a-z]?\s*[.)]/i.exec(n);
+    return m ? Math.max(max, Number(m[1])) : max;
+  }, 0);
+}

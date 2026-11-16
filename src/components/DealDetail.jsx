@@ -8,6 +8,8 @@ import CloseoutCalculator from "./CloseoutCalculator";
 import ConfirmDialog from "./ConfirmDialog";
 import DropboxFolderPicker from "./DropboxFolderPicker";
 import ListingPacketPanel from "./ListingPacketPanel";
+import FolderOrganizer from "./FolderOrganizer";
+import DealFileDrop from "./DealFileDrop";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents, fetchOtherSideAgentName, updateCloseoutFields } from "../lib/transactions";
@@ -96,6 +98,7 @@ export default function DealDetail({
   const [retryingDropbox, setRetryingDropbox] = useState(false);
   const [emailingPacket, setEmailingPacket] = useState(false);
   const [showPacketBuilder, setShowPacketBuilder] = useState(false);
+  const [showOrganizer, setShowOrganizer] = useState(false);
   // Lets New Comp's "Add & Build CMA PDF" button drop an agent straight into this
   // screen already open, instead of landing on the deal detail view first.
   const [showGenerateComp, setShowGenerateComp] = useState(Boolean(transaction._openGenerateComp));
@@ -1126,6 +1129,10 @@ export default function DealDetail({
               <a href={transaction.dropbox_folder_url} target="_blank" rel="noreferrer" className="cma-export-btn" title="Open this deal's folder in Dropbox">
                 <FolderOpen size={14} /> Open Dropbox Folder
               </a>
+              <button type="button" className="cma-export-btn" onClick={() => setShowOrganizer(true)} title="Rename everything (except Photos) to “1) Address - …” in order">
+                ✨ Clean Up Folder
+              </button>
+              <DealFileDrop transaction={transaction} />
               <button
                 type="button"
                 className="dbx-change-link"
@@ -1309,6 +1316,8 @@ export default function DealDetail({
         }}
         onCancel={() => setShowExpireConfirm(false)}
       />
+
+      {showOrganizer && <FolderOrganizer transaction={transaction} onClose={() => setShowOrganizer(false)} onDone={onRefresh} />}
 
       {showPacketBuilder && (
         <ListingPacketPanel transaction={transaction} onClose={() => setShowPacketBuilder(false)} onSaved={() => showToast("Listing packet saved to Showing Docs")} />
