@@ -5,7 +5,6 @@ import FolderOrganizer from "./FolderOrganizer";
 import {
   saveCloseout,
   fetchAllAgents,
-  pushCloseoutToSheet,
   pushCloseoutToXero,
   sendCloseoutEmail,
   fetchSignInventory,
@@ -167,7 +166,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const trustTransferAmount = isListingSide && depositHeld > 0 && (depositRetained || checkMatchesDeposit) ? depositHeld : 0;
   const hasReferral = referralPctNum > 0;
   // "Send" is misleading when the external-close box is checked — that path
-  // deliberately skips the Deal Tracker sheet and Xero push.
+  // deliberately skips the Xero push.
   const saveButtonLabel = alreadyClosedExternally ? "Save and Mark Closed" : "Save and Send Closeout";
 
   const result = calculateCloseout({
@@ -381,23 +380,17 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
       }
 
       // A deal that already closed outside the app (e.g. handled manually before
-      // this feature existed) must not re-trigger the Sheet/Xero pushes — those
-      // would create a duplicate Google Sheet row and duplicate Xero invoice/bills
-      // for money that was already recorded and paid out elsewhere.
+      // this feature existed) must not re-trigger the Xero push — that would
+      // create a duplicate invoice/bills for money already recorded elsewhere.
+      // (The old Deal Tracker Google Sheet row via Zapier was retired Nov 2026 —
+      // Xero gets everything directly.)
       if (alreadyClosedExternally) {
-        showToast("Marked Closed — Google Sheet and Xero were not notified");
+        showToast("Marked Closed — Xero was not notified");
       } else {
         // Best-effort — the closeout itself is already saved and the deal is
-        // already marked Closed above, so a failure here (Zap not wired up yet,
-        // Zapier down, whatever) is surfaced but must never look like the save
-        // failed or block moving on.
+        // already marked Closed above, so a failure here is surfaced but must
+        // never look like the save failed or block moving on.
         const sheetPayload = buildSheetPayload();
-        try {
-          await pushCloseoutToSheet(sheetPayload);
-          showToast("Sent to the Deal Tracker sheet");
-        } catch (e) {
-          showToast(`Saved, but couldn't send to the Deal Tracker sheet: ${e.message}`);
-        }
         try {
           await pushCloseoutToXero(sheetPayload);
           showToast("Invoice and bills created in Xero");
@@ -447,10 +440,10 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
             checked={alreadyClosedExternally}
             onChange={(e) => setAlreadyClosedExternally(e.target.checked)}
           />
-          This deal already closed outside the app — just mark it Closed, don't notify the Deal Tracker sheet or Xero
+          This deal already closed outside the app — just mark it Closed, don't send anything to Xero
         </label>
         {alreadyClosedExternally && (
-          <button title="Mark Closed without emailing the Deal Tracker sheet or Xero" type="button" className="google-btn closeout-external-save-btn" onClick={handleSave} disabled={saving}>
+          <button title="Mark Closed without sending anything to Xero" type="button" className="google-btn closeout-external-save-btn" onClick={handleSave} disabled={saving}>
             {saving ? "Saving…" : saveButtonLabel}
           </button>
         )}
