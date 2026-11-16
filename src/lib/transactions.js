@@ -589,13 +589,14 @@ export async function addUpcomingContractTodos(tx) {
     ["Financing Check-In", dateMinusDays(financing, 7)],
     ["Closing", closing],
     ["Schedule Final Walkthrough", dateMinusDays(closing, 7)],
-    ["Send Utilities", dateMinusDays(closing, 10)],
+    // Land: no utilities to transfer, and no final readings.
+    ["Send Utilities", tx.property_style === "Land" ? null : dateMinusDays(closing, 10)],
     ["Deposit Due", cd.hold_deposit === "Yes" ? cd.deposit_due_date || null : null],
     ["Second Deposit Due", cd.second_deposit === "Yes" ? cd.second_deposit_due_date || null : null],
     ...(isListingSide
       ? [
           ["Send the Deposit", dateMinusDays(closing, 5)],
-          ["Final Oil/Water/Sewer Reading", dateMinusDays(closing, tx.town_water_sewer ? 14 : 7)],
+          ["Final Oil/Water/Sewer Reading", tx.property_style === "Land" ? null : dateMinusDays(closing, tx.town_water_sewer ? 14 : 7)],
         ]
       : []),
   ];
@@ -867,7 +868,10 @@ export async function submitUnderContract(fields) {
   await syncContingencyTodo(tx.id, "Financing Check-In", dateMinusDays(financingDate, 7));
   await syncContingencyTodo(tx.id, "Closing", closingDate || null);
   await syncContingencyTodo(tx.id, "Schedule Final Walkthrough", dateMinusDays(closingDate, 7));
-  await syncContingencyTodo(tx.id, "Send Utilities", dateMinusDays(closingDate, 10));
+  // Land has no utilities to transfer — no "Send Utilities" (removed if the
+  // deal was changed to Land after it was added).
+  const isLand = propertyStyle === "Land";
+  await syncContingencyTodo(tx.id, "Send Utilities", isLand ? null : dateMinusDays(closingDate, 10));
   await syncContingencyTodo(tx.id, "Deposit Due", holdDeposit === "Yes" ? depositDueDate || null : null);
   await syncContingencyTodo(tx.id, "Second Deposit Due", secondDeposit === "Yes" ? secondDepositDueDate || null : null);
 
@@ -879,7 +883,7 @@ export async function submitUnderContract(fields) {
     // Town water/sewer final readings have to be ordered from the municipality,
     // which takes longer to schedule than a private well/septic reading — 2
     // weeks out instead of 1.
-    await syncContingencyTodo(tx.id, "Final Oil/Water/Sewer Reading", dateMinusDays(closingDate, townWaterSewer ? 14 : 7));
+    await syncContingencyTodo(tx.id, "Final Oil/Water/Sewer Reading", isLand ? null : dateMinusDays(closingDate, townWaterSewer ? 14 : 7));
   }
 
   await addActivityLog(tx.id, "Under Contract form submitted", address);
