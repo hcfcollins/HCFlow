@@ -1056,35 +1056,47 @@ export default function SpreadsheetView({ transactions: rawTransactions, onBack,
         <div className="sv-summary-stats">
           <div className="sv-summary-stat">
             <span className="sv-summary-stat-label">Brokerage Keeps</span>
-            <div className="sv-summary-stat-split">
+            <div className="sv-summary-stat-split sv-summary-equation">
               <div className="sv-summary-stat-part">
                 <strong>${Math.round(summary.bankActual).toLocaleString()}</strong>
-                <span className="field-help">closed</span>
+                <span className="field-help">already closed</span>
               </div>
+              <span className="sv-summary-op" aria-hidden="true">+</span>
               <div className="sv-summary-stat-part">
                 <strong>${Math.round(summary.bankProjected).toLocaleString()}</strong>
-                <span className="field-help">projected</span>
+                <span className="field-help">still under contract (estimate)</span>
+              </div>
+              <span className="sv-summary-op" aria-hidden="true">=</span>
+              <div className="sv-summary-stat-part sv-summary-total">
+                <strong>${Math.round(summary.bankTotal).toLocaleString()}</strong>
+                <span className="field-help">total if all close</span>
               </div>
             </div>
           </div>
           <div className="sv-summary-stat">
             <span className="sv-summary-stat-label">Fran's Commission</span>
-            <div className="sv-summary-stat-split">
+            <div className="sv-summary-stat-split sv-summary-equation">
               <div className="sv-summary-stat-part">
                 <strong>${Math.round(summary.franActual).toLocaleString()}</strong>
-                <span className="field-help">closed</span>
+                <span className="field-help">already closed</span>
               </div>
+              <span className="sv-summary-op" aria-hidden="true">+</span>
               <div className="sv-summary-stat-part">
                 <strong>${Math.round(summary.franProjected).toLocaleString()}</strong>
-                <span className="field-help">projected</span>
+                <span className="field-help">still under contract (estimate)</span>
+              </div>
+              <span className="sv-summary-op" aria-hidden="true">=</span>
+              <div className="sv-summary-stat-part sv-summary-total">
+                <strong>${Math.round(summary.franTotal).toLocaleString()}</strong>
+                <span className="field-help">total if all close</span>
               </div>
             </div>
           </div>
         </div>
         <p className="field-help">
           {summary.actualCount} closed deal{summary.actualCount === 1 ? "" : "s"}
-          {summary.projectedCount > 0 && `, ${summary.projectedCount} more still under contract`}. "Closed" is the
-          real figure from the Close-Out Calculator. "Projected" uses the exact same split rules — the 20%
+          {summary.projectedCount > 0 && `, ${summary.projectedCount} more still under contract`}. The two parts don't overlap: "Already
+          closed" is the real figure from the Close-Out Calculator; "Still under contract" is only deals not closed out yet, and uses the exact same split rules — the 20%
           brokerage floor, then the standard Organic/Provided/owner percentages — so it's not a guess, except for
           one specific case: a Provided-lead deal with a negotiated agent split that hasn't been entered into the
           Close-Out Calculator yet defaults to 60% here until it is.

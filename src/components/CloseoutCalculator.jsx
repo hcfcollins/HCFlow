@@ -167,7 +167,9 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const hasReferral = referralPctNum > 0;
   // "Send" is misleading when the external-close box is checked — that path
   // deliberately skips the Xero push.
-  const saveButtonLabel = alreadyClosedExternally ? "Save and Mark Closed" : "Save and Send Closeout";
+  // Says exactly what saving does: marks it Closed and creates the Xero
+  // invoice + bills (not when it already closed outside the app).
+  const saveButtonLabel = alreadyClosedExternally ? "Save and Mark Closed (no Xero)" : "Save, Mark Closed & Push to Xero";
 
   const result = calculateCloseout({
     commissionAfterReferral,

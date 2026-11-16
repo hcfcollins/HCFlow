@@ -1747,3 +1747,7 @@ button { cursor: pointer; }
 .drop-row select { width: auto; max-width: 100%; padding: 4px 6px; font-size: 12px; margin-bottom: 4px; }
 /* Close-Out preview: italic "how we got here" math under each number */
 .closeout-math { display: block; font-size: 11px; font-style: italic; font-weight: 400; color: var(--color-text-muted); margin-top: 2px; line-height: 1.35; }
+/* Commission Summary: closed + still under contract = total */
+.sv-summary-equation { align-items: center; flex-wrap: wrap; }
+.sv-summary-op { font-size: 18px; font-weight: 700; color: var(--color-text-muted); padding: 0 2px; }
+.sv-summary-total strong { color: var(--color-navy); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
