@@ -15,7 +15,7 @@ import {
   COMMISSION_CHECK_DOC,
   CLOSING_DOCS_DOC,
 } from "../lib/transactions";
-import { calculateCloseout, applyTcFee, TC_FEE_AMOUNTS, round2 } from "../lib/commissionCalc";
+import { calculateCloseout, applyTcFee, TC_FEE_AMOUNTS, round2, suggestTcFee } from "../lib/commissionCalc";
 import { useToast } from "../lib/ToastContext";
 import { focusNextOnEnter } from "../lib/formKeyNav";
 
@@ -98,7 +98,11 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   // every deal, except Holly's files get the full fee for the deal type.
   const isHollyDeal = transaction.agent?.name === "Holly Hall";
   const clientBuys = transaction.side === "Buy" || (transaction.side === "Split" && transaction.split_client_side === "Buy");
-  const autoTcFee = isHollyDeal ? (transaction.property_style === "Land" ? "Land" : clientBuys ? "Buyer" : "") : "Compliance";
+  // Holly: what the Under Contract form picked for her, else work it out.
+  const autoTcFee = isHollyDeal
+    ? transaction.commission_data?.tc_fee_type ||
+      suggestTcFee({ agentName: "Holly Hall", side: transaction.side, splitClientSide: transaction.split_client_side, propertyStyle: transaction.property_style })
+    : "Compliance";
   const [tcFeeType, setTcFeeType] = useState(saved.tc_fee_type ?? autoTcFee);
   // Listing side: the actual check vs. the actual commission (the difference
   // is earnest money we held in trust and applied toward the commission).

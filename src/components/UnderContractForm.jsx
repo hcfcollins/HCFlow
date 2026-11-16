@@ -3,7 +3,7 @@ import { fetchAttorneys, submitUnderContract, resolveAttorneyId as resolveAttorn
 import RadioGroup from "./RadioGroup";
 import AgentField from "./AgentField";
 import { loadDraft, useDraftPersistence } from "../lib/useDraftPersistence";
-import { TC_FEE_AMOUNTS } from "../lib/commissionCalc";
+import { TC_FEE_AMOUNTS, suggestTcFee } from "../lib/commissionCalc";
 import { focusNextOnEnter } from "../lib/formKeyNav";
 import { useToast } from "../lib/ToastContext";
 
@@ -92,6 +92,19 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
   const [referralPct, setReferralPct] = useState(initialReferralPct != null ? String(initialReferralPct) : draft?.referralPct || "25");
   const [referralPctAutoAdjusted, setReferralPctAutoAdjusted] = useState(false);
   const [tcFeeType, setTcFeeType] = useState(initialData?.commission_data?.tc_fee_type || draft?.tcFeeType || "");
+  // Picked automatically from the answers above until someone changes it.
+  const [tcFeeTouched, setTcFeeTouched] = useState(Boolean(draft?.tcFeeTouched));
+  const [buyerUnrepresented, setBuyerUnrepresented] = useState(draft?.buyerUnrepresented || "");
+  const suggestedTcFee = suggestTcFee({
+    agentName: selectedAgentName,
+    side,
+    splitClientSide,
+    propertyStyle,
+    buyerUnrepresented: buyerUnrepresented === "yes",
+  });
+  useEffect(() => {
+    if (!tcFeeTouched) setTcFeeType(suggestedTcFee);
+  }, [suggestedTcFee, tcFeeTouched]);
   const [townWaterSewer, setTownWaterSewer] = useState(initialData?.town_water_sewer ?? draft?.townWaterSewer ?? false);
 
   const { clearDraft } = useDraftPersistence(draftKey, {
@@ -99,7 +112,7 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
     propertyStyle, price, buyerAttorney, buyerAttorneyTbd, sellerAttorney, sellerAttorneyTbd,
     commissionPct, closingDate, inspectionDate, financingDate, appraiser, appraiserOther,
     holdDeposit, depositAmount, depositDueDate, secondDeposit, secondDepositAmount, secondDepositDueDate, tcFeeType,
-    clientSource, referralOwedTo, referralPctChoice, referralPct, townWaterSewer,
+    clientSource, referralOwedTo, referralPctChoice, referralPct, townWaterSewer, tcFeeTouched, buyerUnrepresented,
   });
 
   useEffect(() => {
@@ -472,10 +485,33 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
         </>
       )}
 
+      {selectedAgentName === "Holly Hall" && side === "Sell" && propertyStyle !== "Land" && (
+        <fieldset>
+          <legend>Does the buyer have their own agent?</legend>
+          <RadioGroup
+            name="buyerUnrepresented"
+            value={buyerUnrepresented}
+            onChange={setBuyerUnrepresented}
+            options={[
+              { value: "no", label: "Yes, the buyer has an agent" },
+              { value: "yes", label: "No, the buyer is unrepresented" },
+            ]}
+          />
+        </fieldset>
+      )}
+
       <label>
         Transaction Coordinator Fee{" "}
-        <span className="field-help">(your judgment call — picks which flat fee applies, comes out of the brokerage's cut)</span>
-        <select value={tcFeeType} onChange={(e) => setTcFeeType(e.target.value)}>
+        <span className="field-help">
+          (filled in automatically: Compliance for every agent; Holly's files get the full fee for the deal type. Change it if needed.)
+        </span>
+        <select
+          value={tcFeeType}
+          onChange={(e) => {
+            setTcFeeTouched(true);
+            setTcFeeType(e.target.value);
+          }}
+        >
           <option value="">None</option>
           {Object.entries(TC_FEE_AMOUNTS).map(([type, amount]) => (
             <option key={type} value={type}>

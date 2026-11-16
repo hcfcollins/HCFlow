@@ -9,6 +9,20 @@ export const TC_FEE_AMOUNTS = {
   Compliance: 200,
 };
 
+/** Which transaction coordinator fee applies (Fran, Nov 2026): Compliance on
+ * every deal, except Holly's files get the full fee for what's under
+ * contract — her buyer → Buyer, land → Land, her listing with an
+ * unrepresented buyer → Unrepresented Buyer Listing. Returns "" when it
+ * can't tell (Holly's listing with a represented buyer) so someone picks. */
+export function suggestTcFee({ agentName, side, splitClientSide, propertyStyle, buyerUnrepresented }) {
+  if (agentName !== "Holly Hall") return "Compliance";
+  if (propertyStyle === "Land") return "Land";
+  const clientBuys = side === "Buy" || (side === "Split" && splitClientSide === "Buy");
+  if (clientBuys) return "Buyer";
+  if (buyerUnrepresented) return "Unrepresented Buyer Listing";
+  return "";
+}
+
 /** Comes out of the brokerage's own bank_amount — every deal (owner or agent)
  * now always has a non-zero bank_amount (see calculateCloseout below), so this
  * no longer needs a owner-deal zero-floor special case, just the general one. */
