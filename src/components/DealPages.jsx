@@ -559,35 +559,41 @@ export function AllPage(props) {
       )}
     </div>
   );
-  if (q) {
-    const hits = transactions.filter((tx) => [tx.address, tx.seller_name, tx.buyer_name].some((f) => f?.toLowerCase().includes(q)));
-    return (
-      <div className="comps-page">
-        {searchBox}
-        {hits.length ? (
-          <TransactionList
-            transactions={hits}
-            stages={stages}
-            currentAgent={currentAgent}
-            onStageChange={onStageChange}
-            onNotesChange={onNotesChange}
-            onCompsStatusChange={onCompsStatusChange}
-            onAddTodo={onAddTodo}
-            onToggleTodo={onToggleTodo}
-            onEditTodo={onEditTodo}
-            onDeleteTodo={onDeleteTodo}
-            onOpenDetail={onOpenDetail}
-          />
-        ) : (
-          <p className="empty-state">No deals match “{query.trim()}”.</p>
-        )}
-      </div>
-    );
-  }
-  return <AllPageSections {...props} searchBox={searchBox} />;
+  // The search box stays in the same spot whether or not there's a query —
+  // swapping it into a different layout remounted the input and dropped the
+  // cursor after the first letter.
+  const hits = q ? transactions.filter((tx) => [tx.address, tx.seller_name, tx.buyer_name].some((f) => f?.toLowerCase().includes(q))) : [];
+  return (
+    <div className="all-deals-wrap">
+      {searchBox}
+      {!q ? (
+        <AllPageSections {...props} />
+      ) : (
+        <div className="comps-page">
+          {hits.length ? (
+            <TransactionList
+              transactions={hits}
+              stages={stages}
+              currentAgent={currentAgent}
+              onStageChange={onStageChange}
+              onNotesChange={onNotesChange}
+              onCompsStatusChange={onCompsStatusChange}
+              onAddTodo={onAddTodo}
+              onToggleTodo={onToggleTodo}
+              onEditTodo={onEditTodo}
+              onDeleteTodo={onDeleteTodo}
+              onOpenDetail={onOpenDetail}
+            />
+          ) : (
+            <p className="empty-state">No deals match “{query.trim()}”.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
-function AllPageSections({ transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange, onAddTodo, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail, searchBox }) {
+function AllPageSections({ transactions, stages, currentAgent, onStageChange, onNotesChange, onCompsStatusChange, onAddTodo, onToggleTodo, onEditTodo, onDeleteTodo, onOpenDetail }) {
   const active = transactions.filter((tx) => !tx.terminated_at);
   const terminated = transactions.filter((tx) => tx.terminated_at && tx.stage !== "comps" && !isExpiredListing(tx));
   const expired = transactions.filter(isExpiredListing);
@@ -664,7 +670,6 @@ function AllPageSections({ transactions, stages, currentAgent, onStageChange, on
 
   return (
     <div className="comps-page">
-      {searchBox}
       {buckets.map((b) => (
         <CollapsibleSection key={b.key} title={b.title} count={b.items.length} colorClass={b.colorClass}>
           <TransactionList
