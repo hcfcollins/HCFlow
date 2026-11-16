@@ -205,24 +205,35 @@ function toPhotoList(entries: { name: string; path_display: string }[]) {
 }
 
 async function listPhotos(accessToken: string, folderPath: string) {
+  // Searches the whole Photos folder, however deep — the photographer's
+  // shared folder is often dropped in whole ("4) Photos/278 Coreys Drive -
+  // Moretown, VT/Compressed_MLS/…"). Preference: Chosen Ones, then
+  // Compressed_MLS, then any other photos; floor plans never.
   const photos = await photosPath(accessToken, folderPath);
-  const chosenOnes = toPhotoList(await listFolderIfExists(accessToken, `${photos}/${CHOSEN_ONES_SUBFOLDER}`));
-  if (chosenOnes.length > 0) return { photos: chosenOnes, source: "Chosen Ones" };
-
-  const compressedMls = toPhotoList(
-    await listFolderIfExists(accessToken, `${photos}/${COMPRESSED_MLS_SUBFOLDER}`)
-  );
-  if (compressedMls.length > 0) return { photos: compressedMls, source: "Compressed_MLS" };
-
-  const allPhotos = toPhotoList(await listFolderIfExists(accessToken, photos));
-  if (allPhotos.length > 0) return { photos: allPhotos, source: photos.split("/").pop() };
-  // Photos only in other subfolders (e.g. "Photo Tour") — use those.
-  const subs = await subfolderNames(accessToken, photos);
-  for (const sub of subs) {
-    const found = toPhotoList(await listFolderIfExists(accessToken, `${photos}/${sub}`));
-    if (found.length) return { photos: found, source: sub };
+  const all: { name: string; path_display: string }[] = [];
+  let res = await fetch("https://api.dropboxapi.com/2/files/list_folder", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
+    body: JSON.stringify({ path: photos, recursive: true, limit: 2000 }),
+  });
+  for (let guard = 0; guard < 10; guard++) {
+    if (!res.ok) break; // no Photos folder
+    const data = await res.json();
+    for (const e of data.entries || []) if (e[".tag"] === "file") all.push(e);
+    if (!data.has_more) break;
+    res = await fetch("https://api.dropboxapi.com/2/files/list_folder/continue", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
+      body: JSON.stringify({ cursor: data.cursor }),
+    });
   }
-  return { photos: [], source: photos.split("/").pop() };
+  const images = toPhotoList(all).filter((p) => !/floor ?plans?/i.test(p.path));
+  const inFolder = (re: RegExp) => images.filter((p) => re.test(p.path.slice(photos.length)));
+  const chosen = inFolder(new RegExp(`/${CHOSEN_ONES_SUBFOLDER}/`, "i"));
+  if (chosen.length) return { photos: chosen, source: CHOSEN_ONES_SUBFOLDER };
+  const mls = inFolder(new RegExp(`/${COMPRESSED_MLS_SUBFOLDER}/`, "i"));
+  if (mls.length) return { photos: mls, source: COMPRESSED_MLS_SUBFOLDER };
+  return { photos: images, source: photos.split("/").pop() };
 }
 
 /** Finds the packet file (name contains "packet", case-insensitive) in Showing Docs —
