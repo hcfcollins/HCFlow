@@ -315,6 +315,9 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
       bankAmount: finalBankAmount,
       tcFeeAmount: tcFeeType ? tcFeeAmount : 0,
       totalToDistribute,
+      side: transaction.side,
+      agentPct: result.isOwnerDeal ? null : result.agentPct,
+      coordinatorEmail: coordinatorAgent?.email || null,
     };
   }
 

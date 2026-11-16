@@ -38,6 +38,25 @@ const GMAIL_SENDER_EMAIL = Deno.env.get("GMAIL_SENDER_EMAIL") || "fran.collins@h
 const FRAN_EMAIL = "fran.collins@hallcollins.com";
 const HOLLY_EMAIL = "holly.hall@hallcollins.com";
 const PARTNERS_EMAIL = "partners@hallcollins.com";
+// The transaction coordinator is copied on every closeout email.
+const KERRY_EMAIL = "kerry.dawson@hallcollins.com";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+/** Only a signed-in broker can send closeout emails. */
+async function isBroker(req: Request): Promise<boolean> {
+  const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  if (!jwt) return false;
+  const u = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${jwt}` } });
+  if (!u.ok) return false;
+  const { email } = await u.json();
+  if (!email) return false;
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/agents?email=ilike.${encodeURIComponent(email)}&role=eq.broker&is_active=eq.true&select=id`, {
+    headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+  });
+  const rows = await r.json();
+  return Array.isArray(rows) && rows.length > 0;
+}
 const OWNER_NAMES = ["Fran Collins", "Holly Hall"];
 
 function money(n: number | null | undefined): string {
@@ -94,42 +113,68 @@ function referralLine(referralOwedTo: string | null, referralPct: number | null,
   return `<p><strong>Referral:</strong> ${referralPct}% to ${referralOwedTo} = ${money(referralAmount)}</p>`;
 }
 
-const SIGNOFF = `<p><em>Love, Jeeves — your happy Hall Collins robot!</em></p>`;
+const SIGNOFF = `<p><em>Love, Jeeves - your happy Hall Collins robot!</em></p>`;
 
+// Fran's format (Nov 2026): one line per number, with the % that got there.
+const line = (label: string, value: string) => `<p><strong>${label}:</strong> ${value}</p>`;
+const pct = (n: number) => `${Math.round(n * 1000) / 10}%`;
+const sideWord = (side: string | null) => (side === "Sell" ? "Seller" : side === "Buy" ? "Buyer" : side === "Split" ? "Split" : "");
+
+function receivedLines(d: EmailData): string {
+  return [
+    line("Total Commission Received", money(d.grossCommission)),
+    d.referralOwedTo && d.referralPct ? line("Referral", `${d.referralPct}% to ${d.referralOwedTo} = ${money(d.referralAmount)}`) : "",
+    d.referralPct ? line("Commission After Referral", money(d.commissionAfterReferral)) : "",
+  ].join("\n");
+}
+
+/** Owner deal (Holly or Fran): 20% to the brokerage, the 80% split between them. */
 function ownerEmailHtml(d: EmailData): string {
-  return `<p>Congratulations on your closing of ${d.address}!</p>
-<p></p>
+  const first = (d.agentName || "").split(" ")[0];
+  const remainder = d.commissionAfterReferral * 0.8;
+  const isHolly = d.agentName === "Holly Hall";
+  const [mine, theirs] = d.side === "Sell" ? [0.6, 0.4] : d.side === "Buy" ? [0.8, 0.2] : [1, 0];
+  const hollyPct = isHolly ? mine : theirs;
+  const franPct = isHolly ? theirs : mine;
+  return `<p>Congratulations on your closing of ${d.address}</p>
 <p>Here is the breakdown of the closing:</p>
-<p><strong>Commission After Referral:</strong> ${money(d.commissionAfterReferral)}</p>
-${referralLine(d.referralOwedTo, d.referralPct, d.referralAmount)}
-${d.tcFeeAmount ? `<p><strong>Transaction Coordinator Fee:</strong> −${money(d.tcFeeAmount)}</p>` : ""}
-<p><strong>Brokerage Keeps:</strong> ${money(d.bankAmount)}</p>
-<p><strong>Total to Distribute:</strong> ${money(d.totalToDistribute)}</p>
-<p></p>
-<p><strong>Holly's Commission:</strong> ${money(d.hollyCommission)}</p>
-<p><strong>Fran's Commission:</strong> ${money(d.franCommission)}</p>
+${receivedLines(d)}
+${line("80% after Brokerage Split", money(remainder))}
+${d.tcFeeAmount ? line("TC Fee", money(d.tcFeeAmount)) : ""}
+${line("Total to Distribute", money(d.totalToDistribute))}
+${line("Transaction Type", `${first} ${sideWord(d.side)}`.trim())}
+${hollyPct ? line("Total Due to Holly", `${pct(hollyPct)} = ${money(d.hollyCommission)}`) : ""}
+${franPct ? line("Total Due to Fran", `${pct(franPct)} = ${money(d.franCommission)}`) : ""}
 ${SIGNOFF}`;
 }
 
+/** The agent's own email: the full commission, their own share, and the TC
+ * fee — never the brokerage's cut or what Holly/Fran make. */
 function agentEmailHtml(d: EmailData): string {
-  return `<p>Congratulations on your closing of ${d.address}!</p>
-<p></p>
-<h3>Here is your commission breakdown:</h3>
-<p><strong>Total Commission Received:</strong> ${money(d.grossCommission)}</p>
-${referralLine(d.referralOwedTo, d.referralPct, d.referralAmount)}
-<p><strong>Your Commission:</strong> ${money(d.agentCommission)}</p>
+  const first = (d.agentName || "").split(" ")[0];
+  return `<p>Congratulations on your closing of ${d.address}</p>
+<p>Here is the breakdown of the closing:</p>
+${receivedLines(d)}
+${line("Transaction Type", `${first} ${sideWord(d.side)}${d.leadType ? ` (${d.leadType} lead)` : ""}`.trim())}
+${line("Total Due to " + (first || "you"), `${pct(d.agentPct ?? 0.8)} = ${money(d.agentCommission)}`)}
+${d.tcFeeAmount ? line("TC Fee (Kerry)", money(d.tcFeeAmount)) : ""}
 ${SIGNOFF}`;
 }
 
+/** Provided lead: the brokerage share and Holly/Fran's quarter each. */
 function providedLeadPartnerEmailHtml(d: EmailData): string {
-  return `<p>Commission breakdown for provided lead closing at ${d.address}:</p>
-<p></p>
-<h3>Hall Collins Team Commission:</h3>
-<p><strong>Total Commission Received:</strong> ${money(d.grossCommission)}</p>
-${referralLine(d.referralOwedTo, d.referralPct, d.referralAmount)}
-<p><strong>Agent Commission:</strong> ${money(d.agentCommission)}</p>
-<p><strong>Total Due to Holly:</strong> ${money(d.hollyCommission)}</p>
-<p><strong>Total Due to Fran:</strong> ${money(d.franCommission)}</p>
+  const first = (d.agentName || "").split(" ")[0];
+  const agentPct = d.agentPct ?? 0.6;
+  const bucket = d.commissionAfterReferral * (1 - agentPct);
+  return `<p>Commission breakdown for the provided lead closing at ${d.address}</p>
+${receivedLines(d)}
+${line("Transaction Type", `${first} ${sideWord(d.side)} (Provided lead)`.trim())}
+${line(`Total Due to ${first || "Agent"}`, `${pct(agentPct)} = ${money(d.agentCommission)}`)}
+${line("Brokerage Share", `${pct(1 - agentPct)} = ${money(bucket)}`)}
+${d.tcFeeAmount ? line("TC Fee", money(d.tcFeeAmount)) : ""}
+${line("Total to Distribute", money(d.totalToDistribute))}
+${line("Total Due to Holly", `25% of the brokerage share = ${money(d.hollyCommission)}`)}
+${line("Total Due to Fran", `25% of the brokerage share = ${money(d.franCommission)}`)}
 ${SIGNOFF}`;
 }
 
@@ -156,6 +201,9 @@ interface EmailData {
   bankAmount: number;
   tcFeeAmount: number;
   totalToDistribute: number;
+  side: string | null;
+  agentPct: number | null;
+  coordinatorEmail: string | null;
 }
 
 const CORS_HEADERS = {
@@ -177,6 +225,7 @@ Deno.serve(async (req) => {
     // directly (the same shape buildSheetPayload sends to Sheet/Xero) rather
     // than reading a saved closeouts row — so "Send Test Email" works from
     // Run Close-Out Calculator too, before anything's actually been saved.
+    if (!(await isBroker(req))) return jsonResponse({ error: "Broker only" }, 403);
     const reqBody = await req.json();
     const { testMode } = reqBody;
     if (!reqBody.address) return jsonResponse({ error: "address required" }, 400);
@@ -197,6 +246,9 @@ Deno.serve(async (req) => {
       bankAmount: Number(reqBody.bankAmount || 0),
       tcFeeAmount: Number(reqBody.tcFeeAmount || 0),
       totalToDistribute: Number(reqBody.totalToDistribute || 0),
+      side: reqBody.side || null,
+      agentPct: reqBody.agentPct != null ? Number(reqBody.agentPct) : null,
+      coordinatorEmail: reqBody.coordinatorEmail || KERRY_EMAIL,
     };
     const isOwnerDeal = d.agentName && OWNER_NAMES.includes(d.agentName);
     const accessToken = await getGmailAccessToken();
@@ -212,14 +264,15 @@ Deno.serve(async (req) => {
 
     const subject = `Closeout - ${d.address}`;
 
+    const kerry = d.coordinatorEmail ? [d.coordinatorEmail] : [];
     if (isOwnerDeal) {
-      await deliver([FRAN_EMAIL, HOLLY_EMAIL], [], subject, ownerEmailHtml(d));
+      await deliver([FRAN_EMAIL, HOLLY_EMAIL], kerry, subject, ownerEmailHtml(d));
     } else {
       if (d.agentEmail) {
-        await deliver([d.agentEmail], [PARTNERS_EMAIL], subject, agentEmailHtml(d));
+        await deliver([d.agentEmail], [PARTNERS_EMAIL, ...kerry], subject, agentEmailHtml(d));
       }
       if (d.leadType === "Provided" && (d.hollyCommission > 0 || d.franCommission > 0)) {
-        await deliver([FRAN_EMAIL, HOLLY_EMAIL], [], `Provided Lead Commission - ${d.address}`, providedLeadPartnerEmailHtml(d));
+        await deliver([FRAN_EMAIL, HOLLY_EMAIL], kerry, `Provided Lead Commission - ${d.address}`, providedLeadPartnerEmailHtml(d));
       }
     }
 
