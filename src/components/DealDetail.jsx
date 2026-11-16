@@ -923,6 +923,30 @@ export default function DealDetail({
                 <div>{transaction.closeouts?.commission_pct ?? "—"}</div>
               </div>
             )}
+            {isBroker &&
+              (() => {
+                // Same number the Close-Out Calculator starts from: the saved
+                // anticipated commission, else price × commission %.
+                const co = transaction.closeouts || {};
+                const price = Number(co.price ?? transaction.price) || 0;
+                const pct = Number(co.commission_pct) || 0;
+                const expected = co.anticipated_commission != null ? Number(co.anticipated_commission) : price && pct ? (price * pct) / 100 : null;
+                const refPct = Number(transaction.commission_data?.referral_pct) || 0;
+                const fmt = (n) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                return (
+                  <div>
+                    <div className="detail-label">Expected Commission</div>
+                    <div>
+                      {expected == null ? "—" : fmt(expected)}
+                      {expected != null && refPct > 0 && (
+                        <div className="field-help">
+                          {fmt(expected * (1 - refPct / 100))} after {refPct}% referral
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             <div>
               <div className="detail-label">Lead Type</div>
               <div>{transaction.commission_data?.lead_type || "—"}</div>
