@@ -11,7 +11,9 @@ export function ToastProvider({ children }) {
   const showToast = useCallback((text) => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     setMessage(text);
-    timeoutRef.current = setTimeout(() => setMessage(null), 2500);
+    // Problems stay up long enough to actually read.
+    const problem = /couldn't|could not|failed|error|nothing to send/i.test(String(text));
+    timeoutRef.current = setTimeout(() => setMessage(null), problem ? 9000 : 2500);
   }, []);
 
   return (

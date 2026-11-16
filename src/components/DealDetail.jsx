@@ -1113,7 +1113,7 @@ export default function DealDetail({
           )}
 
           {isBroker && (
-            <button title="Broker only — review the commission split and close out the file" type="button" className="cma-export-btn" onClick={() => setShowCloseoutCalculator(true)}>
+            <button title="Broker only — review the commission split and close out the file" type="button" className="cma-export-btn btn-closeout" onClick={() => setShowCloseoutCalculator(true)}>
               <FileText size={14} /> {transaction.closeouts?.commission_after_referral != null ? "Edit Close-Out" : "Run Close-Out Calculator"}
             </button>
           )}
@@ -1129,7 +1129,7 @@ export default function DealDetail({
               <a href={transaction.dropbox_folder_url} target="_blank" rel="noreferrer" className="cma-export-btn" title="Open this deal's folder in Dropbox">
                 <FolderOpen size={14} /> Open Dropbox Folder
               </a>
-              <button type="button" className="cma-export-btn" onClick={() => setShowOrganizer(true)} title="Rename everything (except Photos) to “1) Address - …” in order">
+              <button type="button" className="cma-export-btn btn-cleanup" onClick={() => setShowOrganizer(true)} title="Rename everything (except Photos) to “1) Address - …” in order">
                 ✨ Clean Up Folder
               </button>
               <DealFileDrop transaction={transaction} />

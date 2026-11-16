@@ -418,6 +418,21 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
     }
   }
 
+  // Real email only — for when the close-out is already saved (and pushed to
+  // Xero) but the email didn't go out. Re-saving would push to Xero twice.
+  async function handleResendEmail() {
+    if (!window.confirm("Send the real closeout email now? (Nothing is saved and Xero isn't touched.)")) return;
+    setSendingTestEmail(true);
+    try {
+      const sent = await sendCloseoutEmail(buildEmailPayload(), false);
+      showToast(`Closeout email sent to ${(sent?.sent || []).map((x) => [...x.to, ...x.cc].join(", ")).join(" / ")}`);
+    } catch (e) {
+      showToast(`Couldn't send the closeout email: ${e.message}`);
+    } finally {
+      setSendingTestEmail(false);
+    }
+  }
+
   async function handleSendTestEmail() {
     setSendingTestEmail(true);
     try {
@@ -681,6 +696,17 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         <button title="Send the closeout email to yourself only, to check it" type="button" className="comps-minimize-btn" onClick={handleSendTestEmail} disabled={sendingTestEmail}>
           {sendingTestEmail ? "Sending…" : "Send Test Closeout Email"}
         </button>
+        {saved?.commission_after_referral != null && !alreadyClosedExternally && (
+          <button
+            title="Send the real closeout email again — doesn't save, doesn't touch Xero"
+            type="button"
+            className="comps-minimize-btn"
+            onClick={handleResendEmail}
+            disabled={sendingTestEmail}
+          >
+            Resend Real Closeout Email Only (no Xero)
+          </button>
+        )}
       </fieldset>
 
       <div className="comp-edit-all-actions">
