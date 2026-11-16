@@ -10,7 +10,7 @@ import DropboxFolderPicker from "./DropboxFolderPicker";
 import ListingPacketPanel from "./ListingPacketPanel";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
-import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents, fetchOtherSideAgentName } from "../lib/transactions";
+import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents, fetchOtherSideAgentName, updateCloseoutFields } from "../lib/transactions";
 import { clientIsBuyer as isClientBuyer, missingInfoItems, sideLabel, closedOptionalItems } from "../lib/missingInfo";
 import { stageSelectValue, closingStatusBadge, isExpiredListing, terminatedLabel, EXPIRED_REASON } from "../lib/stages";
 import { formatBac, bacWarning, emailComposeUrl, emailLinkTarget } from "../lib/clientEmail";
@@ -928,14 +928,33 @@ export default function DealDetail({
               <div className="detail-label">Client Source</div>
               <div>{transaction.commission_data?.client_source || "—"}</div>
             </div>
-            <div>
-              <div className="detail-label">Referral</div>
-              <div>
-                {transaction.commission_data?.referral_owed_to
-                  ? `${transaction.commission_data.referral_owed_to} (${transaction.commission_data.referral_pct}%)`
-                  : "—"}
-              </div>
-            </div>
+            {/* Referral — editable: who it's owed to, and the % of the gross commission. */}
+            <EditableText
+              field="referral_owed_to"
+              label="Referral Owed To"
+              value={transaction.commission_data?.referral_owed_to || ""}
+              placeholder="—"
+              editableWhenSet
+              onSave={(v) => handleCommissionSave({ referral_owed_to: v.trim() || null })}
+            />
+            <EditableText
+              field="referral_pct"
+              label="Referral %"
+              type="number"
+              value={transaction.commission_data?.referral_pct != null ? `${transaction.commission_data.referral_pct}%` : ""}
+              rawValue={transaction.commission_data?.referral_pct ?? ""}
+              placeholder="e.g. 25"
+              editableWhenSet
+              onSave={async (v) => {
+                const pct = String(v).trim() === "" ? null : Number(String(v).replace("%", ""));
+                await handleCommissionSave({ referral_pct: pct });
+                // Not closed out yet → keep the Close-Out Calculator's starting
+                // referral % in step (it reads the close-out row first).
+                if (isBroker && transaction.closeouts && transaction.closeouts.commission_after_referral == null) {
+                  updateCloseoutFields(transaction.id, { referral_pct: pct }).catch(() => {});
+                }
+              }}
+            />
             <div>
               <div className="detail-label">Deposit</div>
               <div>

@@ -1706,3 +1706,18 @@ button { cursor: pointer; }
 .check-dropzone:hover { border-color: var(--color-navy); }
 .check-dropzone--over { border-color: #C8155B; background: rgba(200, 21, 91, 0.06); }
 .check-dropzone--busy { opacity: 0.7; cursor: progress; }
+
+/* Spreadsheet on a phone held upright: the 4 pinned columns (~385px) were
+   wider than the screen, so nothing could scroll into view. Unpin them on
+   narrow screens and show a swipe hint (stays put while the table scrolls). */
+@media (max-width: 640px) {
+  .sv-table .sv-col-frozen { position: static; box-shadow: none; max-width: 160px; }
+  .sv-table-wrap { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; max-height: none; }
+}
+@media (max-width: 640px) and (orientation: portrait) {
+  .sv-table-wrap::before {
+    content: "↔  Swipe sideways to see every column — or turn your phone sideways for more room";
+    display: block; position: sticky; left: 0; width: calc(100vw - 48px); box-sizing: border-box;
+    padding: 8px 10px; background: #eef2f6; color: var(--color-navy); font-size: 12px; font-weight: 600; white-space: normal;
+  }
+}

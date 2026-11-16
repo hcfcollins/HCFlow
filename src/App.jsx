@@ -977,11 +977,6 @@ export default function App() {
         >
           All Deals
         </button>
-        {isRealBroker && !viewAs && (
-          <button type="button" className="my-earnings-cta import-deals-cta" title="Temporary: import this year's deals from the Deal Tracker spreadsheet, then fill in what's missing deal by deal" onClick={() => setShowImport(true)}>
-            Import Deals
-          </button>
-        )}
         {!isCoordinator && (
           <button title="Your own deals and commission totals in one table" type="button" className="my-earnings-cta my-spreadsheet-cta" onClick={() => setShowMySpreadsheet(true)}>
             My Spreadsheet
