@@ -31,7 +31,7 @@ function money(n) {
 // access) — rather than a separate "Copy for Gusto" section with its own
 // formatted text block, each Preview row below gets its own small copy
 // button on the plain number itself, ready to paste wherever it's needed.
-function CopyableRow({ label, amount, highlight }) {
+function CopyableRow({ label, amount, highlight, math }) {
   const showToast = useToast();
 
   async function handleCopy() {
@@ -46,7 +46,10 @@ function CopyableRow({ label, amount, highlight }) {
 
   return (
     <div className={highlight ? "closeout-preview-row closeout-preview-row--total" : "closeout-preview-row"}>
-      <span>{label}</span>
+      <span>
+        {label}
+        {math && <em className="closeout-math">{math}</em>}
+      </span>
       <span className="closeout-preview-value">
         <strong>{money(amount)}</strong>
         <button type="button" className="closeout-copy-btn" onClick={handleCopy} aria-label={`Copy ${label}`} title={`Copy ${label}`}>
@@ -183,6 +186,48 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   // Keeps isn't either, since that money stays in the business rather than
   // going out to anyone.
   const totalToDistribute = round2((result.agentCommission || 0) + result.hollyCommission + result.franCommission + (tcFeeType ? tcFeeAmount : 0));
+
+  // Italic "how we got here" lines under each Preview number — mirrors
+  // calculateCloseout (lib/commissionCalc.js) exactly.
+  const pctText = (n) => `${round2(n * 100)}%`;
+  const m = (n) => money(n);
+  const math = (() => {
+    const car = commissionAfterReferral;
+    const out = {};
+    out.car = hasReferral
+      ? `${m(grossCommission)} commission − ${referralPctNum}% referral (${m(referralAmount)}) we pay out`
+      : netOverride
+        ? "Actual commission entered above"
+        : `${m(priceNum)} × ${commissionPctNum}%`;
+    const fee = tcFeeType ? ` − ${m(tcFeeAmount)} TC fee` : "";
+    if (result.isOwnerDeal) {
+      const remainder = car - result.bankAmount;
+      const actingIsHolly = transaction.agent?.name === "Holly Hall";
+      const [mine, theirs] = transaction.side === "Sell" ? [0.6, 0.4] : transaction.side === "Buy" ? [0.8, 0.2] : [1, 0];
+      const sideWord = transaction.side === "Sell" ? "listing" : transaction.side === "Buy" ? "buyer" : "Split";
+      out.bank = `20% × ${m(car)} = ${m(result.bankAmount)}${fee}`;
+      const actingLine = `${pctText(mine)} × the remaining 80% (${m(remainder)}) — ${actingIsHolly ? "Holly" : "Fran"}'s ${sideWord} deal`;
+      const otherLine = theirs ? `${pctText(theirs)} × the remaining 80% (${m(remainder)})` : `Nothing — ${actingIsHolly ? "Holly" : "Fran"} keeps the full 80% on a Split`;
+      out.holly = actingIsHolly ? actingLine : otherLine;
+      out.fran = actingIsHolly ? otherLine : actingLine;
+    } else {
+      const agentPct = result.agentPct;
+      const bucketPct = 1 - agentPct;
+      out.agent = `${pctText(agentPct)} × ${m(car)}${leadType === "Provided" ? " (provided lead)" : " (organic lead)"}`;
+      if (leadType === "Provided") {
+        out.bank = `50% of the ${pctText(bucketPct)} brokerage share (${m(result.bucketAmount)}) = ${m(result.bankAmount)}${fee}`;
+        out.holly = `25% of the ${pctText(bucketPct)} brokerage share (${m(result.bucketAmount)})`;
+        out.fran = out.holly;
+      } else {
+        out.bank = `${pctText(bucketPct)} × ${m(car)} = ${m(result.bankAmount)}${fee}`;
+        out.holly = "Organic lead — no owner share";
+        out.fran = out.holly;
+      }
+    }
+    out.tc = `${tcFeeType} flat fee — taken out of the brokerage's cut`;
+    out.total = `${[result.isOwnerDeal ? null : "agent", "Holly", "Fran", tcFeeType ? "TC fee" : null].filter(Boolean).join(" + ")} (the referral and brokerage share aren't paid through Gusto)`;
+    return out;
+  })();
 
   // Maps this calculator's numbers onto the "Deal Tracker Form" sheet's actual
   // columns (confirmed against the live Zap — see commit history), skipping
@@ -578,16 +623,16 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
 
       <fieldset className="closeout-preview">
         <legend>Preview</legend>
-        <CopyableRow label={hasReferral ? "Commission After Referral" : "Total Commission"} amount={commissionAfterReferral} />
-        <CopyableRow label="Brokerage Keeps" amount={finalBankAmount} />
+        <CopyableRow label={hasReferral ? "Commission After Referral" : "Total Commission"} amount={commissionAfterReferral} math={math.car} />
+        <CopyableRow label="Brokerage Keeps" amount={finalBankAmount} math={math.bank} />
 
         <div className="closeout-preview-gap" />
 
-        <CopyableRow label="Holly's Commission" amount={result.hollyCommission} />
-        <CopyableRow label="Fran's Commission" amount={result.franCommission} />
-        {!result.isOwnerDeal && <CopyableRow label="Agent Commission" amount={result.agentCommission} />}
-        {tcFeeType && <CopyableRow label={`Transaction Coordinator Fee (${tcFeeType})`} amount={tcFeeAmount} />}
-        <CopyableRow label="Total to Distribute" amount={totalToDistribute} highlight />
+        <CopyableRow label="Holly's Commission" amount={result.hollyCommission} math={math.holly} />
+        <CopyableRow label="Fran's Commission" amount={result.franCommission} math={math.fran} />
+        {!result.isOwnerDeal && <CopyableRow label="Agent Commission" amount={result.agentCommission} math={math.agent} />}
+        {tcFeeType && <CopyableRow label={`Transaction Coordinator Fee (${tcFeeType})`} amount={tcFeeAmount} math={math.tc} />}
+        <CopyableRow label="Total to Distribute" amount={totalToDistribute} highlight math={math.total} />
       </fieldset>
 
       <fieldset>

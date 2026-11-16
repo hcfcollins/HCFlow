@@ -1745,3 +1745,5 @@ button { cursor: pointer; }
 .deal-dropzone { min-height: 72px; margin: 10px 0 4px; }
 .drop-row { align-items: flex-start !important; }
 .drop-row select { width: auto; max-width: 100%; padding: 4px 6px; font-size: 12px; margin-bottom: 4px; }
+/* Close-Out preview: italic "how we got here" math under each number */
+.closeout-math { display: block; font-size: 11px; font-style: italic; font-weight: 400; color: var(--color-text-muted); margin-top: 2px; line-height: 1.35; }
