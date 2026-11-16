@@ -2,7 +2,7 @@
 // NewCompForm, DealDetail's Comp Details grid, and GenerateCompForm so they can't
 // drift apart (RECOMMENDATION_OPTIONS in particular must exactly match the keys in
 // src/lib/compPdf/recommendations.js's RECOMMENDATION_BODY map).
-export const TIMEFRAMES = ["Now", "6 months", "Next year"];
+export const TIMEFRAMES = ["Now", "6 months", "Next Spring", "Next year"];
 export const PROPERTY_STYLES = ["Residential", "Land", "Commercial", "Multi Family"];
 export const ELECTRICAL_OPTIONS = ["200 amp", "150 amp", "100 amp", "Fuses", "Knob and Tube"];
 export const HEATING_OPTIONS = [
