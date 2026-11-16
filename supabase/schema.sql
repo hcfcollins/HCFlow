@@ -597,3 +597,10 @@ alter table agents add column if not exists phone text;
 update agents set phone = '(802)-431-3421' where lower(email) = 'holly.hall@hallcollins.com' and phone is null;
 update agents set phone = '(802)-272-3533' where lower(email) = 'fran.collins@hallcollins.com' and phone is null;
 notify pgrst, 'reload schema';
+
+-- Close-out, after the check arrives: the actual check amount (listings —
+-- compared to the commission; the gap is trust deposit applied to it) and
+-- whether the referral we owe has been paid.
+alter table closeouts add column if not exists check_amount numeric;
+alter table closeouts add column if not exists referral_paid boolean not null default false;
+notify pgrst, 'reload schema';

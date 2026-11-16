@@ -1721,3 +1721,7 @@ button { cursor: pointer; }
     padding: 8px 10px; background: #eef2f6; color: var(--color-navy); font-size: 12px; font-weight: 600; white-space: normal;
   }
 }
+/* Close-Out: actual commission vs. actual check (listings) */
+.closeout-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end; margin-bottom: 6px; }
+.closeout-compare > div { display: flex; flex-direction: column; gap: 4px; font-size: 18px; color: var(--color-navy); }
+@media (max-width: 480px) { .closeout-compare { grid-template-columns: 1fr; } }

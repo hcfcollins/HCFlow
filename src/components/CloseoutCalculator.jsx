@@ -10,6 +10,7 @@ import {
   fetchSignInventory,
   incrementSignInventory,
   uploadDealDoc,
+  addTodo,
   fetchListingFile,
   COMMISSION_CHECK_DOC,
   CLOSING_DOCS_DOC,
@@ -93,7 +94,16 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const [agentSplitPct, setAgentSplitPct] = useState(saved.agent_split_pct ?? "");
   const [netOverride, setNetOverride] = useState(saved.net_override ?? false);
   const [netAmount, setNetAmount] = useState(saved.net_amount ?? "");
-  const [tcFeeType, setTcFeeType] = useState(saved.tc_fee_type ?? transaction.commission_data?.tc_fee_type ?? "");
+  // Transaction coordinator fee, automatic (Fran, Nov 2026): Compliance on
+  // every deal, except Holly's files get the full fee for the deal type.
+  const isHollyDeal = transaction.agent?.name === "Holly Hall";
+  const clientBuys = transaction.side === "Buy" || (transaction.side === "Split" && transaction.split_client_side === "Buy");
+  const autoTcFee = isHollyDeal ? (transaction.property_style === "Land" ? "Land" : clientBuys ? "Buyer" : "") : "Compliance";
+  const [tcFeeType, setTcFeeType] = useState(saved.tc_fee_type ?? autoTcFee);
+  // Listing side: the actual check vs. the actual commission (the difference
+  // is earnest money we held in trust and applied toward the commission).
+  const [checkAmount, setCheckAmount] = useState(saved.check_amount ?? "");
+  const [referralPaid, setReferralPaid] = useState(saved.referral_paid ?? false);
   const originalAnticipated = saved.anticipated_commission ?? "";
   const [anticipatedCommission, setAnticipatedCommission] = useState(originalAnticipated);
   // Until someone types their own number, Anticipated Commission just follows
@@ -111,7 +121,6 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const [sendingTestEmail, setSendingTestEmail] = useState(false);
 
   const hasSign = transaction.side !== "Buy" && transaction.sign_status === "Yes";
-  const showDepositSection = transaction.side !== "Buy" && transaction.commission_data?.hold_deposit === "Yes";
 
   useEffect(() => {
     fetchAllAgents().then(setAllAgents).catch(() => {});
@@ -138,6 +147,15 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const grossCommission = netOverride ? Number(netAmount) || 0 : calculatedCommission;
   const referralAmount = grossCommission * (referralPctNum / 100);
   const commissionAfterReferral = grossCommission - referralAmount;
+
+  const isListingSide = !clientBuys;
+  const cd = transaction.commission_data || {};
+  const depositHeld =
+    cd.hold_deposit === "Yes" ? (Number(cd.deposit_amount) || 0) + (cd.second_deposit === "Yes" ? Number(cd.second_deposit_amount) || 0 : 0) : 0;
+  const checkNum = checkAmount === "" ? null : Number(checkAmount);
+  const checkShort = checkNum == null ? null : round2(grossCommission - checkNum); // how much less the check is than the commission
+  const checkMatchesDeposit = checkShort != null && depositHeld > 0 && Math.abs(checkShort - depositHeld) < 1;
+  const trustTransferAmount = isListingSide && depositHeld > 0 && (depositRetained || checkMatchesDeposit) ? depositHeld : 0;
   const hasReferral = referralPctNum > 0;
   // "Send" is misleading when the external-close box is checked — that path
   // deliberately skips the Deal Tracker sheet and Xero push.
@@ -274,12 +292,28 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         tc_fee_amount: tcFeeType ? tcFeeAmount : null,
         anticipated_commission: anticipatedValue === "" ? null : Number(anticipatedValue),
         anticipated_commission_note: anticipatedNote.trim() || null,
-        deposit_retained: depositRetained,
+        deposit_retained: depositRetained || checkMatchesDeposit,
         trust_to_checking_transferred: trustToCheckingTransferred,
+        check_amount: checkNum,
+        referral_paid: referralPaid,
         is_historical_import: alreadyClosedExternally,
         sign_returned: signReturned,
       });
       showToast("Close-out saved — deal marked Closed");
+
+      // Post-check follow-ups still open → Fran's to-dos (once each).
+      try {
+        const have = new Set((transaction.todos || []).map((t) => t.text));
+        const followUps = [
+          hasReferral && !referralPaid
+            ? `@Fran Pay referral ${money(referralAmount)} to ${transaction.commission_data?.referral_owed_to || "the referring agent"}`
+            : null,
+          trustTransferAmount > 0 && !trustToCheckingTransferred ? `@Fran Transfer ${money(trustTransferAmount)} earnest money from trust to checking` : null,
+        ].filter((t) => t && !have.has(t));
+        for (const text of followUps) await addTodo(transaction.id, text, null);
+      } catch (e) {
+        showToast(`Saved, but couldn't add the follow-up to-dos: ${e.message}`);
+      }
 
       // Only increment once — if it was already marked returned on a prior
       // save, saving again (e.g. editing some other field) must not keep
@@ -407,12 +441,12 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         )}
         <label className="tbd-toggle">
           <input type="checkbox" checked={netOverride} onChange={(e) => setNetOverride(e.target.checked)} />
-          The commission we received doesn't match the anticipated amount
+          The actual commission doesn't match the anticipated amount
         </label>
         {netOverride && (
           <>
             <label>
-              Actual Commission Received ($) <span className="field-help">(the check amount — the referral and splits below recalculate from this)</span>
+              Actual Commission ($) <span className="field-help">(the full commission earned — any referral is paid out by us afterward, and the splits recalculate from this)</span>
               <input type="number" value={netAmount} onChange={(e) => setNetAmount(e.target.value)} placeholder="e.g. 9780" />
             </label>
             {anticipatedValue !== "" && netAmount !== "" && (
@@ -445,7 +479,8 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
       )}
 
       <label>
-        Transaction Coordinator Fee <span className="field-help">(comes out of the brokerage's cut, below)</span>
+        Transaction Coordinator Fee{" "}
+        <span className="field-help">(automatic: Compliance on every deal; Holly's files get the full fee. Comes out of the brokerage's cut.)</span>
         <select value={tcFeeType} onChange={(e) => setTcFeeType(e.target.value)}>
           <option value="">None</option>
           {Object.entries(TC_FEE_AMOUNTS).map(([type, amount]) => (
@@ -455,6 +490,61 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
           ))}
         </select>
       </label>
+      {isHollyDeal && !tcFeeType && <p className="field-note">Holly's listing — pick the full transaction coordinator fee for this one.</p>}
+
+      {/* After the check arrives: listings compare the check to the commission
+          (the gap is our trust deposit applied to it), then the referral we
+          owe and any trust → checking transfer. */}
+      <fieldset>
+        <legend>After the Check Arrives</legend>
+        {isListingSide && (
+          <>
+            <div className="closeout-compare">
+              <div>
+                <span className="field-help">Actual commission</span>
+                <strong>{money(grossCommission)}</strong>
+              </div>
+              <label>
+                <span className="field-help">Actual check amount ($)</span>
+                <input type="number" value={checkAmount} onChange={(e) => setCheckAmount(e.target.value)} placeholder={grossCommission ? String(round2(grossCommission)) : "e.g. 9500"} />
+              </label>
+            </div>
+            {checkNum != null && (
+              <p className={Math.abs(checkShort) < 1 || checkMatchesDeposit ? "field-help" : "field-note"}>
+                {Math.abs(checkShort) < 1
+                  ? depositHeld > 0
+                    ? `The check covers the full commission, so the ${money(depositHeld)} deposit wasn't applied — make sure it went to the closing attorney (no trust transfer).`
+                    : "The check matches the commission."
+                  : checkMatchesDeposit
+                    ? `The check is ${money(checkShort)} short — exactly the earnest money deposit we hold, so it was applied toward the commission. Transfer ${money(depositHeld)} from the trust account to checking.`
+                    : checkShort > 0
+                      ? `The check is ${money(checkShort)} less than the commission${depositHeld ? `, which doesn't match the ${money(depositHeld)} deposit` : ""} — double-check before closing out.`
+                      : `The check is ${money(-checkShort)} more than the commission — double-check before closing out.`}
+              </p>
+            )}
+            {depositHeld > 0 && (
+              <label className="tbd-toggle">
+                <input type="checkbox" checked={depositRetained || checkMatchesDeposit} disabled={checkMatchesDeposit} onChange={(e) => setDepositRetained(e.target.checked)} />
+                Deposit ({money(depositHeld)}) applied toward the commission instead of going to the attorney
+              </label>
+            )}
+          </>
+        )}
+        {hasReferral && (
+          <label className="tbd-toggle">
+            <input type="checkbox" checked={referralPaid} onChange={(e) => setReferralPaid(e.target.checked)} />
+            Referral paid: {money(referralAmount)} ({referralPctNum}% of the check) to {transaction.commission_data?.referral_owed_to || "the referring agent"}
+          </label>
+        )}
+        {trustTransferAmount > 0 && (
+          <label className="tbd-toggle">
+            <input type="checkbox" checked={trustToCheckingTransferred} onChange={(e) => setTrustToCheckingTransferred(e.target.checked)} />
+            Transferred {money(trustTransferAmount)} earnest money from the trust account to checking
+          </label>
+        )}
+        {!hasReferral && trustTransferAmount === 0 && !isListingSide && <p className="field-help">Nothing to pay out or transfer on this one.</p>}
+        <p className="field-help">Anything left unchecked here is added to your To-Dos when you save.</p>
+      </fieldset>
 
 
       {/* Consolidated into one compact fieldset — these were two separate
@@ -462,9 +552,9 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
           listings hold the trust deposit — on a pure Buy-side deal the other
           brokerage holds it, so that part is irrelevant there, same as no
           deposit ever being recorded. */}
-      {(hasSign || showDepositSection) && (
+      {hasSign && (
         <fieldset>
-          <legend>Sign & Deposit</legend>
+          <legend>Sign</legend>
           {hasSign && (
             <>
               <p className="field-help">
@@ -474,29 +564,6 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
               <label className="tbd-toggle">
                 <input type="checkbox" checked={signReturned} onChange={(e) => setSignReturned(e.target.checked)} />
                 Sign has been picked up — add it back to inventory
-              </label>
-            </>
-          )}
-          {showDepositSection && (
-            <>
-              <p className="field-help">
-                Recorded at Under Contract: {money(transaction.commission_data.deposit_amount)} held
-                {transaction.commission_data?.second_deposit === "Yes" &&
-                  `, plus a second deposit of ${money(transaction.commission_data.second_deposit_amount)}`}
-                . Returning an unused deposit to the buyer is handled separately, as a to-do, only if this deal
-                ends up terminated instead of closed.
-              </p>
-              <label className="tbd-toggle">
-                <input type="checkbox" checked={depositRetained} onChange={(e) => setDepositRetained(e.target.checked)} />
-                Deposit applied toward commission — didn't forward it to the attorney, smaller check as a result
-              </label>
-              <label className="tbd-toggle">
-                <input
-                  type="checkbox"
-                  checked={trustToCheckingTransferred}
-                  onChange={(e) => setTrustToCheckingTransferred(e.target.checked)}
-                />
-                Transferred from trust account into checking
               </label>
             </>
           )}

@@ -1010,9 +1010,14 @@ export async function upsertCommissionData(transactionId, fields) {
 }
 
 export async function saveCloseout(transactionId, closeoutFields) {
-  const { error } = await supabase
+  let { error } = await supabase
     .from("closeouts")
     .upsert({ transaction_id: transactionId, ...closeoutFields, calculated_at: new Date() });
+  // check_amount / referral_paid columns not added yet — save without them.
+  if (error && /check_amount|referral_paid/.test(error.message || "")) {
+    const { check_amount: _c, referral_paid: _r, ...rest } = closeoutFields;
+    ({ error } = await supabase.from("closeouts").upsert({ transaction_id: transactionId, ...rest, calculated_at: new Date() }));
+  }
   if (error) throw error;
 
   await updateTransactionStage(transactionId, "closed");
