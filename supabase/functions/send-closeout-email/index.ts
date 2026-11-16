@@ -166,7 +166,8 @@ function providedLeadPartnerEmailHtml(d: EmailData): string {
   const first = (d.agentName || "").split(" ")[0];
   const agentPct = d.agentPct ?? 0.6;
   const bucket = d.commissionAfterReferral * (1 - agentPct);
-  return `<p>Commission breakdown for the provided lead closing at ${d.address}</p>
+  return `<p><strong>Provided Lead Closeout</strong> — ${d.address}</p>
+<p>What Holly and Fran receive for providing this lead:</p>
 ${receivedLines(d)}
 ${line("Transaction Type", `${first} ${sideWord(d.side)} (Provided lead)`.trim())}
 ${line(`Total Due to ${first || "Agent"}`, `${pct(agentPct)} = ${money(d.agentCommission)}`)}
@@ -272,7 +273,8 @@ Deno.serve(async (req) => {
         await deliver([d.agentEmail], [PARTNERS_EMAIL, ...kerry], subject, agentEmailHtml(d));
       }
       if (d.leadType === "Provided" && (d.hollyCommission > 0 || d.franCommission > 0)) {
-        await deliver([FRAN_EMAIL, HOLLY_EMAIL], kerry, `Provided Lead Commission - ${d.address}`, providedLeadPartnerEmailHtml(d));
+        // Holly + Fran only — never Kerry or the agent.
+        await deliver([FRAN_EMAIL, HOLLY_EMAIL], [], `Provided Lead Closeout - ${d.address}`, providedLeadPartnerEmailHtml(d));
       }
     }
 
