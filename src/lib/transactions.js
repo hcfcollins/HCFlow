@@ -1352,15 +1352,16 @@ export async function createActiveListing(fields) {
 }
 
 export const COMMISSION_CHECK_DOC = "Commission Check";
+export const CLOSING_DOCS_DOC = "Closing Docs";
 
 /** Uploads a copy of the commission check into the deal's Dropbox folder
  * (contract / closing docs subfolder) as "<address> - Commission Check.<ext>",
  * and records it on the deal (documents row "Commission Check"). */
-export async function uploadCommissionCheck(tx, file) {
+export async function uploadDealDoc(tx, file, docName = COMMISSION_CHECK_DOC) {
   if (!tx.dropbox_folder_url && !tx.dropbox_folder_path) throw new Error("This deal has no Dropbox folder yet — pair or create one first.");
   const ext = (file.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "") || "pdf";
   const street = String(tx.address || "").split(",")[0].trim();
-  const fileName = `${street} - Commission Check.${ext}`;
+  const fileName = `${street} - ${docName}.${ext}`;
   const { data, error } = await supabase.functions.invoke("social-post-assets", {
     body: { action: "commissionCheckUploadLink", transactionId: tx.id, fileName },
   });
@@ -1368,8 +1369,8 @@ export async function uploadCommissionCheck(tx, file) {
   if (data?.error) throw new Error(data.error);
   const res = await fetch(data.link, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file });
   if (!res.ok) throw new Error(`Dropbox upload failed (${res.status})`);
-  const existing = (tx.documents || []).find((d) => d.name === COMMISSION_CHECK_DOC);
-  const row = { name: COMMISSION_CHECK_DOC, file_name: data.path, status: "complete", doc_date: new Date().toISOString().slice(0, 10) };
+  const existing = (tx.documents || []).find((d) => d.name === docName);
+  const row = { name: docName, file_name: data.path, status: "complete", doc_date: new Date().toISOString().slice(0, 10) };
   const { error: dbError } = existing
     ? await supabase.from("documents").update(row).eq("id", existing.id)
     : await supabase.from("documents").insert({ transaction_id: tx.id, ...row });

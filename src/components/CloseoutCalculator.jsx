@@ -9,9 +9,10 @@ import {
   sendCloseoutEmail,
   fetchSignInventory,
   incrementSignInventory,
-  uploadCommissionCheck,
+  uploadDealDoc,
   fetchListingFile,
   COMMISSION_CHECK_DOC,
+  CLOSING_DOCS_DOC,
 } from "../lib/transactions";
 import { calculateCloseout, applyTcFee, TC_FEE_AMOUNTS, round2 } from "../lib/commissionCalc";
 import { useToast } from "../lib/ToastContext";
@@ -95,6 +96,9 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const [tcFeeType, setTcFeeType] = useState(saved.tc_fee_type ?? transaction.commission_data?.tc_fee_type ?? "");
   const originalAnticipated = saved.anticipated_commission ?? "";
   const [anticipatedCommission, setAnticipatedCommission] = useState(originalAnticipated);
+  // Until someone types their own number, Anticipated Commission just follows
+  // price × commission % (prefilled).
+  const [anticipatedEdited, setAnticipatedEdited] = useState(saved.anticipated_commission != null);
   const [anticipatedNote, setAnticipatedNote] = useState(saved.anticipated_commission_note ?? "");
   const [depositRetained, setDepositRetained] = useState(saved.deposit_retained ?? false);
   const [trustToCheckingTransferred, setTrustToCheckingTransferred] = useState(saved.trust_to_checking_transferred ?? false);
@@ -121,14 +125,19 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
 
   const coordinatorAgent = allAgents.find((a) => a.role === "coordinator");
 
-  const anticipatedChanged = String(anticipatedCommission) !== String(originalAnticipated);
-
   const priceNum = Number(price) || 0;
   const commissionPctNum = Number(commissionPct) || 0;
   const referralPctNum = Number(referralPct) || 0;
-  const grossCommission = priceNum * (commissionPctNum / 100);
+  const calculatedCommission = priceNum * (commissionPctNum / 100);
+  const anticipatedValue = anticipatedEdited ? anticipatedCommission : calculatedCommission ? String(round2(calculatedCommission)) : "";
+  // A note is only required when a previously saved anticipated number changes.
+  const anticipatedChanged = originalAnticipated !== "" && String(anticipatedValue) !== String(originalAnticipated);
+  // "Received doesn't match" (net_override): the actual check amount replaces
+  // price × % — the referral still comes out of it, and everything below
+  // (splits, sheet, Xero) uses what was actually received.
+  const grossCommission = netOverride ? Number(netAmount) || 0 : calculatedCommission;
   const referralAmount = grossCommission * (referralPctNum / 100);
-  const commissionAfterReferral = netOverride ? Number(netAmount) || 0 : grossCommission - referralAmount;
+  const commissionAfterReferral = grossCommission - referralAmount;
   const hasReferral = referralPctNum > 0;
   // "Send" is misleading when the external-close box is checked — that path
   // deliberately skips the Deal Tracker sheet and Xero push.
@@ -263,7 +272,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         bank_amount: finalBankAmount,
         tc_fee_type: tcFeeType || null,
         tc_fee_amount: tcFeeType ? tcFeeAmount : null,
-        anticipated_commission: anticipatedCommission === "" ? null : Number(anticipatedCommission),
+        anticipated_commission: anticipatedValue === "" ? null : Number(anticipatedValue),
         anticipated_commission_note: anticipatedNote.trim() || null,
         deposit_retained: depositRetained,
         trust_to_checking_transferred: trustToCheckingTransferred,
@@ -378,24 +387,47 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
       <fieldset>
         <legend>Anticipated & Actual Commission</legend>
         <label>
-          Anticipated Commission ($) <span className="field-help">(what you expect this to actually pay out)</span>
-          <input type="number" value={anticipatedCommission} onChange={(e) => setAnticipatedCommission(e.target.value)} placeholder="e.g. 9500" />
+          Anticipated Commission ($){" "}
+          <span className="field-help">{anticipatedEdited ? "(your number)" : "(price × commission % — change it if you expect something different)"}</span>
+          <input
+            type="number"
+            value={anticipatedValue}
+            onChange={(e) => {
+              setAnticipatedEdited(true);
+              setAnticipatedCommission(e.target.value);
+            }}
+            placeholder="e.g. 9500"
+          />
         </label>
         {anticipatedChanged && (
           <label>
-            Note <span className="field-help">(required — why did this change?)</span>
+            Note <span className="field-help">(required — why did the anticipated amount change?)</span>
             <input value={anticipatedNote} onChange={(e) => setAnticipatedNote(e.target.value)} placeholder="e.g. price dropped at inspection" />
           </label>
         )}
         <label className="tbd-toggle">
           <input type="checkbox" checked={netOverride} onChange={(e) => setNetOverride(e.target.checked)} />
-          Based on net proceeds, not the price/commission % above
+          The commission we received doesn't match the anticipated amount
         </label>
         {netOverride && (
-          <label>
-            Actual Commission Amount ($) <span className="field-help">(everything below recalculates from this)</span>
-            <input type="number" value={netAmount} onChange={(e) => setNetAmount(e.target.value)} placeholder="e.g. 9780" />
-          </label>
+          <>
+            <label>
+              Actual Commission Received ($) <span className="field-help">(the check amount — the referral and splits below recalculate from this)</span>
+              <input type="number" value={netAmount} onChange={(e) => setNetAmount(e.target.value)} placeholder="e.g. 9780" />
+            </label>
+            {anticipatedValue !== "" && netAmount !== "" && (
+              <p className="field-help">
+                Difference: {Number(netAmount) - Number(anticipatedValue) >= 0 ? "+" : "−"}$
+                {Math.abs(Number(netAmount) - Number(anticipatedValue)).toLocaleString(undefined, { maximumFractionDigits: 2 })} vs. anticipated
+              </p>
+            )}
+            {!anticipatedChanged && (
+              <label>
+                Why is it different? <span className="field-help">(optional — e.g. seller credit at closing)</span>
+                <input value={anticipatedNote} onChange={(e) => setAnticipatedNote(e.target.value)} placeholder="e.g. seller credit at closing" />
+              </label>
+            )}
+          </>
         )}
       </fieldset>
 
@@ -497,7 +529,8 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         )}
       </fieldset>
 
-      <CommissionCheckUpload transaction={transaction} />
+      <DealDocUpload transaction={transaction} docName={CLOSING_DOCS_DOC} label="Closing Docs" hint="Drag the closing docs here" optionalNote="We don't always get these — skip it if you don't have them." />
+      <DealDocUpload transaction={transaction} docName={COMMISSION_CHECK_DOC} label="Commission Check" hint="Drag the commission check here" />
 
       <fieldset>
         <legend>Closeout Email</legend>
@@ -523,11 +556,12 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   );
 }
 
-/** Copy of the commission check → the deal's Dropbox folder. Doesn't need the
- * close-out saved first; shows what's on file. */
-function CommissionCheckUpload({ transaction }) {
+/** Closing docs / commission check → the deal's Dropbox folder as
+ * "<address> - <docName>". Doesn't need the close-out saved first; shows
+ * what's on file. Drag and drop, or click to choose. */
+function DealDocUpload({ transaction, docName, label, hint, optionalNote }) {
   const showToast = useToast();
-  const onFile = (transaction.documents || []).find((d) => d.name === COMMISSION_CHECK_DOC);
+  const onFile = (transaction.documents || []).find((d) => d.name === docName);
   const [savedPath, setSavedPath] = useState(onFile?.file_name || null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -536,15 +570,15 @@ function CommissionCheckUpload({ transaction }) {
   async function upload(file) {
     if (!file) return;
     if (!/\.(pdf|jpe?g|png|heic)$/i.test(file.name)) {
-      setError("That file type won't work — drop a PDF or a photo of the check.");
+      setError("That file type won't work — drop a PDF or a photo.");
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      const path = await uploadCommissionCheck(transaction, file);
+      const path = await uploadDealDoc(transaction, file, docName);
       setSavedPath(path);
-      showToast("Commission check saved to Dropbox");
+      showToast(`${label} saved to Dropbox`);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -568,7 +602,8 @@ function CommissionCheckUpload({ transaction }) {
 
   return (
     <fieldset>
-      <legend>Commission Check</legend>
+      <legend>{label}</legend>
+      {optionalNote && !savedPath && <p className="field-help">{optionalNote}</p>}
       {error && <div className="error-banner">{error}</div>}
       <div className={`license-status-row ${savedPath ? "license-status-row--ok" : "license-status-row--missing"}`}>
         <span className="license-status-text">
@@ -578,12 +613,12 @@ function CommissionCheckUpload({ transaction }) {
               <span className="license-status-sub"> · {savedPath.split("/").slice(-2).join(" / ")}</span>
             </>
           ) : (
-            <strong>No copy of the check uploaded yet</strong>
+            <strong>No {label.toLowerCase()} uploaded yet</strong>
           )}
         </span>
         <span className="license-status-actions">
           {savedPath && (
-            <button type="button" className="license-mini-btn" onClick={view} title="View the commission check">
+            <button type="button" className="license-mini-btn" onClick={view} title={`View the ${label.toLowerCase()}`}>
               View
             </button>
           )}
@@ -602,20 +637,20 @@ function CommissionCheckUpload({ transaction }) {
           setDragging(false);
           if (!busy) upload(e.dataTransfer.files?.[0]);
         }}
-        title="Drop the commission check here, or click to choose the file"
+        title={`Drop the ${label.toLowerCase()} here, or click to choose the file`}
       >
         <input type="file" accept="application/pdf,image/*" hidden disabled={busy} onChange={(e) => upload(e.target.files?.[0])} />
         {busy ? (
           <span>Uploading to Dropbox…</span>
         ) : (
           <span>
-            <strong>Drag the commission check here</strong> or click to choose a file
+            <strong>{hint}</strong> or click to choose a file
             <br />
             <span className="field-help">PDF or photo{savedPath ? " — replaces the copy on file" : ""}</span>
           </span>
         )}
       </label>
-      <p className="field-help">Saved in this deal's Dropbox folder (contract / closing docs) as “{String(transaction.address || "").split(",")[0].trim()} - Commission Check”.</p>
+      <p className="field-help">Saved in this deal's Dropbox folder (contract / closing docs) as “{String(transaction.address || "").split(",")[0].trim()} - {docName}”.</p>
     </fieldset>
   );
 }
