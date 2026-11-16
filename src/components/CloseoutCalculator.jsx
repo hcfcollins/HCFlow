@@ -169,7 +169,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   // deliberately skips the Xero push.
   // Says exactly what saving does: marks it Closed and creates the Xero
   // invoice + bills (not when it already closed outside the app).
-  const saveButtonLabel = alreadyClosedExternally ? "Save and Mark Closed (no Xero)" : "Save, Mark Closed & Push to Xero";
+  const saveButtonLabel = alreadyClosedExternally ? "Save and Mark Closed (no Xero, no email)" : "Save, Mark Closed, Email & Push to Xero";
 
   const result = calculateCloseout({
     commissionAfterReferral,
@@ -398,6 +398,16 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
           showToast("Invoice and bills created in Xero");
         } catch (e) {
           showToast(`Saved, but couldn't push to Xero: ${e.message}`);
+        }
+        // The real closeout email(s) — Fran authorized sending on save (Nov 2026).
+        // Owner deal → Fran + Holly (cc Kerry); agent deal → agent (cc partners@
+        // + Kerry); provided lead → also "Provided Lead Closeout" to Fran + Holly.
+        try {
+          const sent = await sendCloseoutEmail(buildEmailPayload(), false);
+          const n = sent?.sent?.length || 0;
+          showToast(`Closeout email${n === 1 ? "" : "s"} sent to ${(sent?.sent || []).map((x) => x.to.join(", ")).join(" / ")}`);
+        } catch (e) {
+          showToast(`Saved, but couldn't send the closeout email: ${e.message}`);
         }
       }
       onSaved();
@@ -665,9 +675,8 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
       <fieldset>
         <legend>Closeout Email</legend>
         <p className="field-help">
-          Sends only to you (fran.collins@hallcollins.com), with a banner showing exactly who the real recipients
-          would be, using the numbers currently shown above — nothing goes to the agent, Holly, or
-          partners@hallcollins.com from this button, and nothing needs to be saved first.
+          The real closeout email goes out when you tap Save at the bottom. This test button sends a preview only to you
+          (fran.collins@hallcollins.com), with a banner showing exactly who would get it, using the numbers shown above.
         </p>
         <button title="Send the closeout email to yourself only, to check it" type="button" className="comps-minimize-btn" onClick={handleSendTestEmail} disabled={sendingTestEmail}>
           {sendingTestEmail ? "Sending…" : "Send Test Closeout Email"}
