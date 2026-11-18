@@ -124,7 +124,8 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const [depositRetained, setDepositRetained] = useState(saved.deposit_retained ?? false);
   const [trustToCheckingTransferred, setTrustToCheckingTransferred] = useState(saved.trust_to_checking_transferred ?? false);
   const [alreadyClosedExternally, setAlreadyClosedExternally] = useState(saved.is_historical_import ?? false);
-  const [signReturned, setSignReturned] = useState(saved.sign_returned ?? false);
+  // Pre-checked once the agent confirmed the pickup (card / Ready for Closeout).
+  const [signReturned, setSignReturned] = useState(saved.sign_returned ?? Boolean(transaction.sign_picked_up_at));
   const [signInventoryCount, setSignInventoryCount] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -654,6 +655,13 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
                 <input type="checkbox" checked={signReturned} onChange={(e) => setSignReturned(e.target.checked)} />
                 Sign has been picked up — add it back to inventory
               </label>
+              {"sign_picked_up_at" in transaction && (
+                <p className="field-help">
+                  {transaction.sign_picked_up_at
+                    ? `Confirmed picked up ${new Date(transaction.sign_picked_up_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}.`
+                    : "⚠️ Nobody has confirmed the sign was picked up yet."}
+                </p>
+              )}
             </>
           )}
         </fieldset>

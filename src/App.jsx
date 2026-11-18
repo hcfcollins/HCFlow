@@ -13,6 +13,8 @@ import {
   seedWonListingTodos,
   seedGoLiveTodos,
   MLS_PARTIAL_TODO,
+  needsSignPickup,
+  markSignPickedUp,
   CLOSING_DOCS_TODO,
   previewClosingDocsEmail,
   sendClosingDocsEmail,
@@ -129,6 +131,13 @@ export default function App() {
   useEffect(() => {
     if (session && agent) loadTransactions();
   }, [session, agent]);
+
+  // A card saved something on its own (e.g. "Pick Up Sign") → refresh quietly.
+  useEffect(() => {
+    const refresh = () => loadTransactions({ silent: true });
+    window.addEventListener("hcflow:refresh", refresh);
+    return () => window.removeEventListener("hcflow:refresh", refresh);
+  }, [session, agent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // `silent` skips the full-screen loading state for refreshes triggered by an
   // edit (toggling a todo, changing notes, etc.) so the screen doesn't flash
@@ -604,6 +613,19 @@ export default function App() {
 
   /** Shared by the card's inline stage select and the detail screen's stage select. */
   async function handleReadyForCloseout(tx, ready) {
+    // Getting ready for closeout = confirming the yard sign came down.
+    if (ready && needsSignPickup(tx)) {
+      const pickedUp = window.confirm(
+        `Has the yard sign at ${tx.address} been picked up?\n\nOK = yes, it's picked up.\nCancel = not yet (it stays on the card as "Pick Up Sign").`
+      );
+      if (pickedUp) {
+        try {
+          await markSignPickedUp(tx.id, true);
+        } catch (e) {
+          showToast(`Couldn't save the sign pickup: ${e.message}`);
+        }
+      }
+    }
     try {
       await setReadyForCloseout(tx.id, ready);
     } catch (e) {

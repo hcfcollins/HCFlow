@@ -11,6 +11,7 @@ import { formatBac, openEmailCompose } from "../lib/clientEmail";
 import TodoList, { MissingInfoTodo } from "./TodoList";
 import { sideLabel } from "../lib/missingInfo";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
+import { needsSignPickup, markSignPickedUp } from "../lib/transactions";
 
 /** Today as YYYY-MM-DD in local time (not toISOString, which is UTC and can be
  * a day off near midnight) — todos.due_date is a plain date column, so a string
@@ -110,6 +111,20 @@ function TxCard({
   const isActiveListing = tx.stage === "won" || tx.stage === "market";
   const isBuySide = tx.side === "Buy";
   const signDeclined = tx.sign_status === "Seller Declined";
+  // Under contract with the yard sign still out → "Pick Up Sign" stays on the
+  // card until someone confirms it was picked up.
+  const signToPickUp = needsSignPickup(tx);
+
+  async function confirmSignPickup() {
+    if (!window.confirm(`Has the yard sign at ${tx.address} been picked up?`)) return;
+    try {
+      await markSignPickedUp(tx.id, true);
+      showToast("Sign marked picked up");
+      window.dispatchEvent(new Event("hcflow:refresh"));
+    } catch (e) {
+      showToast(`Couldn't save the sign pickup: ${e.message}`);
+    }
+  }
   const dueTodoCount = (tx.todos || []).filter((t) => !t.done && t.due_date && t.due_date <= todayStr()).length;
   // Same gate as the deal detail screen's social post menu — a listing (not a
   // buyer-side deal) that's at least reached Won, when its Dropbox Photos folder
@@ -265,8 +280,18 @@ function TxCard({
           document.body
         )}
 
-      {(isActiveListing || (tx.ba_comp && !isBuySide)) && (
+      {(isActiveListing || signToPickUp || (tx.ba_comp && !isBuySide)) && (
         <div className="tx-icons-row" onClick={(e) => e.stopPropagation()}>
+          {signToPickUp && (
+            <button
+              type="button"
+              className="tx-icon-badge tx-icon-badge--btn tx-icon-badge--sign-pickup"
+              title="The yard sign is still out — tap once it's been picked up"
+              onClick={confirmSignPickup}
+            >
+              <Signpost size={14} /> Pick Up Sign
+            </button>
+          )}
           {isActiveListing && tx.sign_status === "Yes" && (
             <span className="tx-icon-badge tx-icon-badge--sign-yes" title="Sign is installed">
               <Signpost size={14} /> Sign

@@ -620,3 +620,6 @@ alter table brokerage_licenses add column if not exists license_number text;
 alter table commission_data add column if not exists commission_pct numeric;
 update commission_data cd set commission_pct = c.commission_pct from closeouts c where c.transaction_id = cd.transaction_id and cd.commission_pct is null;
 notify pgrst, 'reload schema';
+-- Yard sign pickup confirmed (card "Pick Up Sign" / Ready for Closeout).
+alter table transactions add column if not exists sign_picked_up_at timestamptz;
+notify pgrst, 'reload schema';

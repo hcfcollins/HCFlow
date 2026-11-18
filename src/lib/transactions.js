@@ -1465,6 +1465,19 @@ export async function markNotificationsRead(ids) {
   if (error) throw error;
 }
 
+/** A listing's yard sign is still out once it's under contract — true until
+ * someone confirms it was picked up (needs the sign_picked_up_at column). */
+export function needsSignPickup(tx) {
+  const buyerSide = tx.side === "Buy" || (tx.side === "Split" && tx.split_client_side === "Buy");
+  return tx.stage === "contract" && !buyerSide && tx.sign_status === "Yes" && "sign_picked_up_at" in tx && !tx.sign_picked_up_at;
+}
+
+export async function markSignPickedUp(id, pickedUp = true) {
+  const { error } = await supabase.from("transactions").update({ sign_picked_up_at: pickedUp ? new Date() : null, updated_at: new Date() }).eq("id", id);
+  if (error) throw error;
+  await addActivityLog(id, pickedUp ? "Yard sign picked up" : "Sign pickup cleared", null);
+}
+
 /** Agent/TC side of closing: flags the deal for Fran's commission review
  * without changing its stage — only a broker actually closes it (via the
  * Close-Out Calculator). Pass false to un-flag. */

@@ -292,6 +292,7 @@ button { cursor: pointer; }
 .tx-icon-badge--declined { background: var(--color-danger-bg); color: var(--color-danger-text); text-decoration: line-through; position: relative; }
 .tx-icon-badge--sign-yes { background: var(--color-success-bg); color: var(--color-success-text); }
 .tx-icon-badge--sign-need { background: var(--color-info-bg); color: var(--color-info-text); }
+.tx-icon-badge--sign-pickup { background: #FEF0C7; color: #93370D; border: 1px solid #F5C66B; font-weight: 700; }
 
 .listing-filter-toggles { display: flex; gap: 8px; flex-wrap: wrap; }
 .agent-filter-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
