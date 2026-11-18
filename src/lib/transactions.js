@@ -297,6 +297,25 @@ export async function updateTransactionAttorneys(id, { buyerAttorneyId, sellerAt
   if (error) throw error;
 }
 
+/** Every utility provider's phone/website entered on any deal you can see, as
+ * { "<utility>": { "<provider name lowercased>": { name, phone, website } } }
+ * — so Green Mountain Power's number only has to be typed in once. */
+export async function fetchUtilityDirectory() {
+  const { data, error } = await supabase.from("transactions").select("utilities").not("utilities", "is", null);
+  if (error) throw error;
+  const dir = {};
+  for (const { utilities: u } of data || []) {
+    for (const [key, c] of Object.entries(u?._contacts || {})) {
+      const name = String(u[key] || "").trim();
+      if (!name || !(c?.phone || c?.website)) continue;
+      dir[key] ||= {};
+      const prev = dir[key][name.toLowerCase()] || {};
+      dir[key][name.toLowerCase()] = { name, phone: c.phone || prev.phone || "", website: c.website || prev.website || "" };
+    }
+  }
+  return dir;
+}
+
 /** Generic single/multi-field patch for the quick inline edits on the detail screen. */
 export async function updateTransactionFields(id, patch) {
   const { error } = await supabase.from("transactions").update({ ...patch, updated_at: new Date() }).eq("id", id);
@@ -507,7 +526,26 @@ export async function seedWonListingTodos(transactionId) {
   return mlsTodo;
 }
 
-export const REVIEW_LINK = "https://g.page/r/CQqNLCVhrYdhEBM/review";
+const GO_LIVE_TODOS = ["Get the packet ready for MLS", "Send the Instagram photos to social media"];
+
+/** The coordinator's next steps once a listing goes live (Go Live checked, or
+ * moved to On Market), tagged to her. Idempotent. Returns the created texts,
+ * or [] if they were already there. */
+export async function seedGoLiveTodos(transactionId) {
+  const { data: existing } = await supabase
+    .from("todos")
+    .select("id")
+    .eq("transaction_id", transactionId)
+    .ilike("text", `%${GO_LIVE_TODOS[0]}%`);
+  if (existing?.length) return [];
+  const tag = await coordinatorTag();
+  const texts = GO_LIVE_TODOS.map((t) => `${tag}${t}`);
+  const { error } = await supabase.from("todos").insert(texts.map((text) => ({ transaction_id: transactionId, text })));
+  if (error) throw error;
+  return texts;
+}
+
+export const REVIEW_LINK ="https://g.page/r/CQqNLCVhrYdhEBM/review";
 const COMPLIANCE_TODOS = [
   "Review the file for any missing information",
   `Send the closing docs to the agent and remind them to ask for a review: ${REVIEW_LINK}`,
@@ -573,6 +611,56 @@ async function syncContingencyTodo(transactionId, text, dueDate) {
   }
 }
 
+export const DEPOSIT_COPY_TODO = "Save a copy of the deposit in Dropbox";
+export const SECOND_DEPOSIT_COPY_TODO = "Save a copy of the second deposit in Dropbox";
+
+/** Every dated to-do that hangs off one of the deal's dates, as
+ * [to-do text, due date] for the given dates. Only the keys passed in are
+ * included (e.g. just { closingDate } when only the closing date changed). */
+function datedTodosFor(tx, { closingDate, financingDate, inspectionDate, depositDueDate, secondDepositDueDate }) {
+  const isLand = tx.property_style === "Land";
+  const isListingSide = clientSideOf(tx.side, tx.split_client_side) !== "Buy";
+  const out = [];
+  if (closingDate !== undefined) {
+    out.push(["Closing", closingDate], ["Schedule Final Walkthrough", dateMinusDays(closingDate, 7)]);
+    if (!isLand) out.push(["Send Utilities", dateMinusDays(closingDate, 10)]);
+    if (isListingSide) {
+      out.push(["Send the Deposit", dateMinusDays(closingDate, 5)]);
+      if (!isLand) out.push(["Final Oil/Water/Sewer Reading", dateMinusDays(closingDate, tx.town_water_sewer ? 14 : 7)]);
+    }
+  }
+  if (financingDate !== undefined) out.push(["Financing Contingency Deadline", financingDate], ["Financing Check-In", dateMinusDays(financingDate, 7)]);
+  if (inspectionDate !== undefined) out.push(["Inspection Contingency Deadline", inspectionDate]);
+  if (depositDueDate !== undefined) out.push(["Deposit Due", depositDueDate], [DEPOSIT_COPY_TODO, depositDueDate]);
+  if (secondDepositDueDate !== undefined) out.push(["Second Deposit Due", secondDepositDueDate], [SECOND_DEPOSIT_COPY_TODO, secondDepositDueDate]);
+  return out;
+}
+
+/** A date on the deal screen changed (closing, financing, inspection) → move
+ * the open to-dos that hang off it to their new due dates. Only shifts
+ * to-dos that are already there and not checked off — never adds back one
+ * someone deleted. Returns how many moved. */
+export async function shiftDatedTodos(tx, dates) {
+  const planned = datedTodosFor(tx, dates).filter(([, due]) => due);
+  if (!planned.length) return 0;
+  const { data: open, error } = await supabase
+    .from("todos")
+    .select("id, text, due_date")
+    .eq("transaction_id", tx.id)
+    .eq("done", false)
+    .in("text", planned.map(([text]) => text));
+  if (error) throw error;
+  let moved = 0;
+  for (const t of open || []) {
+    const due = planned.find(([text]) => text === t.text)[1];
+    if (t.due_date?.slice(0, 10) === due) continue;
+    const { error: e } = await supabase.from("todos").update({ due_date: due }).eq("id", t.id);
+    if (e) throw e;
+    moved += 1;
+  }
+  return moved;
+}
+
 /** The same dated to-dos an Under Contract submission creates, for a deal
  * that came in another way (the Deal Tracker import) — only the ones whose
  * date hasn't passed yet, and never a duplicate of one already there.
@@ -593,6 +681,8 @@ export async function addUpcomingContractTodos(tx) {
     ["Send Utilities", tx.property_style === "Land" ? null : dateMinusDays(closing, 10)],
     ["Deposit Due", cd.hold_deposit === "Yes" ? cd.deposit_due_date || null : null],
     ["Second Deposit Due", cd.second_deposit === "Yes" ? cd.second_deposit_due_date || null : null],
+    [DEPOSIT_COPY_TODO, cd.hold_deposit === "Yes" ? cd.deposit_due_date || null : null],
+    [SECOND_DEPOSIT_COPY_TODO, cd.second_deposit === "Yes" ? cd.second_deposit_due_date || null : null],
     ...(isListingSide
       ? [
           ["Send the Deposit", dateMinusDays(closing, 5)],
@@ -874,6 +964,9 @@ export async function submitUnderContract(fields) {
   await syncContingencyTodo(tx.id, "Send Utilities", isLand ? null : dateMinusDays(closingDate, 10));
   await syncContingencyTodo(tx.id, "Deposit Due", holdDeposit === "Yes" ? depositDueDate || null : null);
   await syncContingencyTodo(tx.id, "Second Deposit Due", secondDeposit === "Yes" ? secondDepositDueDate || null : null);
+  // Kerry tracks deposits — make sure a copy of each one lands in Dropbox.
+  await syncContingencyTodo(tx.id, DEPOSIT_COPY_TODO, holdDeposit === "Yes" ? depositDueDate || null : null);
+  await syncContingencyTodo(tx.id, SECOND_DEPOSIT_COPY_TODO, secondDeposit === "Yes" ? secondDepositDueDate || null : null);
 
   // Everything below is listing-side logistics — doesn't apply when Hall Collins
   // is only representing the buyer, since there's no seller-side deposit/utility

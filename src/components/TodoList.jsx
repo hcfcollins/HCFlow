@@ -50,6 +50,35 @@ export function dueBadge(dueDate) {
   return { label: `Due ${due.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`, className: "todo-due-badge--upcoming" };
 }
 
+/** The due-date badge doubles as a date picker: tap it to move the due date
+ * (clear it to remove the date). Undated to-dos get a faint 📅 to add one.
+ * The real date input sits invisibly on top so a tap opens the phone's picker. */
+function DueDatePicker({ todo, badge, onEdit }) {
+  return (
+    <label
+      className={badge ? `todo-due-badge todo-due-badge--editable ${badge.className}` : "todo-set-due"}
+      title={badge ? "Change the due date" : "Add a due date"}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {badge ? badge.label : "📅"}
+      <input
+        type="date"
+        className="todo-due-native"
+        value={todo.due_date?.slice(0, 10) || ""}
+        onChange={(e) => onEdit(todo.id, { due_date: e.target.value || null })}
+        onClick={(e) => {
+          try {
+            e.currentTarget.showPicker?.();
+          } catch {
+            /* already open, or not supported — the native tap still works */
+          }
+        }}
+        aria-label={badge ? "Change the due date" : "Add a due date"}
+      />
+    </label>
+  );
+}
+
 /** Tap the text to edit it in place (blur/Enter saves, Escape cancels) — separate
  * from the checkbox so toggling done and editing the text don't fight over the
  * same tap target the way they would if this were still one big <label>. */
@@ -98,7 +127,7 @@ export function TodoRow({ todo, onToggle, onEdit, onDelete, propertyLabel, onPro
           <span className="todo-text" onClick={() => setEditing(true)}>
             <TodoText text={todo.text} />
           </span>
-          {badge && <span className={`todo-due-badge ${badge.className}`}>{badge.label}</span>}
+          {!todo.done && <DueDatePicker todo={todo} badge={badge} onEdit={onEdit} />}
           {todo.done && todo.completed_at && (
             <span className="todo-completed-date" title={todo.completed_by_initials ? `Checked off by ${todo.completed_by_initials}` : undefined}>
               {formatCompletedDate(todo.completed_at)}

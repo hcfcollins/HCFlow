@@ -90,7 +90,11 @@ function CopyableTextRow({ label, text }) {
 export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   const showToast = useToast();
   const saved = transaction.closeouts || {};
-  const [price, setPrice] = useState(saved.price ?? transaction.price ?? "");
+  // Not closed out yet → start from the deal's current purchase price (it may
+  // have been changed on the deal screen since the Under Contract form).
+  const [price, setPrice] = useState(
+    (saved.commission_after_referral == null ? transaction.price ?? saved.price : saved.price ?? transaction.price) ?? ""
+  );
   const [commissionPct, setCommissionPct] = useState(saved.commission_pct ?? "");
   const [referralPct, setReferralPct] = useState(saved.referral_pct ?? transaction.commission_data?.referral_pct ?? 0);
   const [leadType, setLeadType] = useState(saved.lead_type ?? transaction.commission_data?.lead_type ?? "Organic");

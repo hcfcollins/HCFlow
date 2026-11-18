@@ -11,6 +11,7 @@ import {
   updateTodo,
   deleteTodo,
   seedWonListingTodos,
+  seedGoLiveTodos,
   createDropboxFolderForListing,
   createDropboxFolderForBuyer,
   terminateTransaction,
@@ -231,6 +232,7 @@ export default function App() {
             await toggleTodo(goLiveTodo.id, true, initialsFor(agent?.name));
           }
           await setSocialRotation(id, true);
+          announceGoLive(id);
         } catch (e) {
           console.error("Failed to auto-join the social rotation on going to market:", e);
           sideEffectError = sideEffectError || `Moved to On Market, but couldn't join the social rotation: ${e.message}`;
@@ -328,6 +330,18 @@ export default function App() {
     }
   }
 
+  /** Listing went live → Kerry's next steps (MLS packet, Instagram photos to
+   * social media) land on her to-do list and she gets an email. Best-effort,
+   * and only the first time. */
+  function announceGoLive(transactionId) {
+    seedGoLiveTodos(transactionId)
+      .then((texts) => {
+        if (texts.length) return notifyTodo({ transactionId, event: "went_live", text: texts.join("\n") });
+      })
+      .catch((e) => console.error("Go Live hand-off to the coordinator failed:", e))
+      .finally(() => loadTransactions({ silent: true }));
+  }
+
   async function handleToggleTodo(todo, done) {
     // toggleTodo itself was failing silently before this try/catch — any error here
     // aborted the function before loadTransactions ever ran, so the checkbox just
@@ -348,6 +362,7 @@ export default function App() {
     if (todo.text === "Go Live") {
       try {
         await setSocialRotation(todo.transaction_id, done);
+        if (done) announceGoLive(todo.transaction_id);
       } catch (e) {
         console.error("Failed to update the social rotation queue:", e);
         sideEffectError = `Checked off, but couldn't update the social rotation queue: ${e.message}`;

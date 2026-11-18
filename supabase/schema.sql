@@ -604,3 +604,8 @@ notify pgrst, 'reload schema';
 alter table closeouts add column if not exists check_amount numeric;
 alter table closeouts add column if not exists referral_paid boolean not null default false;
 notify pgrst, 'reload schema';
+
+-- Kerry feedback (Nov 2026): seller credit, closing time/place.
+alter table commission_data add column if not exists seller_credit numeric;
+alter table transactions add column if not exists closing_time text;
+alter table transactions add column if not exists closing_location text;

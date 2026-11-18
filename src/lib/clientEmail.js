@@ -81,7 +81,7 @@ export function firstNamesOf(fullNames) {
  * walkthrough. Seller side: cancel service / schedule final readings. */
 export function buildUtilityEmail(tx) {
   const u = tx.utilities || {};
-  const lines = UTILITY_TYPES.filter((k) => u[k]).map((k) => `${k}: ${u[k]}`);
+  const lines = UTILITY_TYPES.filter((k) => u[k]).map((k) => utilityLine(u, k));
   const isBuyer = tx.side === "Buy" || (tx.side === "Split" && tx.split_client_side === "Buy");
   const closing = tx.next_date ? formatClosing(tx.next_date) : null;
 
@@ -128,6 +128,33 @@ ${list}
 
 Let us know if you have any questions!`;
   return { to: tx.seller_emails || [], subject: `Utilities - ${tx.address}`, body };
+}
+
+/** Pre-filled email asking the brokers to release the earnest money deposit
+ * to the closing attorney before closing. Addressed to our agent; Kerry adds
+ * the other brokerage (their email isn't in the app). */
+export function buildDepositReleaseEmail(tx) {
+  const cd = tx.commission_data || {};
+  const money = (n) => `$${Number(n).toLocaleString()}`;
+  const amounts = [
+    cd.hold_deposit === "Yes" && cd.deposit_amount ? money(cd.deposit_amount) : null,
+    cd.second_deposit === "Yes" && cd.second_deposit_amount ? `${money(cd.second_deposit_amount)} (second deposit)` : null,
+  ].filter(Boolean);
+  const attorney = tx.buyer_attorney?.name || null;
+  const closing = tx.next_date ? formatClosing(tx.next_date) : null;
+  const body = [
+    "Hi,",
+    `${tx.address} is scheduled to close${closing ? ` on ${closing}` : " soon"}. Could you please release the earnest money deposit${amounts.length ? ` (${amounts.join(" + ")})` : ""} to the closing attorney${attorney ? `, ${attorney},` : ""} ahead of closing?`,
+    "Please send us a copy of the check once it goes out so we have it for our file.",
+    "Thank you!",
+  ].join("\n\n");
+  return { to: tx.agent?.email ? [tx.agent.email] : [], subject: `Deposit Release - ${tx.address}`, body };
+}
+
+/** "Electricity: Green Mountain Power — (802) 655-6600 — greenmountainpower.com" */
+function utilityLine(u, key) {
+  const c = u._contacts?.[key] || {};
+  return [`${key}: ${u[key]}`, c.phone, c.website].filter(Boolean).join(" — ");
 }
 
 function formatClosing(dateStr) {

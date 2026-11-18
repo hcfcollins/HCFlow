@@ -12,10 +12,10 @@ import FolderOrganizer from "./FolderOrganizer";
 import DealFileDrop from "./DealFileDrop";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
-import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents, fetchOtherSideAgentName, updateCloseoutFields } from "../lib/transactions";
+import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents, fetchOtherSideAgentName, updateCloseoutFields, shiftDatedTodos, fetchUtilityDirectory } from "../lib/transactions";
 import { clientIsBuyer as isClientBuyer, missingInfoItems, sideLabel, closedOptionalItems } from "../lib/missingInfo";
 import { stageSelectValue, closingStatusBadge, isExpiredListing, terminatedLabel, EXPIRED_REASON } from "../lib/stages";
-import { formatBac, bacWarning, emailComposeUrl, emailLinkTarget } from "../lib/clientEmail";
+import { formatBac, bacWarning, emailComposeUrl, emailLinkTarget, openEmailCompose, buildDepositReleaseEmail } from "../lib/clientEmail";
 import { sendShowingPacket } from "../lib/showingPacket";
 import { SHOWING_ACCESS_OPTIONS } from "../lib/showingAccess";
 import { PROPERTY_STYLE_TAGS } from "../lib/propertyStyleTags";
@@ -46,6 +46,15 @@ export function formatDate(dateStr) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+/** "14:30" → "2:30 PM"; anything else unchanged. */
+export function formatTime(t) {
+  if (!t) return null;
+  const m = /^(\d{1,2}):(\d{2})/.exec(t);
+  if (!m) return t;
+  const h = Number(m[1]);
+  return `${h % 12 || 12}:${m[2]} ${h < 12 ? "AM" : "PM"}`;
 }
 
 export default function DealDetail({
@@ -265,6 +274,32 @@ export default function DealDetail({
     await upsertCommissionData(transaction.id, patch);
     onRefresh();
     showToast("Saved");
+  }
+
+  /** A deal date changed → its open to-dos (Closing, Final Walkthrough, Send
+   * Utilities, …) move with it, so nothing sits there "Overdue" against the
+   * old date. `dates` is e.g. { closingDate: "2026-12-04" }. */
+  async function handleDateSave(save, dates) {
+    await save();
+    try {
+      const moved = await shiftDatedTodos(transaction, dates);
+      if (moved) {
+        onRefresh();
+        showToast(`Saved — moved ${moved} to-do${moved > 1 ? "s" : ""} to the new date`);
+      }
+    } catch (e) {
+      showToast(`Saved, but couldn't move the to-dos: ${e.message}`);
+    }
+  }
+
+  /** Purchase price edits also update the Close-Out Calculator's starting
+   * price (brokers only — the close-out row is broker-only) until it's closed out. */
+  async function handlePriceSave(v) {
+    const price = v ? Number(v) : null;
+    await handleFieldSave({ price });
+    if (isBroker && transaction.closeouts && transaction.closeouts.commission_after_referral == null) {
+      updateCloseoutFields(transaction.id, { price }).catch(() => {});
+    }
   }
 
   async function handleAttorneySave(side, name) {
@@ -663,11 +698,13 @@ export default function DealDetail({
           <div className="detail-grid">
             <EditableText
               field="price"
-              label="Price"
+              label={transaction.stage === "contract" || transaction.stage === "closed" ? "Purchase Price" : "Price"}
               value={transaction.price ? `$${Number(transaction.price).toLocaleString()}` : ""}
+              rawValue={transaction.price ?? ""}
               type="number"
               placeholder="e.g. 350000"
-              onSave={(v) => handleFieldSave({ price: v ? Number(v) : null })}
+              editableWhenSet
+              onSave={handlePriceSave}
             />
 
             {/* Brokers only — Kerry (TC) sees the agent but can't reassign. */}
@@ -928,7 +965,9 @@ export default function DealDetail({
                 // Same number the Close-Out Calculator starts from: the saved
                 // anticipated commission, else price × commission %.
                 const co = transaction.closeouts || {};
-                const price = Number(co.price ?? transaction.price) || 0;
+                // Not closed out yet → follow the deal's current price (it may
+                // have changed since the Under Contract form).
+                const price = Number(co.commission_after_referral == null ? transaction.price ?? co.price : co.price ?? transaction.price) || 0;
                 const pct = Number(co.commission_pct) || 0;
                 const expected = co.anticipated_commission != null ? Number(co.anticipated_commission) : price && pct ? (price * pct) / 100 : null;
                 const refPct = Number(transaction.commission_data?.referral_pct) || 0;
@@ -989,6 +1028,16 @@ export default function DealDetail({
                   ? `$${Number(transaction.commission_data.deposit_amount).toLocaleString()}`
                   : "No"}
               </div>
+              {isStaff && transaction.stage === "contract" && (
+                <button
+                  type="button"
+                  className="comps-status-btn deposit-release-btn"
+                  title="Open a pre-filled email asking the brokers to release the deposit to the closing attorney"
+                  onClick={() => openEmailCompose(buildDepositReleaseEmail(transaction))}
+                >
+                  <Mail size={12} /> Deposit Release Email
+                </button>
+              )}
             </div>
             <div>
               <div className="detail-label">Second Deposit</div>
@@ -1007,7 +1056,7 @@ export default function DealDetail({
                 rawValue={transaction.next_date?.slice(0, 10)}
                 placeholder="—"
                 editableWhenSet
-                onSave={(v) => handleFieldSave({ next_date: v || null })}
+                onSave={(v) => handleDateSave(() => handleFieldSave({ next_date: v || null }), { closingDate: v || null })}
               />
             ) : (
               <div data-field="next_date">
@@ -1015,6 +1064,72 @@ export default function DealDetail({
                 <div>{formatDate(transaction.next_date) || "—"}</div>
               </div>
             )}
+            {/* Closing time & place — handy to pull up on the road. Shown once
+                the columns exist (see the SQL for Fran). */}
+            {"closing_time" in transaction &&
+              (isStaff ? (
+                <EditableText
+                  field="closing_time"
+                  label="Closing Time"
+                  type="time"
+                  value={formatTime(transaction.closing_time)}
+                  rawValue={transaction.closing_time || ""}
+                  placeholder="—"
+                  editableWhenSet
+                  onSave={(v) => handleFieldSave({ closing_time: v || null })}
+                />
+              ) : (
+                <div data-field="closing_time">
+                  <div className="detail-label">Closing Time</div>
+                  <div>{formatTime(transaction.closing_time) || "—"}</div>
+                </div>
+              ))}
+            {"closing_location" in transaction && (
+              <div data-field="closing_location">
+                {isStaff ? (
+                  <EditableText
+                    label="Closing Location"
+                    value={transaction.closing_location || ""}
+                    placeholder="e.g. Attorney's office address"
+                    editableWhenSet
+                    onSave={(v) => handleFieldSave({ closing_location: v.trim() || null })}
+                  />
+                ) : (
+                  <>
+                    <div className="detail-label">Closing Location</div>
+                    <div>{transaction.closing_location || "—"}</div>
+                  </>
+                )}
+                {transaction.closing_location && (
+                  <a
+                    className="field-help"
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(transaction.closing_location)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open in Maps
+                  </a>
+                )}
+              </div>
+            )}
+            {transaction.commission_data && "seller_credit" in transaction.commission_data &&
+              (isStaff ? (
+                <EditableText
+                  field="seller_credit"
+                  label="Seller Credit"
+                  type="number"
+                  value={transaction.commission_data.seller_credit != null ? `$${Number(transaction.commission_data.seller_credit).toLocaleString()}` : ""}
+                  rawValue={transaction.commission_data.seller_credit ?? ""}
+                  placeholder="None"
+                  editableWhenSet
+                  onSave={(v) => handleCommissionSave({ seller_credit: String(v).trim() === "" ? null : Number(String(v).replace(/[$,]/g, "")) })}
+                />
+              ) : (
+                <div data-field="seller_credit">
+                  <div className="detail-label">Seller Credit</div>
+                  <div>{transaction.commission_data.seller_credit != null ? `$${Number(transaction.commission_data.seller_credit).toLocaleString()}` : "None"}</div>
+                </div>
+              ))}
             {(() => {
               const cd = transaction.commission_data;
               const canWaive = Boolean(cd) && "inspection_waived" in cd;
@@ -1034,7 +1149,7 @@ export default function DealDetail({
                       rawValue={cd?.inspection_date?.slice(0, 10)}
                       placeholder="—"
                       editableWhenSet
-                      onSave={(v) => handleCommissionSave({ inspection_date: v || null })}
+                      onSave={(v) => handleDateSave(() => handleCommissionSave({ inspection_date: v || null }), { inspectionDate: v || null })}
                     />
                   ) : (
                     <>
@@ -1064,7 +1179,7 @@ export default function DealDetail({
                 rawValue={transaction.commission_data?.financing_date?.slice(0, 10)}
                 placeholder="—"
                 editableWhenSet
-                onSave={(v) => handleCommissionSave({ financing_date: v || null })}
+                onSave={(v) => handleDateSave(() => handleCommissionSave({ financing_date: v || null }), { financingDate: v || null })}
               />
             ) : (
               <div data-field="financing_date">
@@ -1712,18 +1827,56 @@ function UtilityProvidersEditor({ utilities: rawUtilities, onSave }) {
   const hasAny = Object.values(utilities || {}).some(Boolean);
   const [editing, setEditing] = useState(!hasAny);
   const [draft, setDraft] = useState(utilities || {});
+  const [contacts, setContacts] = useState(utilities?._contacts || {});
+  const [directory, setDirectory] = useState({});
   const [saving, setSaving] = useState(false);
+
+  // Phone/website already entered for a provider on another deal.
+  useEffect(() => {
+    if (!editing) return;
+    fetchUtilityDirectory().then(setDirectory).catch(() => {});
+  }, [editing]);
+
+  function setContact(key, patch) {
+    setContacts((c) => ({ ...c, [key]: { ...(c[key] || {}), ...patch } }));
+  }
+
+  /** Picking/typing a provider we've seen before fills in its phone/website
+   * (only blanks — never overwrites what's typed). */
+  function setProvider(key, name) {
+    setDraft((d) => ({ ...d, [key]: name }));
+    const known = directory[key]?.[name.trim().toLowerCase()];
+    if (known) {
+      setContacts((c) => {
+        const cur = c[key] || {};
+        return { ...c, [key]: { phone: cur.phone || known.phone, website: cur.website || known.website } };
+      });
+    }
+  }
 
   if (!editing) {
     return (
       <>
         <div className="detail-grid">
-          {visibleUtilityFields(utilities).map((f) => (
-            <div key={f.key}>
-              <div className="detail-label">{f.key}</div>
-              <div className={utilities?.[f.key] ? "" : "editable-missing"}>{utilities?.[f.key] || "Not set"}</div>
-            </div>
-          ))}
+          {visibleUtilityFields(utilities).map((f) => {
+            const c = utilities?._contacts?.[f.key] || {};
+            return (
+              <div key={f.key}>
+                <div className="detail-label">{f.key}</div>
+                <div className={utilities?.[f.key] ? "" : "editable-missing"}>{utilities?.[f.key] || "Not set"}</div>
+                {utilities?.[f.key] && (c.phone || c.website) && (
+                  <div className="utility-contact">
+                    {c.phone && <a href={`tel:${c.phone.replace(/[^\d+]/g, "")}`}>{c.phone}</a>}
+                    {c.website && (
+                      <a href={/^https?:\/\//i.test(c.website) ? c.website : `https://${c.website}`} target="_blank" rel="noreferrer">
+                        {c.website.replace(/^https?:\/\//i, "").replace(/\/$/, "")}
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
         <button title="Edit all of these fields at once" type="button" className="comps-status-btn utility-edit-all-btn" onClick={() => setEditing(true)}>
           <Pencil size={12} /> Edit All
@@ -1734,10 +1887,15 @@ function UtilityProvidersEditor({ utilities: rawUtilities, onSave }) {
 
   async function save() {
     const next = {};
+    const nextContacts = {};
     for (const f of visibleUtilityFields(draft)) {
       const v = String(draft[f.key] ?? "").trim();
       if (v) next[f.key] = v;
+      const phone = String(contacts[f.key]?.phone ?? "").trim();
+      const website = String(contacts[f.key]?.website ?? "").trim();
+      if (v && (phone || website)) nextContacts[f.key] = { ...(phone ? { phone } : {}), ...(website ? { website } : {}) };
     }
+    if (Object.keys(nextContacts).length) next._contacts = nextContacts;
     setSaving(true);
     try {
       await onSave(next);
@@ -1768,22 +1926,40 @@ function UtilityProvidersEditor({ utilities: rawUtilities, onSave }) {
             />
           </div>
         ) : (
-          <label key={f.key}>
-            {f.key}
-            <input
-              list={f.suggestions ? `utility-suggest-${f.key}` : undefined}
-              value={draft[f.key] || ""}
-              onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
-              placeholder={f.suggestions ? "Pick one, or type another" : "Provider name"}
-            />
-            {f.suggestions && (
-              <datalist id={`utility-suggest-${f.key}`}>
-                {f.suggestions.map((o) => (
-                  <option key={o} value={o} />
-                ))}
-              </datalist>
+          <div key={f.key} className="utility-edit-field">
+            <label>
+              {f.key}
+              <input
+                list={`utility-suggest-${f.key}`}
+                value={draft[f.key] || ""}
+                onChange={(e) => setProvider(f.key, e.target.value)}
+                placeholder={f.suggestions ? "Pick one, or type another" : "Provider name"}
+              />
+            </label>
+            {/* Suggestions: the standard list plus every provider already saved on another deal. */}
+            <datalist id={`utility-suggest-${f.key}`}>
+              {[...new Set([...(f.suggestions || []), ...Object.values(directory[f.key] || {}).map((d) => d.name)])].map((o) => (
+                <option key={o} value={o} />
+              ))}
+            </datalist>
+            {String(draft[f.key] || "").trim() && (
+              <div className="utility-contact-inputs">
+                <input
+                  type="tel"
+                  value={contacts[f.key]?.phone || ""}
+                  onChange={(e) => setContact(f.key, { phone: e.target.value })}
+                  placeholder="Phone"
+                  aria-label={`${f.key} phone`}
+                />
+                <input
+                  value={contacts[f.key]?.website || ""}
+                  onChange={(e) => setContact(f.key, { website: e.target.value })}
+                  placeholder="Website"
+                  aria-label={`${f.key} website`}
+                />
+              </div>
             )}
-          </label>
+          </div>
         )
       )}
       <div className="utility-edit-actions">
@@ -1797,6 +1973,7 @@ function UtilityProvidersEditor({ utilities: rawUtilities, onSave }) {
             disabled={saving}
             onClick={() => {
               setDraft(utilities || {});
+              setContacts(utilities?._contacts || {});
               setEditing(false);
             }}
           >
