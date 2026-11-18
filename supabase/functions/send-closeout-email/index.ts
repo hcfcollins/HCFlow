@@ -124,6 +124,10 @@ function receivedLines(d: EmailData): string {
   return [
     line("Total Commission Received", money(d.grossCommission)),
     d.referralOwedTo && d.referralPct ? line("Referral", `${d.referralPct}% to ${d.referralOwedTo} = ${money(d.referralAmount)}`) : "",
+    // Exactly what the deal's notes say (or Ramsey Solutions' address).
+    d.referralPct && d.referralSendTo
+      ? line("Send Referral To", d.referralSendTo.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>"))
+      : "",
     d.referralPct ? line("Commission After Referral", money(d.commissionAfterReferral)) : "",
   ].join("\n");
 }
@@ -196,6 +200,7 @@ interface EmailData {
   referralOwedTo: string | null;
   referralPct: number | null;
   referralAmount: number;
+  referralSendTo: string | null;
   agentCommission: number | null;
   hollyCommission: number;
   franCommission: number;
@@ -241,6 +246,7 @@ Deno.serve(async (req) => {
       referralOwedTo: reqBody.referralOwedTo || null,
       referralPct: reqBody.referralPct != null ? Number(reqBody.referralPct) : null,
       referralAmount: Number(reqBody.referralAmount || 0),
+      referralSendTo: reqBody.referralSendTo ? String(reqBody.referralSendTo) : null,
       agentCommission: reqBody.agentCommission != null ? Number(reqBody.agentCommission) : null,
       hollyCommission: Number(reqBody.hollyCommission || 0),
       franCommission: Number(reqBody.franCommission || 0),

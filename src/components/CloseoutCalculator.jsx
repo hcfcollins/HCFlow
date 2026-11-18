@@ -15,7 +15,7 @@ import {
   COMMISSION_CHECK_DOC,
   CLOSING_DOCS_DOC,
 } from "../lib/transactions";
-import { calculateCloseout, applyTcFee, TC_FEE_AMOUNTS, round2, suggestTcFee } from "../lib/commissionCalc";
+import { calculateCloseout, applyTcFee, TC_FEE_AMOUNTS, round2, suggestTcFee, referralSendTo } from "../lib/commissionCalc";
 import { useToast } from "../lib/ToastContext";
 import { focusNextOnEnter } from "../lib/formKeyNav";
 
@@ -314,6 +314,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
       referralOwedTo: transaction.commission_data?.referral_owed_to || null,
       referralPct: referralPctNum || null,
       referralAmount: round2(referralAmount),
+      referralSendTo: hasReferral ? referralSendTo(transaction) : null,
       agentCommission: result.isOwnerDeal ? null : result.agentCommission,
       hollyCommission: result.hollyCommission,
       franCommission: result.franCommission,
@@ -365,7 +366,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         const have = new Set((transaction.todos || []).map((t) => t.text));
         const followUps = [
           hasReferral && !referralPaid
-            ? `@Fran Pay referral ${money(referralAmount)} to ${transaction.commission_data?.referral_owed_to || "the referring agent"}`
+            ? `@Fran Pay referral ${money(referralAmount)} to ${transaction.commission_data?.referral_owed_to || "the referring agent"} — send to: ${(referralSendTo(transaction) || "nothing in the deal's notes yet").replace(/\s*\n\s*/g, ", ")}`
             : null,
           trustTransferAmount > 0 && !trustToCheckingTransferred ? `@Fran Transfer ${money(trustTransferAmount)} earnest money from trust to checking` : null,
         ].filter((t) => t && !have.has(t));
@@ -613,6 +614,16 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
             <input type="checkbox" checked={referralPaid} onChange={(e) => setReferralPaid(e.target.checked)} />
             Referral paid: {money(referralAmount)} ({referralPctNum}% of the check) to {transaction.commission_data?.referral_owed_to || "the referring agent"}
           </label>
+        )}
+        {hasReferral && (
+          <div className="referral-send-to">
+            <div className="detail-label">Send the referral to</div>
+            {referralSendTo(transaction) ? (
+              <div className="referral-send-to-text">{referralSendTo(transaction)}</div>
+            ) : (
+              <div className="field-help">Nothing in the deal's Notes yet — add where to send it there.</div>
+            )}
+          </div>
         )}
         {trustTransferAmount > 0 && (
           <label className="tbd-toggle">

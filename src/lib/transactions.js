@@ -567,26 +567,28 @@ export const CLOSING_DOCS_TODO = "Send the closing docs to the client and ask fo
 export const REVIEW_LINK ="https://g.page/r/CQqNLCVhrYdhEBM/review";
 const COMPLIANCE_TODOS = [
   "Review the file for any missing information",
-  CLOSING_DOCS_TODO,
   "Add the buyer and seller details to the Postable list",
 ];
 
 /** The coordinator's post-closing compliance checklist, created (tagged to
- * her) the first time a broker closes the deal out. Idempotent — re-saving
- * an existing close-out doesn't duplicate it. Returns the created texts, or
- * [] if they already existed. */
+ * her) the first time a broker closes the deal out — plus the agent's own
+ * "send the closing docs to the client and ask for a review" (the agent's
+ * job, with the Closing Docs Email button). Idempotent — re-saving an
+ * existing close-out doesn't duplicate it. Returns { coordinator, agent }
+ * texts, both [] if they already existed. */
 export async function seedComplianceTodos(transactionId) {
   const { data: existing } = await supabase
     .from("todos")
     .select("id")
     .eq("transaction_id", transactionId)
     .ilike("text", "%Postable list%");
-  if (existing?.length) return [];
-  const tag = await coordinatorTag();
-  const texts = COMPLIANCE_TODOS.map((t) => `${tag}${t}`);
-  const { error } = await supabase.from("todos").insert(texts.map((text) => ({ transaction_id: transactionId, text })));
+  if (existing?.length) return { coordinator: [], agent: [] };
+  const [tag, agentTag] = await Promise.all([coordinatorTag(), agentTagFor(transactionId)]);
+  const coordinator = COMPLIANCE_TODOS.map((t) => `${tag}${t}`);
+  const agent = [`${agentTag}${CLOSING_DOCS_TODO}`];
+  const { error } = await supabase.from("todos").insert([...coordinator, ...agent].map((text) => ({ transaction_id: transactionId, text })));
   if (error) throw error;
-  return texts;
+  return { coordinator, agent };
 }
 
 /** `date` (a "YYYY-MM-DD" string) minus `days` days, as another "YYYY-MM-DD"
@@ -1165,8 +1167,12 @@ export async function saveCloseout(transactionId, closeoutFields) {
   // Best-effort — the close-out itself already saved.
   try {
     const created = await seedComplianceTodos(transactionId);
-    if (created.length) {
-      await notifyTodo({ transactionId, event: "compliance_ready", text: created.map((t) => `• ${t.replace(/^(@\S+\s)+/, "")}`).join("\n") });
+    if (created.coordinator.length) {
+      await notifyTodo({ transactionId, event: "compliance_ready", text: created.coordinator.map((t) => `• ${t.replace(/^(@\S+\s)+/, "")}`).join("\n") });
+    }
+    // The agent's to-do — @-tagged, so they get the usual mention email.
+    for (const text of created.agent) {
+      if (/^@/.test(text)) await notifyTodo({ transactionId, text }).catch((e) => console.error("Couldn't notify the agent:", e));
     }
   } catch (e) {
     console.error("Couldn't set up the compliance checklist:", e);

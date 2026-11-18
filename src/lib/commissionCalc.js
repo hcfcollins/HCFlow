@@ -108,6 +108,18 @@ export function calculateCloseout({ commissionAfterReferral, agentName, side, le
   };
 }
 
+export const RAMSEY_ADDRESS = "Ramsey Solutions\n1011 Reams Fleming Blvd.\nFranklin, TN 37064";
+
+/** Where to send the referral payment: Ramsey referrals always go to Ramsey
+ * Solutions' address; anything else is exactly what the deal's Notes say.
+ * null when there's nothing to go on. */
+export function referralSendTo(tx) {
+  const owed = tx.commission_data?.referral_owed_to || "";
+  if (/ramsey/i.test(owed) || /ramsey/i.test(tx.commission_data?.client_source || "")) return RAMSEY_ADDRESS;
+  const notes = String(tx.notes || "").trim();
+  return notes || null;
+}
+
 export function round2(n) {
   return Math.round(n * 100) / 100;
 }
