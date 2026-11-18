@@ -12,7 +12,7 @@ import FolderOrganizer from "./FolderOrganizer";
 import DealFileDrop from "./DealFileDrop";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
-import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents, fetchOtherSideAgentName, updateCloseoutFields, shiftDatedTodos, fetchUtilityDirectory, updateAttorneyEmail } from "../lib/transactions";
+import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents, fetchOtherSideAgentName, updateCloseoutFields, shiftDatedTodos, fetchUtilityDirectory, updateAttorneyEmail, fetchLicenseNumbers } from "../lib/transactions";
 import { clientIsBuyer as isClientBuyer, missingInfoItems, sideLabel, closedOptionalItems } from "../lib/missingInfo";
 import { stageSelectValue, closingStatusBadge, isExpiredListing, terminatedLabel, EXPIRED_REASON } from "../lib/stages";
 import { formatBac, bacWarning, emailComposeUrl, emailLinkTarget, openEmailCompose, buildDepositReleaseEmail, buildAttorneyCommissionEmail, commissionForAttorneys } from "../lib/clientEmail";
@@ -103,6 +103,14 @@ export default function DealDetail({
   const [lockboxCode, setLockboxCode] = useState(transaction.lockbox_code || "");
   const [lockboxNote, setLockboxNote] = useState(transaction.lockbox_note || "");
   const [attorneys, setAttorneys] = useState([]);
+  // Agent + brokerage license numbers for the commission statement (loaded
+  // ahead so the email opens straight from the click — no popup blocking).
+  const [licenseNumbers, setLicenseNumbers] = useState({});
+  const needsLicenses = (currentAgent.role === "broker" || currentAgent.role === "coordinator") && (transaction.stage === "contract" || transaction.stage === "closed");
+  useEffect(() => {
+    if (!needsLicenses) return;
+    fetchLicenseNumbers(transaction.agent_id, transaction.region).then(setLicenseNumbers).catch(() => {});
+  }, [needsLicenses, transaction.agent_id, transaction.region]);
   const [compDetailsCollapsed, setCompDetailsCollapsed] = useState(true);
   const [retryingDropbox, setRetryingDropbox] = useState(false);
   const [emailingPacket, setEmailingPacket] = useState(false);
@@ -1025,31 +1033,41 @@ export default function DealDetail({
                         </div>
                       )}
                     </div>
-                    {transaction.stage === "contract" && expected != null && (() => {
-                      const c = commissionForAttorneys(transaction);
-                      const noEmails = !transaction.buyer_attorney?.email && !transaction.seller_attorney?.email;
-                      return (
-                        <>
-                          {c.deposit > 0 && (
-                            <div className="field-help">
-                              {c.retain
-                                ? `Retain the ${fmt(c.deposit)} deposit — net at closing ${fmt(c.net)}`
-                                : c.jeff
-                                  ? "Jeff Lewis — deliver the deposit check to him"
-                                  : "Deposit covers the commission — deliver it to the buyer's attorney"}
-                            </div>
-                          )}
-                          <button
-                            type="button"
-                            className="comps-status-btn deposit-release-btn"
-                            title={noEmails ? "No attorney emails on file yet — add them under the attorneys above" : "Open the commission email to the attorneys (agent cc'd)"}
-                            onClick={() => openEmailCompose(buildAttorneyCommissionEmail(transaction))}
-                          >
-                            <Mail size={12} /> Commission Email to Attorneys
-                          </button>
-                        </>
-                      );
-                    })()}
+                  </div>
+                );
+              })()}
+            {/* Commission statement for the attorneys — staff, including Kerry
+                (Fran's one exception to "Kerry never sees commission"). Net
+                only: (price − seller credit) × commission %; never the splits. */}
+            {isStaff && (transaction.stage === "contract" || transaction.stage === "closed") &&
+              (() => {
+                const c = commissionForAttorneys(transaction);
+                const fmt = (n) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                const noEmails = !transaction.buyer_attorney?.email && !transaction.seller_attorney?.email;
+                return (
+                  <div data-field="commission_statement">
+                    <div className="detail-label">Net Commission</div>
+                    <div>
+                      {c.commission == null ? "—" : fmt(c.commission)}
+                      {c.sellerCredit > 0 && c.commission != null && <div className="field-help">after {fmt(c.sellerCredit)} seller credit</div>}
+                      {c.deposit > 0 && c.commission != null && (
+                        <div className="field-help">
+                          {c.retain
+                            ? `Retain the ${fmt(c.deposit)} deposit — due at closing ${fmt(c.due)}`
+                            : c.jeff
+                              ? "Jeff Lewis — deliver the deposit check to him"
+                              : "Deposit covers the commission — deliver it to the buyer's attorney"}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="comps-status-btn deposit-release-btn"
+                      title={noEmails ? "No attorney emails on file yet — add them under the attorneys above" : "Open the commission statement email to the attorneys (agent cc'd)"}
+                      onClick={() => openEmailCompose(buildAttorneyCommissionEmail(transaction, licenseNumbers))}
+                    >
+                      <Mail size={12} /> Commission Statement to Attorneys
+                    </button>
                   </div>
                 );
               })()}

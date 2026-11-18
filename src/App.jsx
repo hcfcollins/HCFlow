@@ -13,6 +13,9 @@ import {
   seedWonListingTodos,
   seedGoLiveTodos,
   MLS_PARTIAL_TODO,
+  CLOSING_DOCS_TODO,
+  previewClosingDocsEmail,
+  sendClosingDocsEmail,
   createDropboxFolderForListing,
   createDropboxFolderForBuyer,
   terminateTransaction,
@@ -395,6 +398,29 @@ export default function App() {
     loadTransactions({ silent: true });
   }
 
+  /** Closing docs to the client: shows who it goes to and which files, then
+   * sends (from the app's Gmail, docs attached) and checks the to-do off. */
+  async function handleClosingDocsEmail(todo) {
+    setNotifyingTodoId(todo.id);
+    try {
+      const p = await previewClosingDocsEmail(todo.transaction_id);
+      const ok = window.confirm(
+        `Send the closing docs email?\n\nTo: ${p.to.join(", ")}${p.cc.length ? `\nCc: ${p.cc.join(", ")}` : ""}\n\n` +
+          `${p.attach ? "Attached" : `Too big to attach (${p.totalMb} MB) — sent as view-only links`}:\n${p.files.map((f) => `• ${f}`).join("\n")}\n\n` +
+          "It congratulates them, includes the docs, and asks for a Google review."
+      );
+      if (!ok) return;
+      await sendClosingDocsEmail(todo.transaction_id);
+      await toggleTodo(todo.id, true, initialsFor(agent?.name));
+      showToast(`Closing docs sent to ${p.to.join(", ")}`);
+      loadTransactions({ silent: true });
+    } catch (e) {
+      showToast(`Couldn't send the closing docs email: ${e.message}`);
+    } finally {
+      setNotifyingTodoId(null);
+    }
+  }
+
   /** Staff bell on a to-do: email + in-app remind the deal's agent about it. */
   async function handleNotifyTodoOwner(todo, remindAgentId) {
     setRemindMenuTodoId(null);
@@ -435,6 +461,23 @@ export default function App() {
           }}
         >
           <Mail size={11} /> Utility Email
+        </button>
+      );
+    }
+    if (todo.text.includes(CLOSING_DOCS_TODO)) {
+      buttons.push(
+        <button
+          key="closing-docs"
+          type="button"
+          className="todo-action-btn"
+          disabled={notifyingTodoId === todo.id}
+          title="Email the client their closing docs (attached from Dropbox) and ask for a review"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleClosingDocsEmail(todo);
+          }}
+        >
+          <Mail size={11} /> {notifyingTodoId === todo.id ? "Sending…" : "Closing Docs Email"}
         </button>
       );
     }

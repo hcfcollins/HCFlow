@@ -526,6 +526,24 @@ export async function seedWonListingTodos(transactionId) {
   return mlsTodo;
 }
 
+export const COMPLIANCE_REVIEW_TODO = "Review the initial set of files for compliance and signatures";
+
+/** deal-emails Edge Function, with its error text surfaced. */
+async function dealEmails(body) {
+  const { data, error } = await supabase.functions.invoke("deal-emails", { body });
+  if (error) throw await functionError(error);
+  return data;
+}
+
+/** Congratulations email for a new Under Contract (agent, cc Kerry + partners). */
+export const sendUnderContractEmail = (transactionId) => dealEmails({ action: "under_contract", transactionId });
+
+/** Who'd get the closing docs email and which files would go: { to, cc, files, attach, totalMb }. */
+export const previewClosingDocsEmail = (transactionId) => dealEmails({ action: "closing_docs_preview", transactionId });
+
+/** Sends the client their closing docs (attached) + a review request. */
+export const sendClosingDocsEmail = (transactionId) => dealEmails({ action: "closing_docs_send", transactionId });
+
 const GO_LIVE_TODOS = ["Get the packet ready for MLS", "Send the Instagram photos to social media"];
 
 /** The coordinator's next steps once a listing goes live (Go Live checked, or
@@ -545,10 +563,11 @@ export async function seedGoLiveTodos(transactionId) {
   return texts;
 }
 
+export const CLOSING_DOCS_TODO = "Send the closing docs to the client and ask for a review";
 export const REVIEW_LINK ="https://g.page/r/CQqNLCVhrYdhEBM/review";
 const COMPLIANCE_TODOS = [
   "Review the file for any missing information",
-  `Send the closing docs to the agent and remind them to ask for a review: ${REVIEW_LINK}`,
+  CLOSING_DOCS_TODO,
   "Add the buyer and seller details to the Postable list",
 ];
 
@@ -910,6 +929,9 @@ export async function submitUnderContract(fields) {
   // close-out). Only ever update THIS side's row — never the other agent's
   // side of a Split or in-house deal at the same address.
   let tx = await findSameSide({ existingId, address, side, splitClientSide });
+  // First time this side goes Under Contract (not a correction/resubmit) →
+  // congratulations email + Kerry's compliance review to-do, below.
+  const isNewContract = !tx || (tx.stage !== "contract" && tx.stage !== "closed");
   if (tx) {
     const { data, error } = await supabase
       .from("transactions")
@@ -943,6 +965,14 @@ export async function submitUnderContract(fields) {
     appraiser,
     tc_fee_type: tcFeeType,
   });
+  // Commission % also kept where Kerry can read it (the close-out row is
+  // broker-only) — for her commission statements. Skipped if the column
+  // isn't there yet.
+  try {
+    await upsertCommissionData(tx.id, { commission_pct: commissionPct ?? null });
+  } catch (e) {
+    if (!/commission_pct/.test(e.message || "")) throw e;
+  }
 
   const { error: closeoutError } = await supabase.from("closeouts").insert({
     transaction_id: tx.id,
@@ -980,6 +1010,22 @@ export async function submitUnderContract(fields) {
   }
 
   await addActivityLog(tx.id, "Under Contract form submitted", address);
+
+  if (isNewContract) {
+    // Kerry reviews the initial set of files. Idempotent.
+    try {
+      const { data: existing } = await supabase.from("todos").select("id").eq("transaction_id", tx.id).ilike("text", `%${COMPLIANCE_REVIEW_TODO}%`);
+      if (!existing?.length) await addTodo(tx.id, `${await coordinatorTag()}${COMPLIANCE_REVIEW_TODO}`);
+    } catch (e) {
+      console.error("Couldn't add the compliance review to-do:", e);
+    }
+    // Congratulations email to the agent, cc Kerry + partners. Best-effort.
+    try {
+      await sendUnderContractEmail(tx.id);
+    } catch (e) {
+      tx._emailWarning = `Under Contract saved, but the congratulations email didn't send: ${e.message}`;
+    }
+  }
 
   // Split / in-house: link to the other side (if it's in the app yet). The
   // server does this — an agent can't see the other agent's side.
@@ -1295,6 +1341,18 @@ export async function syncAgentDocsToDropbox(body) {
   const { data, error } = await supabase.functions.invoke("sync-agent-docs", { body });
   if (error) throw await functionError(error);
   return data;
+}
+
+/** License numbers for a commission statement: the deal agent's and the
+ * brokerage's, for the property's state ("VT" | "NH"). select("*") so a
+ * missing license-number column just means no number, not an error. */
+export async function fetchLicenseNumbers(agentId, state) {
+  const key = state === "NH" ? "nh" : "vt";
+  const [{ data: agent }, { data: firm }] = await Promise.all([
+    agentId ? supabase.from("agents").select("*").eq("id", agentId).maybeSingle() : Promise.resolve({ data: null }),
+    supabase.from("brokerage_licenses").select("*").eq("state", key.toUpperCase()).maybeSingle(),
+  ]);
+  return { agent: agent?.[`${key}_license_number`] || null, brokerage: firm?.license_number || null };
 }
 
 /** Hall Collins Real Estate Group's own firm licenses (VT, NH). */

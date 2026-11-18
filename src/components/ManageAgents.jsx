@@ -682,6 +682,7 @@ function LicenseEditor({ agent, state, label, onChanged }) {
       record={agent}
       expKey={`${state}_license_expires`}
       pathKey={`${state}_license_path`}
+      numberKey={state === "broker" ? null : `${state}_license_number`}
       label={label}
       saveFields={(patch) => updateAgentFields(agent.id, patch)}
       uploadFile={(file) => uploadAgentLicense(agent.id, state, file)}
@@ -692,7 +693,7 @@ function LicenseEditor({ agent, state, label, onChanged }) {
 }
 
 /** Expiration date (saved with a button) + upload/view a copy, for any license record. */
-function LicenseFields({ record, expKey, pathKey, label, saveFields, uploadFile, afterChange, onChanged }) {
+function LicenseFields({ record, expKey, pathKey, numberKey, label, saveFields, uploadFile, afterChange, onChanged }) {
   const agent = record;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -799,6 +800,9 @@ function LicenseFields({ record, expKey, pathKey, label, saveFields, uploadFile,
         </span>
       </div>
 
+      {/* License number — printed on commission statements. Shown once the column exists. */}
+      {numberKey && numberKey in agent && <LicenseNumberRow value={agent[numberKey] || ""} onSave={(v) => saveFields({ [numberKey]: v || null }).then(onChanged)} />}
+
       {/* Expiration date */}
       <div className={`license-status-row ${expires ? (left < 0 ? "license-status-row--bad" : "license-status-row--ok") : "license-status-row--missing"}`}>
         {expires && left >= 0 ? <CalendarDays size={18} /> : <AlertCircle size={18} />}
@@ -850,6 +854,47 @@ function LicenseFields({ record, expKey, pathKey, label, saveFields, uploadFile,
             </button>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** "License #" with an inline edit + Save. */
+function LicenseNumberRow({ value, onSave }) {
+  const [draft, setDraft] = useState(value);
+  const [busy, setBusy] = useState(false);
+  const showToast = useToast();
+  useEffect(() => setDraft(value), [value]);
+  const changed = draft.trim() !== value;
+  return (
+    <div className={`license-status-row ${value ? "license-status-row--ok" : "license-status-row--missing"}`}>
+      {value ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+      <span className="license-status-text license-number-field">
+        <strong>License #</strong>
+        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="e.g. 081.0134567" disabled={busy} />
+      </span>
+      {changed && (
+        <span className="license-status-actions">
+          <button
+            type="button"
+            className="license-mini-btn"
+            disabled={busy}
+            title="Save the license number"
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await onSave(draft.trim());
+                showToast("License number saved");
+              } catch (e) {
+                showToast(`Couldn't save the license number: ${e.message}`);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {busy ? "Saving…" : "Save"}
+          </button>
+        </span>
       )}
     </div>
   );
@@ -968,6 +1013,7 @@ function BrokerageLicenses({ focused = false }) {
               record={row}
               expKey="expires"
               pathKey="license_path"
+              numberKey="license_number"
               label={st === "VT" ? "Vermont Brokerage License" : "New Hampshire Brokerage License"}
               saveFields={(patch) => saveBrokerageLicense(st, patch)}
               uploadFile={(file) => uploadBrokerageLicense(st, file)}

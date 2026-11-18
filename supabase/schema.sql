@@ -613,3 +613,10 @@ alter table transactions add column if not exists closing_location text;
 alter table attorneys add column if not exists email text;
 drop policy if exists attorneys_update on attorneys;
 create policy attorneys_update on attorneys for update using (is_staff());
+-- License numbers (commission statements) + commission % where Kerry can read it.
+alter table agents add column if not exists vt_license_number text;
+alter table agents add column if not exists nh_license_number text;
+alter table brokerage_licenses add column if not exists license_number text;
+alter table commission_data add column if not exists commission_pct numeric;
+update commission_data cd set commission_pct = c.commission_pct from closeouts c where c.transaction_id = cd.transaction_id and cd.commission_pct is null;
+notify pgrst, 'reload schema';

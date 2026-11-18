@@ -1765,3 +1765,5 @@ button { cursor: pointer; }
 .cma-export-btn.btn-closeout:hover { background: #267a4b; }
 .cma-export-btn.btn-cleanup { background: #cfe8f7; color: var(--color-navy); }
 .cma-export-btn.btn-cleanup:hover { background: #b9ddf2; }
+.license-number-field { display: flex; align-items: center; gap: 8px; }
+.license-number-field input { flex: 1; min-width: 0; max-width: 200px; font-size: 13px; padding: 4px 8px; }

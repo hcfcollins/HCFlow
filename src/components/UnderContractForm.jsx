@@ -206,6 +206,7 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
       }
       if (submitted._xeroWarning) showToast(submitted._xeroWarning);
       if (submitted._dropboxWarning) showToast(submitted._dropboxWarning);
+      if (submitted._emailWarning) showToast(submitted._emailWarning);
       clearDraft();
       onSubmitted();
     } catch (e) {

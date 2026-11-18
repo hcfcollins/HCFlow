@@ -157,40 +157,60 @@ export function buildDepositReleaseEmail(tx) {
  * we never retain it against our commission on his closings. */
 export const isJeffLewis = (name) => /\bjeff(rey)?\s+lewis\b/i.test(String(name || ""));
 
-/** The commission numbers for the attorneys' email. Net = what the attorney
- * pays Hall Collins at closing: the expected commission, less the deposit
- * we're holding when we retain it (deposit smaller than the commission, and
- * the buyer's attorney isn't Jeff Lewis). Otherwise the deposit check goes to
- * the buyer's attorney and the full commission is due at closing. */
+/** The commission numbers for the attorneys' commission statement.
+ * Net commission (Fran, Nov 2026) = (purchase price − seller credit) ×
+ * commission %. Due at closing = net commission, less the deposit we're
+ * holding when we retain it (deposit smaller than the commission, and the
+ * buyer's attorney isn't Jeff Lewis). Otherwise the deposit check goes to the
+ * buyer's attorney and the full net commission is due at closing.
+ * Commission % comes from commission_data (Kerry can read it) or the
+ * broker-only close-out row. */
 export function commissionForAttorneys(tx) {
   const co = tx.closeouts || {};
   const cd = tx.commission_data || {};
-  const price = Number(co.commission_after_referral == null ? tx.price ?? co.price : co.price ?? tx.price) || 0;
-  const pct = Number(co.commission_pct) || 0;
-  const commission = co.anticipated_commission != null ? Number(co.anticipated_commission) : price && pct ? (price * pct) / 100 : null;
+  const price = Number(tx.price ?? co.price) || 0;
+  const sellerCredit = Number(cd.seller_credit) || 0;
+  const pct = Number(cd.commission_pct ?? co.commission_pct) || 0;
+  const commission = price && pct ? ((price - sellerCredit) * pct) / 100 : null;
   const deposit =
     (cd.hold_deposit === "Yes" ? Number(cd.deposit_amount) || 0 : 0) + (cd.second_deposit === "Yes" ? Number(cd.second_deposit_amount) || 0 : 0);
   const jeff = isJeffLewis(tx.buyer_attorney?.name);
   const retain = commission != null && deposit > 0 && deposit < commission && !jeff;
-  return { price, pct, commission, deposit, jeff, retain, net: commission == null ? null : retain ? commission - deposit : commission };
+  return { price, sellerCredit, pct, commission, deposit, jeff, retain, due: commission == null ? null : retain ? commission - deposit : commission };
 }
 
-/** Commission email to the attorneys (agent cc'd) — never to clients. */
-export function buildAttorneyCommissionEmail(tx) {
+/** Commission statement email to the attorneys (agent cc'd) — never to
+ * clients. `licenses` = { agent, brokerage } license numbers for the
+ * property's state. */
+export function buildAttorneyCommissionEmail(tx, licenses = {}) {
   const money = (n) => `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const c = commissionForAttorneys(tx);
+  const state = tx.region === "NH" ? "NH" : "VT";
   const closing = tx.next_date ? formatClosing(tx.next_date) : null;
   const attorney = tx.buyer_attorney?.name;
-  const netLine = `Net commission due to Hall Collins Real Estate Group at closing: ${c.net == null ? "(commission not set yet)" : money(c.net)}`;
-  const breakdown = c.retain
-    ? [`Commission: ${money(c.commission)}`, `Less deposit held by Hall Collins (retained against our commission): −${money(c.deposit)}`, netLine].join("\n")
-    : netLine;
+  const lines =
+    c.commission == null
+      ? ["Net commission: (purchase price or commission % not set yet)"]
+      : [
+          `Purchase price: ${money(c.price)}`,
+          c.sellerCredit ? `Less seller credit: −${money(c.sellerCredit)}` : null,
+          c.sellerCredit ? `Net price: ${money(c.price - c.sellerCredit)}` : null,
+          `Commission: ${c.pct}%`,
+          `Net commission: ${money(c.commission)}`,
+          c.retain ? `Less deposit held by Hall Collins (retained against our commission): −${money(c.deposit)}` : null,
+          `Due to Hall Collins Real Estate Group at closing: ${money(c.due)}`,
+        ].filter(Boolean);
   const depositLine = c.deposit && !c.retain ? `We are holding the ${money(c.deposit)} deposit and will deliver the check to ${attorney || "the buyer's attorney"} before closing.` : null;
+  const licenseLines = [
+    `Agent: ${tx.agent?.name || "—"}${licenses.agent ? `, ${state} License #${licenses.agent}` : ""}`,
+    `Brokerage: Hall Collins Real Estate Group${licenses.brokerage ? `, ${state} Brokerage License #${licenses.brokerage}` : ""}`,
+  ].join("\n");
   const body = [
     "Hi,",
-    `Here is the commission for ${tx.address}${closing ? `, closing ${closing}` : ""}:`,
-    breakdown,
+    `Here is the commission statement for ${tx.address}${closing ? `, closing ${closing}` : ""}:`,
+    lines.join("\n"),
     depositLine,
+    licenseLines,
     "Please let us know if you need anything else from us.",
     "Thank you!",
   ]
@@ -198,7 +218,7 @@ export function buildAttorneyCommissionEmail(tx) {
     .join("\n\n");
   const to = [tx.buyer_attorney?.email, tx.seller_attorney?.email].filter(Boolean);
   const cc = tx.agent?.email ? [tx.agent.email] : [];
-  return { to: [...new Set(to)], cc, subject: `Commission - ${tx.address}`, body };
+  return { to: [...new Set(to)], cc, subject: `Commission Statement - ${tx.address}`, body };
 }
 
 /** "Electricity: Green Mountain Power — (802) 655-6600 — greenmountainpower.com" */
