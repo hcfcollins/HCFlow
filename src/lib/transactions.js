@@ -706,7 +706,8 @@ export async function addUpcomingContractTodos(tx) {
     [SECOND_DEPOSIT_COPY_TODO, cd.second_deposit === "Yes" ? cd.second_deposit_due_date || null : null],
     ...(isListingSide
       ? [
-          ["Send the Deposit", dateMinusDays(closing, 5)],
+          // Only when we actually hold a deposit.
+          ["Send the Deposit", cd.hold_deposit === "Yes" ? dateMinusDays(closing, 5) : null],
           ["Final Oil/Water/Sewer Reading", tx.property_style === "Land" ? null : dateMinusDays(closing, tx.town_water_sewer ? 14 : 7)],
         ]
       : []),
@@ -1004,7 +1005,8 @@ export async function submitUnderContract(fields) {
   // is only representing the buyer, since there's no seller-side deposit/utility
   // reading to coordinate on someone else's listing.
   if (side !== "Buy") {
-    await syncContingencyTodo(tx.id, "Send the Deposit", dateMinusDays(closingDate, 5));
+    // Only when we hold the deposit (removed if it's switched to "No").
+    await syncContingencyTodo(tx.id, "Send the Deposit", holdDeposit === "Yes" ? dateMinusDays(closingDate, 5) : null);
     // Town water/sewer final readings have to be ordered from the municipality,
     // which takes longer to schedule than a private well/septic reading — 2
     // weeks out instead of 1.

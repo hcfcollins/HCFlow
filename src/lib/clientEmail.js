@@ -179,7 +179,12 @@ export function buildAttorneyCommissionEmail(tx, licenses = {}) {
           c.retain ? `Less deposit held by Hall Collins (retained against our commission): −${money(c.deposit)}` : null,
           `Due to Hall Collins Real Estate Group at closing: ${money(c.due)}`,
         ].filter(Boolean);
-  const depositLine = c.deposit && !c.retain ? `We are holding the ${money(c.deposit)} deposit and will deliver the check to ${attorney || "the buyer's attorney"} before closing.` : null;
+  const held = tx.commission_data?.hold_deposit === "Yes";
+  const depositLine = !held
+    ? "Hall Collins is not holding the deposit on this transaction."
+    : c.deposit && !c.retain
+      ? `We are holding the ${money(c.deposit)} deposit and will deliver the check to ${attorney || "the buyer's attorney"} before closing.`
+      : null;
   const licenseLines = [
     `Agent: ${tx.agent?.name || "—"}${licenses.agent ? `, ${state} License #${licenses.agent}` : ""}`,
     `Brokerage: Hall Collins Real Estate Group${licenses.brokerage ? `, ${state} Brokerage License #${licenses.brokerage}` : ""}`,

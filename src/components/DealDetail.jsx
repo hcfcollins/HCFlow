@@ -424,6 +424,11 @@ export default function DealDetail({
                     <div>
                       {c.commission == null ? "—" : fmt(c.commission)}
                       {c.sellerCredit > 0 && c.commission != null && <div className="field-help">after {fmt(c.sellerCredit)} seller credit</div>}
+                      {transaction.commission_data?.hold_deposit !== "Yes" && (
+                        <div className="field-help">
+                          <strong>We don't hold the deposit</strong> — the statement says so
+                        </div>
+                      )}
                       {c.deposit > 0 && c.commission != null && (
                         <div className="field-help">
                           {c.retain
@@ -484,8 +489,8 @@ export default function DealDetail({
               <div className="detail-label">Deposit</div>
               <div>
                 {transaction.commission_data?.hold_deposit === "Yes"
-                  ? `$${Number(transaction.commission_data.deposit_amount).toLocaleString()}`
-                  : "No"}
+                  ? `$${Number(transaction.commission_data.deposit_amount).toLocaleString()} — held by Hall Collins`
+                  : "Not held by Hall Collins"}
               </div>
             </div>
             <div>

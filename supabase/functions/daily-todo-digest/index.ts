@@ -409,8 +409,9 @@ async function sendClosingReminders(
       const attorneyLine = attorneys.length
         ? `<br/>Attorney${attorneys.length > 1 ? "s" : ""} on file: ${attorneys.join(", ")}`
         : " <em>No attorney on file yet — add one in HC Flow.</em>";
+      // Retain vs. deliver is decided in the 5-days-out deposit email.
       items.push(
-        `<li><strong>Send the deposit check to the attorney${attorneys.length > 1 ? "s" : ""}</strong> — total deposit held: <strong>${money(deposit)}</strong>${breakdown}.${attorneyLine}</li>`
+        `<li><strong>Deposit:</strong> we hold <strong>${money(deposit)}</strong>${breakdown}. Don't send the check yet — you'll get an email 5 days before closing saying whether we <strong>retain</strong> it against our commission or <strong>deliver</strong> it to the attorney.${attorneyLine}</li>`
       );
     }
 
@@ -431,6 +432,126 @@ async function sendClosingReminders(
       results.push({ address: tx.address, to: realTo, closing });
     } catch (e) {
       errors.push(`Closing reminder ${tx.address}: ${String(e)}`);
+    }
+  }
+  return results;
+}
+
+// ── Deposit: retain or release, 5 days before closing ──
+// Every Under Contract deal gets one email exactly 5 days out saying what
+// to do with the earnest money deposit — so nobody tells the attorneys the
+// wrong thing:
+//  - We hold it, and it's less than our net commission → retain it against
+//    the commission (attorney owes us the rest).
+//  - We hold it, and it covers the commission, or the buyer's attorney is
+//    Jeff Lewis (he always wants the check) → deliver the check.
+//  - We DON'T hold it → say so, loudly.
+// Net commission = (price − seller credit) × commission % (same as the
+// commission statement in the app). To the agent (+ co-list), cc Fran,
+// Holly and the coordinator.
+const DEPOSIT_REMINDER_DAYS = 5;
+const isJeffLewis = (name: string | null | undefined) => /\bjeff(rey)?\s+lewis\b/i.test(String(name || ""));
+
+async function sendDepositReminders(accessToken: string, today: string, testMode: boolean, errors: string[]) {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/transactions?terminated_at=is.null&stage=eq.contract&select=` +
+      encodeURIComponent(
+        "id,address,price,agent_id,colist_agent_id,next_date,other_side_id," +
+          "buyer_attorney:attorneys!transactions_buyer_attorney_id_fkey(name),seller_attorney:attorneys!transactions_seller_attorney_id_fkey(name)," +
+          "commission_data(*),closeouts(commission_pct,price)"
+      ),
+    { headers: serviceHeaders }
+  );
+  const txs = await res.json();
+  if (!res.ok) {
+    errors.push(`Deposit reminders: couldn't load deals: ${JSON.stringify(txs)}`);
+    return [];
+  }
+  const rosterRes = await fetch(`${SUPABASE_URL}/rest/v1/agents?is_active=eq.true&select=id,name,email,role`, { headers: serviceHeaders });
+  const roster: { id: string; name: string; email: string | null; role: string }[] = await rosterRes.json();
+  const coordinators = roster.filter((a) => a.role === "coordinator" && a.email).map((a) => a.email!);
+
+  const target = addDays(today, DEPOSIT_REMINDER_DAYS);
+  const results: { address: string; to: string[]; decision: string }[] = [];
+  // One side's numbers.
+  // deno-lint-ignore no-explicit-any
+  const sideNumbers = (t: any) => {
+    const cd = t.commission_data || {};
+    const co = t.closeouts || {};
+    const held = cd.hold_deposit === "Yes";
+    const first = Number(cd.deposit_amount) || 0;
+    const second = cd.second_deposit === "Yes" ? Number(cd.second_deposit_amount) || 0 : 0;
+    const price = Number(t.price ?? co.price) || 0;
+    const credit = Number(cd.seller_credit) || 0;
+    const pct = Number(cd.commission_pct ?? co.commission_pct) || 0;
+    return { held, deposit: held ? first + second : 0, credit, commission: price && pct ? ((price - credit) * pct) / 100 : null };
+  };
+
+  // deno-lint-ignore no-explicit-any
+  const due = txs.filter((t: any) => normalizeYmd(t.next_date) === target);
+  // deno-lint-ignore no-explicit-any
+  const byId = new Map(due.map((t: any) => [t.id, t]));
+  for (const tx of due) {
+    // In-house deal (both sides ours, linked by other_side_id): ONE deposit,
+    // so one email to both agents, weighed against both sides' commission.
+    const partner = tx.other_side_id ? byId.get(tx.other_side_id) : null;
+    if (partner && partner.id < tx.id) continue; // the pair is handled once
+    const closing = normalizeYmd(tx.next_date)!;
+    const sides = [tx, partner].filter(Boolean).map(sideNumbers);
+    const held = sides.some((s) => s.held);
+    const deposit = Math.max(...sides.map((s) => s.deposit));
+    const credit = Math.max(...sides.map((s) => s.credit));
+    const commission = sides.every((s) => s.commission != null) ? sides.reduce((n, s) => n + (s.commission as number), 0) : null;
+    const buyerAtty = tx.buyer_attorney?.name || partner?.buyer_attorney?.name || null;
+    const jeff = isJeffLewis(buyerAtty);
+
+    let decision: string;
+    let html: string;
+    if (!held) {
+      decision = "not held";
+      html = `<p style="background:#FDE8E8;border:1px solid #F5B5B5;border-radius:8px;padding:10px 14px;">⚠️ <strong>Hall Collins is NOT holding the deposit on this deal.</strong> The other side holds it — please don't tell the attorneys we have it.</p>`;
+    } else if (!deposit) {
+      decision = "held, amount unknown";
+      html = `<p>We're marked as holding the deposit, but <strong>no amount is on file</strong>. Please add it in HC Flow and check with Fran whether to retain or release it.</p>`;
+    } else if (jeff) {
+      decision = "release (Jeff Lewis)";
+      html = `<p>📤 <strong>Deliver the ${money(deposit)} deposit check to Jeff Lewis</strong> before closing — he always requires the deposit check delivered to him (we don't retain it on his closings).</p>`;
+    } else if (commission == null) {
+      decision = "held, commission unknown";
+      html = `<p>We hold the <strong>${money(deposit)}</strong> deposit, but the commission % or price isn't on file, so HC Flow can't tell whether to retain or release it. Please check with Fran.</p>`;
+    } else if (deposit < commission) {
+      decision = "retain";
+      html = `<p>✅ <strong>Retain the ${money(deposit)} deposit</strong> against our commission — don't send the check.</p>
+<p>Net commission: ${money(commission)}${credit ? ` (after the ${money(credit)} seller credit)` : ""}<br/>Less the deposit we keep: −${money(deposit)}<br/><strong>The attorney owes Hall Collins ${money(commission - deposit)} at closing.</strong></p>`;
+    } else {
+      decision = "release";
+      html = `<p>📤 <strong>Deliver the ${money(deposit)} deposit check to ${escapeHtml(buyerAtty || "the buyer's attorney")}</strong> before closing — it covers our ${money(commission)} net commission, so we don't retain it.</p>`;
+    }
+
+    if (partner && commission != null && decision === "retain") {
+      html += `<p style="font-size:13px;color:#666;">Both sides are ours, so this is weighed against the combined commission for both sides.</p>`;
+    }
+    const agentEmails = [...new Set([tx.agent_id, tx.colist_agent_id, partner?.agent_id, partner?.colist_agent_id]
+      .map((id: string | null) => roster.find((a) => a.id === id)?.email)
+      .filter(Boolean) as string[])];
+    const realTo = agentEmails.length ? agentEmails : [FRAN_EMAIL];
+    const realCc = [...new Set([FRAN_EMAIL, HOLLY_EMAIL, ...coordinators])].filter((e) => !realTo.includes(e));
+    const firstName = (roster.find((a) => a.id === tx.agent_id)?.name || "there").split(/\s+/)[0];
+    let body = `<p>Hi ${escapeHtml(firstName)},</p>
+<p><strong>${escapeHtml(tx.address)}</strong> closes on <strong>${escapeHtml(shortDate(closing))}</strong> — ${DEPOSIT_REMINDER_DAYS} days from now. Here's the deposit:</p>
+${html}
+<p><a href="${APP_URL}">Open HC Flow</a></p>
+<p><em>Love, Jeeves — your happy Hall Collins robot!</em></p>`;
+    if (testMode) {
+      body = `<div style="background:#FBF2D5;border:1px solid #E0C23A;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:13px;">🧪 <strong>TEST MODE</strong> — this would have gone to <strong>${escapeHtml(realTo.join(", "))}</strong> (cc ${escapeHtml(realCc.join(", "))}).</div>${body}`;
+    }
+    const subject = `Deposit ${held && deposit ? (decision === "retain" ? "— RETAIN" : decision.startsWith("release") ? "— DELIVER CHECK" : "— check with Fran") : held ? "— amount missing" : "— NOT held by us"}: ${tx.address}`;
+    try {
+      // sendGmail takes one "to"; extra agents ride along on cc.
+      await sendGmail(accessToken, testMode ? FRAN_EMAIL : realTo[0], subject, body, testMode ? [] : [...realTo.slice(1), ...realCc]);
+      results.push({ address: tx.address, to: realTo, decision });
+    } catch (e) {
+      errors.push(`Deposit reminder ${tx.address}: ${String(e)}`);
     }
   }
   return results;
@@ -544,11 +665,12 @@ Deno.serve(async (req) => {
     }
 
     const closingReminders = await sendClosingReminders(accessToken, agents, today, Boolean(body.testMode), fromBroker, errors);
+    const depositReminders = await sendDepositReminders(accessToken, today, Boolean(body.testMode), errors);
     // Only the real 6:15 run records a reminder as sent — the test button
     // just previews, so it never uses up a real reminder.
     const licenseReminders = await sendLicenseReminders(accessToken, today, Boolean(body.testMode), fromCron, errors);
 
-    return json({ today, testMode: Boolean(body.testMode), sent, closingReminders, licenseReminders, errors });
+    return json({ today, testMode: Boolean(body.testMode), sent, closingReminders, depositReminders, licenseReminders, errors });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }
