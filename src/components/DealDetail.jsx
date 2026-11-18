@@ -15,7 +15,7 @@ import { useToast } from "../lib/ToastContext";
 import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents, fetchOtherSideAgentName, updateCloseoutFields, shiftDatedTodos, fetchUtilityDirectory, updateAttorneyEmail, fetchLicenseNumbers } from "../lib/transactions";
 import { clientIsBuyer as isClientBuyer, missingInfoItems, sideLabel, closedOptionalItems } from "../lib/missingInfo";
 import { stageSelectValue, closingStatusBadge, isExpiredListing, terminatedLabel, EXPIRED_REASON } from "../lib/stages";
-import { formatBac, bacWarning, emailComposeUrl, emailLinkTarget, openEmailCompose, buildDepositReleaseEmail, buildAttorneyCommissionEmail, commissionForAttorneys } from "../lib/clientEmail";
+import { formatBac, bacWarning, emailComposeUrl, emailLinkTarget, openEmailCompose, buildAttorneyCommissionEmail, commissionForAttorneys } from "../lib/clientEmail";
 import { sendShowingPacket } from "../lib/showingPacket";
 import { SHOWING_ACCESS_OPTIONS } from "../lib/showingAccess";
 import { PROPERTY_STYLE_TAGS } from "../lib/propertyStyleTags";
@@ -356,6 +356,358 @@ export default function DealDetail({
     );
   }
 
+  // Under Contract Details — at the top of the page while under contract,
+  // further down once closed.
+  const underContractDetails = (transaction.stage === "contract" || transaction.stage === "closed") && (
+        <div className="detail-section">
+          <h2 className="comps-section-title">Under Contract Details</h2>
+          <p className="field-help">
+            {isStaff
+              ? "Collected from the Under Contract form."
+              : "Read-only — what was submitted on the Under Contract form. Contact Fran or Holly to request a change."}
+          </p>
+          <div className="detail-grid">
+            {/* Same field as Listing/Deal Details' price — here too so the whole
+                contract is in one place. */}
+            <EditableText
+              label="Purchase Price"
+              value={transaction.price ? `$${Number(transaction.price).toLocaleString()}` : ""}
+              rawValue={transaction.price ?? ""}
+              type="number"
+              placeholder="e.g. 350000"
+              editableWhenSet
+              onSave={handlePriceSave}
+            />
+            {isBroker && (
+              <div>
+                <div className="detail-label">Commission %</div>
+                <div>{transaction.closeouts?.commission_pct ?? "—"}</div>
+              </div>
+            )}
+            {isBroker &&
+              (() => {
+                // Same number the Close-Out Calculator starts from: the saved
+                // anticipated commission, else price × commission %.
+                const co = transaction.closeouts || {};
+                // Not closed out yet → follow the deal's current price (it may
+                // have changed since the Under Contract form).
+                const price = Number(co.commission_after_referral == null ? transaction.price ?? co.price : co.price ?? transaction.price) || 0;
+                const pct = Number(co.commission_pct) || 0;
+                const expected = co.anticipated_commission != null ? Number(co.anticipated_commission) : price && pct ? (price * pct) / 100 : null;
+                const refPct = Number(transaction.commission_data?.referral_pct) || 0;
+                const fmt = (n) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                return (
+                  <div>
+                    <div className="detail-label">Expected Commission</div>
+                    <div>
+                      {expected == null ? "—" : fmt(expected)}
+                      {expected != null && refPct > 0 && (
+                        <div className="field-help">
+                          {fmt(expected * (1 - refPct / 100))} after {refPct}% referral
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            {/* Commission statement for the attorneys — staff, including Kerry
+                (Fran's one exception to "Kerry never sees commission"). Net
+                only: (price − seller credit) × commission %; never the splits. */}
+            {isStaff && (transaction.stage === "contract" || transaction.stage === "closed") &&
+              (() => {
+                const c = commissionForAttorneys(transaction);
+                const fmt = (n) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                const noEmails = !transaction.buyer_attorney?.email && !transaction.seller_attorney?.email;
+                return (
+                  <div data-field="commission_statement">
+                    <div className="detail-label">Net Commission</div>
+                    <div>
+                      {c.commission == null ? "—" : fmt(c.commission)}
+                      {c.sellerCredit > 0 && c.commission != null && <div className="field-help">after {fmt(c.sellerCredit)} seller credit</div>}
+                      {c.deposit > 0 && c.commission != null && (
+                        <div className="field-help">
+                          {c.retain
+                            ? `Retain the ${fmt(c.deposit)} deposit — due at closing ${fmt(c.due)}`
+                            : c.jeff
+                              ? "Jeff Lewis — deliver the deposit check to him"
+                              : "Deposit covers the commission — deliver it to the buyer's attorney"}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="comps-status-btn deposit-release-btn btn-commission-statement"
+                      title={noEmails ? "No attorney emails on file yet — add them under the attorneys above" : "Open the commission statement email to the attorneys (agent cc'd)"}
+                      onClick={() => openEmailCompose(buildAttorneyCommissionEmail(transaction, licenseNumbers))}
+                    >
+                      <Mail size={12} /> Commission Statement to Attorneys
+                    </button>
+                  </div>
+                );
+              })()}
+            <div>
+              <div className="detail-label">Lead Type</div>
+              <div>{transaction.commission_data?.lead_type || "—"}</div>
+            </div>
+            <div>
+              <div className="detail-label">Client Source</div>
+              <div>{transaction.commission_data?.client_source || "—"}</div>
+            </div>
+            {/* Referral — editable: who it's owed to, and the % of the gross commission. */}
+            <EditableText
+              field="referral_owed_to"
+              label="Referral Owed To"
+              value={transaction.commission_data?.referral_owed_to || ""}
+              placeholder="—"
+              editableWhenSet
+              onSave={(v) => handleCommissionSave({ referral_owed_to: v.trim() || null })}
+            />
+            <EditableText
+              field="referral_pct"
+              label="Referral %"
+              type="number"
+              value={transaction.commission_data?.referral_pct != null ? `${transaction.commission_data.referral_pct}%` : ""}
+              rawValue={transaction.commission_data?.referral_pct ?? ""}
+              placeholder="e.g. 25"
+              editableWhenSet
+              onSave={async (v) => {
+                const pct = String(v).trim() === "" ? null : Number(String(v).replace("%", ""));
+                await handleCommissionSave({ referral_pct: pct });
+                // Not closed out yet → keep the Close-Out Calculator's starting
+                // referral % in step (it reads the close-out row first).
+                if (isBroker && transaction.closeouts && transaction.closeouts.commission_after_referral == null) {
+                  updateCloseoutFields(transaction.id, { referral_pct: pct }).catch(() => {});
+                }
+              }}
+            />
+            <div>
+              <div className="detail-label">Deposit</div>
+              <div>
+                {transaction.commission_data?.hold_deposit === "Yes"
+                  ? `$${Number(transaction.commission_data.deposit_amount).toLocaleString()}`
+                  : "No"}
+              </div>
+            </div>
+            <div>
+              <div className="detail-label">Second Deposit</div>
+              <div>
+                {transaction.commission_data?.second_deposit === "Yes"
+                  ? `$${Number(transaction.commission_data.second_deposit_amount).toLocaleString()} due ${formatDate(transaction.commission_data.second_deposit_due_date) || "—"}`
+                  : "No"}
+              </div>
+            </div>
+            {isStaff ? (
+              <EditableText
+                field="next_date"
+                label="Closing Date"
+                type="date"
+                value={formatDate(transaction.next_date)}
+                rawValue={transaction.next_date?.slice(0, 10)}
+                placeholder="—"
+                editableWhenSet
+                onSave={(v) => handleDateSave(() => handleFieldSave({ next_date: v || null }), { closingDate: v || null })}
+              />
+            ) : (
+              <div data-field="next_date">
+                <div className="detail-label">Closing Date</div>
+                <div>{formatDate(transaction.next_date) || "—"}</div>
+              </div>
+            )}
+            {/* Closing time & place — handy to pull up on the road. Shown once
+                the columns exist (see the SQL for Fran). */}
+            {"closing_time" in transaction &&
+              (isStaff ? (
+                <EditableText
+                  field="closing_time"
+                  label="Closing Time"
+                  type="time"
+                  value={formatTime(transaction.closing_time)}
+                  rawValue={transaction.closing_time || ""}
+                  placeholder="—"
+                  editableWhenSet
+                  onSave={(v) => handleFieldSave({ closing_time: v || null })}
+                />
+              ) : (
+                <div data-field="closing_time">
+                  <div className="detail-label">Closing Time</div>
+                  <div>{formatTime(transaction.closing_time) || "—"}</div>
+                </div>
+              ))}
+            {"closing_location" in transaction && (
+              <div data-field="closing_location">
+                {isStaff ? (
+                  <EditableText
+                    label="Closing Location"
+                    value={transaction.closing_location || ""}
+                    placeholder="e.g. Attorney's office address"
+                    editableWhenSet
+                    onSave={(v) => handleFieldSave({ closing_location: v.trim() || null })}
+                  />
+                ) : (
+                  <>
+                    <div className="detail-label">Closing Location</div>
+                    <div>{transaction.closing_location || "—"}</div>
+                  </>
+                )}
+                {transaction.closing_location && (
+                  <a
+                    className="field-help"
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(transaction.closing_location)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open in Maps
+                  </a>
+                )}
+              </div>
+            )}
+            {transaction.commission_data && "seller_credit" in transaction.commission_data &&
+              (isStaff ? (
+                <EditableText
+                  field="seller_credit"
+                  label="Seller Credit"
+                  type="number"
+                  value={transaction.commission_data.seller_credit != null ? `$${Number(transaction.commission_data.seller_credit).toLocaleString()}` : ""}
+                  rawValue={transaction.commission_data.seller_credit ?? ""}
+                  placeholder="None"
+                  editableWhenSet
+                  onSave={(v) => handleCommissionSave({ seller_credit: String(v).trim() === "" ? null : Number(String(v).replace(/[$,]/g, "")) })}
+                />
+              ) : (
+                <div data-field="seller_credit">
+                  <div className="detail-label">Seller Credit</div>
+                  <div>{transaction.commission_data.seller_credit != null ? `$${Number(transaction.commission_data.seller_credit).toLocaleString()}` : "None"}</div>
+                </div>
+              ))}
+            {(() => {
+              const cd = transaction.commission_data;
+              const canWaive = Boolean(cd) && "inspection_waived" in cd;
+              const waived = canWaive && cd.inspection_waived === true;
+              return (
+                <div data-field="inspection_date">
+                  {waived ? (
+                    <>
+                      <div className="detail-label">Inspection Deadline</div>
+                      <div>Waived / no inspection</div>
+                    </>
+                  ) : isStaff ? (
+                    <EditableText
+                      label="Inspection Deadline"
+                      type="date"
+                      value={formatDate(cd?.inspection_date)}
+                      rawValue={cd?.inspection_date?.slice(0, 10)}
+                      placeholder="—"
+                      editableWhenSet
+                      onSave={(v) => handleDateSave(() => handleCommissionSave({ inspection_date: v || null }), { inspectionDate: v || null })}
+                    />
+                  ) : (
+                    <>
+                      <div className="detail-label">Inspection Deadline</div>
+                      <div>{formatDate(cd?.inspection_date) || "—"}</div>
+                    </>
+                  )}
+                  {isStaff && canWaive && (
+                    <label className="inspection-waived-check" title="No inspection on this deal — stops asking for an inspection deadline">
+                      <input
+                        type="checkbox"
+                        checked={waived}
+                        onChange={(e) => handleCommissionSave({ inspection_waived: e.target.checked })}
+                      />
+                      Waived / no inspection
+                    </label>
+                  )}
+                </div>
+              );
+            })()}
+            {isStaff ? (
+              <EditableText
+                field="financing_date"
+                label="Financing Date"
+                type="date"
+                value={formatDate(transaction.commission_data?.financing_date)}
+                rawValue={transaction.commission_data?.financing_date?.slice(0, 10)}
+                placeholder="—"
+                editableWhenSet
+                onSave={(v) => handleDateSave(() => handleCommissionSave({ financing_date: v || null }), { financingDate: v || null })}
+              />
+            ) : (
+              <div data-field="financing_date">
+                <div className="detail-label">Financing Date</div>
+                <div>{formatDate(transaction.commission_data?.financing_date) || "—"}</div>
+              </div>
+            )}
+            {isStaff ? (
+              <EditableText
+                field="appraiser"
+                label="Appraiser"
+                type="text"
+                value={transaction.commission_data?.appraiser}
+                rawValue={transaction.commission_data?.appraiser}
+                placeholder="—"
+                editableWhenSet
+                onSave={(v) => handleCommissionSave({ appraiser: v || null })}
+              />
+            ) : (
+              <div data-field="appraiser">
+                <div className="detail-label">Appraiser</div>
+                <div>{transaction.commission_data?.appraiser || "—"}</div>
+              </div>
+            )}
+          </div>
+
+          {isBroker && transaction.closeouts?.commission_after_referral != null && (
+            <>
+              <h3 className="timeframe-group-title closeout-split-title">Close-Out Split</h3>
+              <div className="detail-grid">
+                <div>
+                  <div className="detail-label">Commission After Referral</div>
+                  <div>${Number(transaction.closeouts.commission_after_referral).toLocaleString()}</div>
+                </div>
+                {transaction.closeouts.agent_commission != null ? (
+                  <div>
+                    <div className="detail-label">Agent Commission</div>
+                    <div>${Number(transaction.closeouts.agent_commission).toLocaleString()}</div>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="detail-label">Deal Type</div>
+                    <div>Owner deal (Fran/Holly)</div>
+                  </div>
+                )}
+                <div>
+                  <div className="detail-label">Holly's Commission</div>
+                  <div>${Number(transaction.closeouts.holly_commission ?? 0).toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="detail-label">Fran's Commission</div>
+                  <div>${Number(transaction.closeouts.fran_commission ?? 0).toLocaleString()}</div>
+                </div>
+                {transaction.closeouts.bank_amount != null && (
+                  <div>
+                    <div className="detail-label">Brokerage Keeps</div>
+                    <div>${Number(transaction.closeouts.bank_amount).toLocaleString()}</div>
+                  </div>
+                )}
+                {transaction.closeouts.tc_fee_type && (
+                  <div>
+                    <div className="detail-label">TC Fee</div>
+                    <div>
+                      {transaction.closeouts.tc_fee_type} (${Number(transaction.closeouts.tc_fee_amount ?? 0).toLocaleString()})
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {isBroker && (
+            <button title="Broker only — review the commission split and close out the file" type="button" className="cma-export-btn btn-closeout" onClick={() => setShowCloseoutCalculator(true)}>
+              <FileText size={14} /> {transaction.closeouts?.commission_after_referral != null ? "Edit Close-Out" : "Run Close-Out Calculator"}
+            </button>
+          )}
+        </div>
+  );
+
   return (
     <div
       className={`deal-detail ${className || ""}`}
@@ -571,6 +923,9 @@ export default function DealDetail({
           </p>
         ) : null;
       })()}
+
+      {/* Under contract: the contract details lead the page. */}
+      {transaction.stage === "contract" && underContractDetails}
 
       {transaction.stage === "closed" && !transaction.terminated_at && isStaff && (
         <div className="detail-section">
@@ -995,354 +1350,7 @@ export default function DealDetail({
         />
       </div>
 
-      {(transaction.stage === "contract" || transaction.stage === "closed") && (
-        <div className="detail-section">
-          <h2 className="comps-section-title">Under Contract Details</h2>
-          <p className="field-help">
-            {isStaff
-              ? "Collected from the Under Contract form."
-              : "Read-only — what was submitted on the Under Contract form. Contact Fran or Holly to request a change."}
-          </p>
-          <div className="detail-grid">
-            {isBroker && (
-              <div>
-                <div className="detail-label">Commission %</div>
-                <div>{transaction.closeouts?.commission_pct ?? "—"}</div>
-              </div>
-            )}
-            {isBroker &&
-              (() => {
-                // Same number the Close-Out Calculator starts from: the saved
-                // anticipated commission, else price × commission %.
-                const co = transaction.closeouts || {};
-                // Not closed out yet → follow the deal's current price (it may
-                // have changed since the Under Contract form).
-                const price = Number(co.commission_after_referral == null ? transaction.price ?? co.price : co.price ?? transaction.price) || 0;
-                const pct = Number(co.commission_pct) || 0;
-                const expected = co.anticipated_commission != null ? Number(co.anticipated_commission) : price && pct ? (price * pct) / 100 : null;
-                const refPct = Number(transaction.commission_data?.referral_pct) || 0;
-                const fmt = (n) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-                return (
-                  <div>
-                    <div className="detail-label">Expected Commission</div>
-                    <div>
-                      {expected == null ? "—" : fmt(expected)}
-                      {expected != null && refPct > 0 && (
-                        <div className="field-help">
-                          {fmt(expected * (1 - refPct / 100))} after {refPct}% referral
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
-            {/* Commission statement for the attorneys — staff, including Kerry
-                (Fran's one exception to "Kerry never sees commission"). Net
-                only: (price − seller credit) × commission %; never the splits. */}
-            {isStaff && (transaction.stage === "contract" || transaction.stage === "closed") &&
-              (() => {
-                const c = commissionForAttorneys(transaction);
-                const fmt = (n) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-                const noEmails = !transaction.buyer_attorney?.email && !transaction.seller_attorney?.email;
-                return (
-                  <div data-field="commission_statement">
-                    <div className="detail-label">Net Commission</div>
-                    <div>
-                      {c.commission == null ? "—" : fmt(c.commission)}
-                      {c.sellerCredit > 0 && c.commission != null && <div className="field-help">after {fmt(c.sellerCredit)} seller credit</div>}
-                      {c.deposit > 0 && c.commission != null && (
-                        <div className="field-help">
-                          {c.retain
-                            ? `Retain the ${fmt(c.deposit)} deposit — due at closing ${fmt(c.due)}`
-                            : c.jeff
-                              ? "Jeff Lewis — deliver the deposit check to him"
-                              : "Deposit covers the commission — deliver it to the buyer's attorney"}
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      className="comps-status-btn deposit-release-btn"
-                      title={noEmails ? "No attorney emails on file yet — add them under the attorneys above" : "Open the commission statement email to the attorneys (agent cc'd)"}
-                      onClick={() => openEmailCompose(buildAttorneyCommissionEmail(transaction, licenseNumbers))}
-                    >
-                      <Mail size={12} /> Commission Statement to Attorneys
-                    </button>
-                  </div>
-                );
-              })()}
-            <div>
-              <div className="detail-label">Lead Type</div>
-              <div>{transaction.commission_data?.lead_type || "—"}</div>
-            </div>
-            <div>
-              <div className="detail-label">Client Source</div>
-              <div>{transaction.commission_data?.client_source || "—"}</div>
-            </div>
-            {/* Referral — editable: who it's owed to, and the % of the gross commission. */}
-            <EditableText
-              field="referral_owed_to"
-              label="Referral Owed To"
-              value={transaction.commission_data?.referral_owed_to || ""}
-              placeholder="—"
-              editableWhenSet
-              onSave={(v) => handleCommissionSave({ referral_owed_to: v.trim() || null })}
-            />
-            <EditableText
-              field="referral_pct"
-              label="Referral %"
-              type="number"
-              value={transaction.commission_data?.referral_pct != null ? `${transaction.commission_data.referral_pct}%` : ""}
-              rawValue={transaction.commission_data?.referral_pct ?? ""}
-              placeholder="e.g. 25"
-              editableWhenSet
-              onSave={async (v) => {
-                const pct = String(v).trim() === "" ? null : Number(String(v).replace("%", ""));
-                await handleCommissionSave({ referral_pct: pct });
-                // Not closed out yet → keep the Close-Out Calculator's starting
-                // referral % in step (it reads the close-out row first).
-                if (isBroker && transaction.closeouts && transaction.closeouts.commission_after_referral == null) {
-                  updateCloseoutFields(transaction.id, { referral_pct: pct }).catch(() => {});
-                }
-              }}
-            />
-            <div>
-              <div className="detail-label">Deposit</div>
-              <div>
-                {transaction.commission_data?.hold_deposit === "Yes"
-                  ? `$${Number(transaction.commission_data.deposit_amount).toLocaleString()}`
-                  : "No"}
-              </div>
-              {isStaff && transaction.stage === "contract" && (
-                <button
-                  type="button"
-                  className="comps-status-btn deposit-release-btn"
-                  title="Open a pre-filled email asking the brokers to release the deposit to the closing attorney"
-                  onClick={() => openEmailCompose(buildDepositReleaseEmail(transaction))}
-                >
-                  <Mail size={12} /> Deposit Release Email
-                </button>
-              )}
-            </div>
-            <div>
-              <div className="detail-label">Second Deposit</div>
-              <div>
-                {transaction.commission_data?.second_deposit === "Yes"
-                  ? `$${Number(transaction.commission_data.second_deposit_amount).toLocaleString()} due ${formatDate(transaction.commission_data.second_deposit_due_date) || "—"}`
-                  : "No"}
-              </div>
-            </div>
-            {isStaff ? (
-              <EditableText
-                field="next_date"
-                label="Closing Date"
-                type="date"
-                value={formatDate(transaction.next_date)}
-                rawValue={transaction.next_date?.slice(0, 10)}
-                placeholder="—"
-                editableWhenSet
-                onSave={(v) => handleDateSave(() => handleFieldSave({ next_date: v || null }), { closingDate: v || null })}
-              />
-            ) : (
-              <div data-field="next_date">
-                <div className="detail-label">Closing Date</div>
-                <div>{formatDate(transaction.next_date) || "—"}</div>
-              </div>
-            )}
-            {/* Closing time & place — handy to pull up on the road. Shown once
-                the columns exist (see the SQL for Fran). */}
-            {"closing_time" in transaction &&
-              (isStaff ? (
-                <EditableText
-                  field="closing_time"
-                  label="Closing Time"
-                  type="time"
-                  value={formatTime(transaction.closing_time)}
-                  rawValue={transaction.closing_time || ""}
-                  placeholder="—"
-                  editableWhenSet
-                  onSave={(v) => handleFieldSave({ closing_time: v || null })}
-                />
-              ) : (
-                <div data-field="closing_time">
-                  <div className="detail-label">Closing Time</div>
-                  <div>{formatTime(transaction.closing_time) || "—"}</div>
-                </div>
-              ))}
-            {"closing_location" in transaction && (
-              <div data-field="closing_location">
-                {isStaff ? (
-                  <EditableText
-                    label="Closing Location"
-                    value={transaction.closing_location || ""}
-                    placeholder="e.g. Attorney's office address"
-                    editableWhenSet
-                    onSave={(v) => handleFieldSave({ closing_location: v.trim() || null })}
-                  />
-                ) : (
-                  <>
-                    <div className="detail-label">Closing Location</div>
-                    <div>{transaction.closing_location || "—"}</div>
-                  </>
-                )}
-                {transaction.closing_location && (
-                  <a
-                    className="field-help"
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(transaction.closing_location)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Open in Maps
-                  </a>
-                )}
-              </div>
-            )}
-            {transaction.commission_data && "seller_credit" in transaction.commission_data &&
-              (isStaff ? (
-                <EditableText
-                  field="seller_credit"
-                  label="Seller Credit"
-                  type="number"
-                  value={transaction.commission_data.seller_credit != null ? `$${Number(transaction.commission_data.seller_credit).toLocaleString()}` : ""}
-                  rawValue={transaction.commission_data.seller_credit ?? ""}
-                  placeholder="None"
-                  editableWhenSet
-                  onSave={(v) => handleCommissionSave({ seller_credit: String(v).trim() === "" ? null : Number(String(v).replace(/[$,]/g, "")) })}
-                />
-              ) : (
-                <div data-field="seller_credit">
-                  <div className="detail-label">Seller Credit</div>
-                  <div>{transaction.commission_data.seller_credit != null ? `$${Number(transaction.commission_data.seller_credit).toLocaleString()}` : "None"}</div>
-                </div>
-              ))}
-            {(() => {
-              const cd = transaction.commission_data;
-              const canWaive = Boolean(cd) && "inspection_waived" in cd;
-              const waived = canWaive && cd.inspection_waived === true;
-              return (
-                <div data-field="inspection_date">
-                  {waived ? (
-                    <>
-                      <div className="detail-label">Inspection Deadline</div>
-                      <div>Waived / no inspection</div>
-                    </>
-                  ) : isStaff ? (
-                    <EditableText
-                      label="Inspection Deadline"
-                      type="date"
-                      value={formatDate(cd?.inspection_date)}
-                      rawValue={cd?.inspection_date?.slice(0, 10)}
-                      placeholder="—"
-                      editableWhenSet
-                      onSave={(v) => handleDateSave(() => handleCommissionSave({ inspection_date: v || null }), { inspectionDate: v || null })}
-                    />
-                  ) : (
-                    <>
-                      <div className="detail-label">Inspection Deadline</div>
-                      <div>{formatDate(cd?.inspection_date) || "—"}</div>
-                    </>
-                  )}
-                  {isStaff && canWaive && (
-                    <label className="inspection-waived-check" title="No inspection on this deal — stops asking for an inspection deadline">
-                      <input
-                        type="checkbox"
-                        checked={waived}
-                        onChange={(e) => handleCommissionSave({ inspection_waived: e.target.checked })}
-                      />
-                      Waived / no inspection
-                    </label>
-                  )}
-                </div>
-              );
-            })()}
-            {isStaff ? (
-              <EditableText
-                field="financing_date"
-                label="Financing Date"
-                type="date"
-                value={formatDate(transaction.commission_data?.financing_date)}
-                rawValue={transaction.commission_data?.financing_date?.slice(0, 10)}
-                placeholder="—"
-                editableWhenSet
-                onSave={(v) => handleDateSave(() => handleCommissionSave({ financing_date: v || null }), { financingDate: v || null })}
-              />
-            ) : (
-              <div data-field="financing_date">
-                <div className="detail-label">Financing Date</div>
-                <div>{formatDate(transaction.commission_data?.financing_date) || "—"}</div>
-              </div>
-            )}
-            {isStaff ? (
-              <EditableText
-                field="appraiser"
-                label="Appraiser"
-                type="text"
-                value={transaction.commission_data?.appraiser}
-                rawValue={transaction.commission_data?.appraiser}
-                placeholder="—"
-                editableWhenSet
-                onSave={(v) => handleCommissionSave({ appraiser: v || null })}
-              />
-            ) : (
-              <div data-field="appraiser">
-                <div className="detail-label">Appraiser</div>
-                <div>{transaction.commission_data?.appraiser || "—"}</div>
-              </div>
-            )}
-          </div>
-
-          {isBroker && transaction.closeouts?.commission_after_referral != null && (
-            <>
-              <h3 className="timeframe-group-title closeout-split-title">Close-Out Split</h3>
-              <div className="detail-grid">
-                <div>
-                  <div className="detail-label">Commission After Referral</div>
-                  <div>${Number(transaction.closeouts.commission_after_referral).toLocaleString()}</div>
-                </div>
-                {transaction.closeouts.agent_commission != null ? (
-                  <div>
-                    <div className="detail-label">Agent Commission</div>
-                    <div>${Number(transaction.closeouts.agent_commission).toLocaleString()}</div>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="detail-label">Deal Type</div>
-                    <div>Owner deal (Fran/Holly)</div>
-                  </div>
-                )}
-                <div>
-                  <div className="detail-label">Holly's Commission</div>
-                  <div>${Number(transaction.closeouts.holly_commission ?? 0).toLocaleString()}</div>
-                </div>
-                <div>
-                  <div className="detail-label">Fran's Commission</div>
-                  <div>${Number(transaction.closeouts.fran_commission ?? 0).toLocaleString()}</div>
-                </div>
-                {transaction.closeouts.bank_amount != null && (
-                  <div>
-                    <div className="detail-label">Brokerage Keeps</div>
-                    <div>${Number(transaction.closeouts.bank_amount).toLocaleString()}</div>
-                  </div>
-                )}
-                {transaction.closeouts.tc_fee_type && (
-                  <div>
-                    <div className="detail-label">TC Fee</div>
-                    <div>
-                      {transaction.closeouts.tc_fee_type} (${Number(transaction.closeouts.tc_fee_amount ?? 0).toLocaleString()})
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          {isBroker && (
-            <button title="Broker only — review the commission split and close out the file" type="button" className="cma-export-btn btn-closeout" onClick={() => setShowCloseoutCalculator(true)}>
-              <FileText size={14} /> {transaction.closeouts?.commission_after_referral != null ? "Edit Close-Out" : "Run Close-Out Calculator"}
-            </button>
-          )}
-        </div>
-      )}
+      {transaction.stage === "closed" && underContractDetails}
 
       {transaction.stage !== "comps" && (
         <div className="detail-section" data-field="dropbox">

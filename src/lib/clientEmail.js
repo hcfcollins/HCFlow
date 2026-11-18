@@ -132,27 +132,6 @@ Let us know if you have any questions!`;
   return { to: tx.seller_emails || [], subject: `Utilities - ${tx.address}`, body };
 }
 
-/** Pre-filled email asking the brokers to release the earnest money deposit
- * to the closing attorney before closing. Addressed to our agent; Kerry adds
- * the other brokerage (their email isn't in the app). */
-export function buildDepositReleaseEmail(tx) {
-  const cd = tx.commission_data || {};
-  const money = (n) => `$${Number(n).toLocaleString()}`;
-  const amounts = [
-    cd.hold_deposit === "Yes" && cd.deposit_amount ? money(cd.deposit_amount) : null,
-    cd.second_deposit === "Yes" && cd.second_deposit_amount ? `${money(cd.second_deposit_amount)} (second deposit)` : null,
-  ].filter(Boolean);
-  const attorney = tx.buyer_attorney?.name || null;
-  const closing = tx.next_date ? formatClosing(tx.next_date) : null;
-  const body = [
-    "Hi,",
-    `${tx.address} is scheduled to close${closing ? ` on ${closing}` : " soon"}. Could you please release the earnest money deposit${amounts.length ? ` (${amounts.join(" + ")})` : ""} to the closing attorney${attorney ? `, ${attorney},` : ""} ahead of closing?`,
-    "Please send us a copy of the check once it goes out so we have it for our file.",
-    "Thank you!",
-  ].join("\n\n");
-  return { to: tx.agent?.email ? [tx.agent.email] : [], subject: `Deposit Release - ${tx.address}`, body };
-}
-
 /** Jeff Lewis (buyer's attorney) requires the deposit check delivered to him —
  * we never retain it against our commission on his closings. */
 export const isJeffLewis = (name) => /\bjeff(rey)?\s+lewis\b/i.test(String(name || ""));

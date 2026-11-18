@@ -1323,6 +1323,8 @@ button { cursor: pointer; }
 .utility-contact-inputs input { flex: 1; min-width: 0; font-size: 13px; padding: 5px 8px; }
 .utility-contact { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; margin-top: 2px; }
 .deposit-release-btn { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; }
+.comps-status-btn.btn-commission-statement { background: #fbe3ec; border-color: #f2b6cb; color: #8a2a50; font-weight: 600; }
+.comps-status-btn.btn-commission-statement:hover { background: #f8d2e0; }
 .utility-edit-all-btn { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; }
 @media (min-width: 700px) {
   .utility-edit-form { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; }
