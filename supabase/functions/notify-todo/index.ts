@@ -154,12 +154,14 @@ Deno.serve(async (req) => {
 
     const { transactionId, text: rawText, dueDate, appUrl, notifyOwner, remindAgentId, event } = await req.json();
     const isCloseoutEvent = event === "ready_for_closeout";
+    // Kerry checked off "Input Partial in MLS" -> the deal's agent + co-list agent.
+    const isPartialDone = event === "mls_partial_done";
     // Coordinator-facing events: a comp moved to Listing Won (her "Input
     // Partial in MLS" to-do was just created), or a broker closed a deal (her
     // compliance checklist to-dos were just created).
     const coordinatorEvent = event === "listing_won" || event === "compliance_ready" || event === "went_live" ? event : null;
     const text = rawText || "";
-    if (!transactionId || (!text && !isCloseoutEvent && !coordinatorEvent)) return jsonResponse({ error: "transactionId and text required" }, 400);
+    if (!transactionId || (!text && !isCloseoutEvent && !coordinatorEvent && !isPartialDone)) return jsonResponse({ error: "transactionId and text required" }, 400);
 
     const rosterRes = await fetch(`${SUPABASE_URL}/rest/v1/agents?is_active=eq.true&select=id,name,email,role`, {
       headers: serviceHeaders,
@@ -177,11 +179,16 @@ Deno.serve(async (req) => {
     const isStaff = caller.role === "broker" || caller.role === "coordinator";
     if (!isStaff && tx.agent_id !== caller.id && tx.colist_agent_id !== caller.id) return jsonResponse({ error: "Not your deal" }, 403);
 
-    type Reason = "assigned" | "mention" | "reminder" | "closeout" | "listing_won" | "compliance" | "went_live";
+    type Reason = "assigned" | "mention" | "reminder" | "closeout" | "listing_won" | "compliance" | "went_live" | "partial_done";
     const recipients = new Map<string, { agent: Agent; reason: Reason }>();
     if (coordinatorEvent) {
       const reason: Reason = coordinatorEvent === "listing_won" ? "listing_won" : coordinatorEvent === "went_live" ? "went_live" : "compliance";
       for (const a of roster.filter((r) => r.role === "coordinator")) recipients.set(a.id, { agent: a, reason });
+    } else if (isPartialDone) {
+      for (const id of [tx.agent_id, tx.colist_agent_id]) {
+        const a = id && roster.find((r) => r.id === id);
+        if (a) recipients.set(a.id, { agent: a, reason: "partial_done" });
+      }
     } else if (isCloseoutEvent) {
       for (const a of roster.filter((r) => r.role === "broker")) recipients.set(a.id, { agent: a, reason: "closeout" });
     } else if (notifyOwner && isStaff && remindAgentId) {
@@ -216,11 +223,13 @@ Deno.serve(async (req) => {
       listing_won: "listing_won",
       compliance: "compliance_ready",
       went_live: "went_live",
+      partial_done: "mls_partial_done",
     };
     const ownerName = roster.find((a) => a.id === tx.agent_id)?.name || "An agent";
     function plainMessage(reason: Reason): string {
       if (reason === "closeout") return `${firstName} marked ${tx.address} Ready for Closeout`;
       if (reason === "listing_won") return `${ownerName.split(/\s+/)[0]} won the listing at ${tx.address} — time to input the partial in MLS`;
+      if (reason === "partial_done") return `${firstName} finished the MLS partial for ${tx.address}`;
       if (reason === "went_live") return `${tx.address} is live — get the packet ready for MLS and send the Instagram photos to social media`;
       if (reason === "compliance") return `${tx.address} is closed — your compliance checklist is ready`;
       if (reason === "mention") return `${firstName} mentioned you in a to-do on ${tx.address}: "${text}"`;
@@ -257,6 +266,8 @@ Deno.serve(async (req) => {
             ? `${escapeHtml(ownerName)} just won the listing at ${where}! Your to-do:`
             : reason === "went_live"
             ? `${where} just went live! Your next steps:`
+            : reason === "partial_done"
+            ? `${who} finished inputting the partial in MLS for ${where}.`
             : reason === "compliance"
             ? `${where} has been closed out. Your compliance checklist is ready:`
             : reason === "mention"
@@ -266,7 +277,7 @@ Deno.serve(async (req) => {
             : `${who} added a to-do on ${where}:`;
         const html = `<p>Hi ${escapeHtml(agent.name.split(/\s+/)[0])},</p>
 <p>${intro}</p>
-${text ? `<blockquote style="border-left:3px solid #E8A0B4;margin:12px 0;padding:6px 12px;">${linkify(escapeHtml(text)).replace(/\n/g, "<br/>")}</blockquote>` : ""}
+${text && reason !== "partial_done" ? `<blockquote style="border-left:3px solid #E8A0B4;margin:12px 0;padding:6px 12px;">${linkify(escapeHtml(text)).replace(/\n/g, "<br/>")}</blockquote>` : ""}
 ${due ? `<p><strong>Due:</strong> ${escapeHtml(due)}</p>` : ""}
 ${appUrl ? `<p><a href="${escapeHtml(appUrl)}">Open HC Flow</a></p>` : ""}
 <p><em>Love, Jeeves — your happy Hall Collins robot!</em></p>`;
@@ -278,6 +289,8 @@ ${appUrl ? `<p><a href="${escapeHtml(appUrl)}">Open HC Flow</a></p>` : ""}
               ? `Listing Won: ${tx.address}`
               : reason === "went_live"
               ? `Listing Live: ${tx.address}`
+              : reason === "partial_done"
+              ? `MLS Partial Done: ${tx.address}`
               : reason === "compliance"
               ? `Compliance Checklist: ${tx.address}`
               : `To-do: ${tx.address}`;

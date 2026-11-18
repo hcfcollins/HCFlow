@@ -12,8 +12,8 @@ export async function fetchTransactions() {
       `
       *,
       agent:agents!transactions_agent_id_fkey(id, name, email, cover_sheet_url, gusto_contractor_id),
-      buyer_attorney:attorneys!transactions_buyer_attorney_id_fkey(id, name),
-      seller_attorney:attorneys!transactions_seller_attorney_id_fkey(id, name),
+      buyer_attorney:attorneys!transactions_buyer_attorney_id_fkey(*),
+      seller_attorney:attorneys!transactions_seller_attorney_id_fkey(*),
       documents(*),
       activity_log(*),
       todos(*),
@@ -1336,6 +1336,14 @@ export async function fetchAttorneys() {
   const { data, error } = await supabase.from("attorneys").select("*").order("name");
   if (error) throw error;
   return data;
+}
+
+/** Saves an attorney's email (shared by every deal they're on). .select() so
+ * a silent RLS no-op surfaces as an error. */
+export async function updateAttorneyEmail(id, email) {
+  const { data, error } = await supabase.from("attorneys").update({ email: email || null }).eq("id", id).select("id");
+  if (error) throw error;
+  if (!data?.length) throw new Error("Couldn't save the attorney's email (no permission).");
 }
 
 export async function addAttorney(name) {

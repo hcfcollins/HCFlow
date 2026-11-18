@@ -12,6 +12,7 @@ import {
   deleteTodo,
   seedWonListingTodos,
   seedGoLiveTodos,
+  MLS_PARTIAL_TODO,
   createDropboxFolderForListing,
   createDropboxFolderForBuyer,
   terminateTransaction,
@@ -367,6 +368,12 @@ export default function App() {
         console.error("Failed to update the social rotation queue:", e);
         sideEffectError = `Checked off, but couldn't update the social rotation queue: ${e.message}`;
       }
+    }
+    // MLS partial is in → let the deal's agent (and co-list agent) know.
+    if (done && todo.text.endsWith(MLS_PARTIAL_TODO)) {
+      notifyTodo({ transactionId: todo.transaction_id, event: "mls_partial_done", text: `${MLS_PARTIAL_TODO} — done ✓` })
+        .then((r) => r?.notified?.length && showToast(`Let ${r.notified.join(" and ")} know the partial is in`))
+        .catch((e) => showToast(`Checked off, but couldn't notify the agent: ${e.message}`));
     }
     await loadTransactions({ silent: true });
     if (sideEffectError) setError(sideEffectError);

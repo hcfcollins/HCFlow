@@ -609,3 +609,7 @@ notify pgrst, 'reload schema';
 alter table commission_data add column if not exists seller_credit numeric;
 alter table transactions add column if not exists closing_time text;
 alter table transactions add column if not exists closing_location text;
+-- Attorney emails (commission email to attorneys).
+alter table attorneys add column if not exists email text;
+drop policy if exists attorneys_update on attorneys;
+create policy attorneys_update on attorneys for update using (is_staff());

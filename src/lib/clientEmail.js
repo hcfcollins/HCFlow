@@ -12,8 +12,9 @@ export function isMobileDevice() {
 /** Gmail's web compose screen, pre-filled — used on a computer instead of a
  * mailto: link, which silently does nothing there with no desktop mail app set
  * up (the team works in Gmail on the web). */
-export function gmailComposeUrl({ to = [], subject = "", body = "" }) {
+export function gmailComposeUrl({ to = [], cc = [], subject = "", body = "" }) {
   const params = new URLSearchParams({ view: "cm", fs: "1", to: to.join(",") });
+  if (cc.length) params.set("cc", cc.join(","));
   if (subject) params.set("su", subject);
   if (body) params.set("body", body);
   return `https://mail.google.com/mail/?${params.toString()}`;
@@ -21,8 +22,9 @@ export function gmailComposeUrl({ to = [], subject = "", body = "" }) {
 
 /** mailto: with %20-style encoding (URLSearchParams' "+" for spaces shows up
  * literally in iOS Mail). */
-export function mailtoUrl({ to = [], subject = "", body = "" }) {
+export function mailtoUrl({ to = [], cc = [], subject = "", body = "" }) {
   const q = [];
+  if (cc.length) q.push(`cc=${cc.map(encodeURIComponent).join(",")}`);
   if (subject) q.push(`subject=${encodeURIComponent(subject)}`);
   if (body) q.push(`body=${encodeURIComponent(body)}`);
   return `mailto:${to.map(encodeURIComponent).join(",")}${q.length ? `?${q.join("&")}` : ""}`;
@@ -149,6 +151,54 @@ export function buildDepositReleaseEmail(tx) {
     "Thank you!",
   ].join("\n\n");
   return { to: tx.agent?.email ? [tx.agent.email] : [], subject: `Deposit Release - ${tx.address}`, body };
+}
+
+/** Jeff Lewis (buyer's attorney) requires the deposit check delivered to him —
+ * we never retain it against our commission on his closings. */
+export const isJeffLewis = (name) => /\bjeff(rey)?\s+lewis\b/i.test(String(name || ""));
+
+/** The commission numbers for the attorneys' email. Net = what the attorney
+ * pays Hall Collins at closing: the expected commission, less the deposit
+ * we're holding when we retain it (deposit smaller than the commission, and
+ * the buyer's attorney isn't Jeff Lewis). Otherwise the deposit check goes to
+ * the buyer's attorney and the full commission is due at closing. */
+export function commissionForAttorneys(tx) {
+  const co = tx.closeouts || {};
+  const cd = tx.commission_data || {};
+  const price = Number(co.commission_after_referral == null ? tx.price ?? co.price : co.price ?? tx.price) || 0;
+  const pct = Number(co.commission_pct) || 0;
+  const commission = co.anticipated_commission != null ? Number(co.anticipated_commission) : price && pct ? (price * pct) / 100 : null;
+  const deposit =
+    (cd.hold_deposit === "Yes" ? Number(cd.deposit_amount) || 0 : 0) + (cd.second_deposit === "Yes" ? Number(cd.second_deposit_amount) || 0 : 0);
+  const jeff = isJeffLewis(tx.buyer_attorney?.name);
+  const retain = commission != null && deposit > 0 && deposit < commission && !jeff;
+  return { price, pct, commission, deposit, jeff, retain, net: commission == null ? null : retain ? commission - deposit : commission };
+}
+
+/** Commission email to the attorneys (agent cc'd) — never to clients. */
+export function buildAttorneyCommissionEmail(tx) {
+  const money = (n) => `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const c = commissionForAttorneys(tx);
+  const closing = tx.next_date ? formatClosing(tx.next_date) : null;
+  const attorney = tx.buyer_attorney?.name;
+  const netLine = `Net commission due to Hall Collins Real Estate Group at closing: ${c.net == null ? "(commission not set yet)" : money(c.net)}`;
+  const breakdown = c.retain
+    ? [`Commission: ${money(c.commission)}`, `Less deposit held by Hall Collins (retained against our commission): −${money(c.deposit)}`, netLine].join("\n")
+    : netLine;
+  const depositLine = c.deposit && !c.retain ? `We are holding the ${money(c.deposit)} deposit and will deliver the check to ${attorney || "the buyer's attorney"} before closing.` : null;
+  const body = [
+    "Hi,",
+    `Here is the commission for ${tx.address}${closing ? `, closing ${closing}` : ""}:`,
+    breakdown,
+    depositLine,
+    "Please let us know if you need anything else from us.",
+    "Thank you!",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  const to = [tx.buyer_attorney?.email, tx.seller_attorney?.email].filter(Boolean);
+  const cc = tx.agent?.email ? [tx.agent.email] : [];
+  return { to: [...new Set(to)], cc, subject: `Commission - ${tx.address}`, body };
 }
 
 /** "Electricity: Green Mountain Power — (802) 655-6600 — greenmountainpower.com" */

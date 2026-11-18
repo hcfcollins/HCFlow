@@ -12,10 +12,10 @@ import FolderOrganizer from "./FolderOrganizer";
 import DealFileDrop from "./DealFileDrop";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
-import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents, fetchOtherSideAgentName, updateCloseoutFields, shiftDatedTodos, fetchUtilityDirectory } from "../lib/transactions";
+import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents, fetchOtherSideAgentName, updateCloseoutFields, shiftDatedTodos, fetchUtilityDirectory, updateAttorneyEmail } from "../lib/transactions";
 import { clientIsBuyer as isClientBuyer, missingInfoItems, sideLabel, closedOptionalItems } from "../lib/missingInfo";
 import { stageSelectValue, closingStatusBadge, isExpiredListing, terminatedLabel, EXPIRED_REASON } from "../lib/stages";
-import { formatBac, bacWarning, emailComposeUrl, emailLinkTarget, openEmailCompose, buildDepositReleaseEmail } from "../lib/clientEmail";
+import { formatBac, bacWarning, emailComposeUrl, emailLinkTarget, openEmailCompose, buildDepositReleaseEmail, buildAttorneyCommissionEmail, commissionForAttorneys } from "../lib/clientEmail";
 import { sendShowingPacket } from "../lib/showingPacket";
 import { SHOWING_ACCESS_OPTIONS } from "../lib/showingAccess";
 import { PROPERTY_STYLE_TAGS } from "../lib/propertyStyleTags";
@@ -849,6 +849,27 @@ export default function DealDetail({
                   editableWhenSet
                   onSave={(v) => handleAttorneySave("buyer", v)}
                 />
+                {/* Their email lives on the attorney (shared across deals) — used
+                    by the commission email. Shown once the column exists. */}
+                {isStaff && transaction.buyer_attorney && "email" in transaction.buyer_attorney && (
+                  <EditableText
+                    field="buyer_attorney_email"
+                    label="Buyer Attorney Email"
+                    type="email"
+                    value={transaction.buyer_attorney.email || ""}
+                    placeholder="Add email"
+                    editableWhenSet
+                    onSave={async (v) => {
+                      try {
+                        await updateAttorneyEmail(transaction.buyer_attorney.id, v.trim());
+                        onRefresh();
+                        showToast("Saved");
+                      } catch (e) {
+                        showToast(e.message);
+                      }
+                    }}
+                  />
+                )}
 
                 <EditableText
                   field="seller_attorney"
@@ -859,6 +880,27 @@ export default function DealDetail({
                   editableWhenSet
                   onSave={(v) => handleAttorneySave("seller", v)}
                 />
+                {/* Their email lives on the attorney (shared across deals) — used
+                    by the commission email. Shown once the column exists. */}
+                {isStaff && transaction.seller_attorney && "email" in transaction.seller_attorney && (
+                  <EditableText
+                    field="seller_attorney_email"
+                    label="Seller Attorney Email"
+                    type="email"
+                    value={transaction.seller_attorney.email || ""}
+                    placeholder="Add email"
+                    editableWhenSet
+                    onSave={async (v) => {
+                      try {
+                        await updateAttorneyEmail(transaction.seller_attorney.id, v.trim());
+                        onRefresh();
+                        showToast("Saved");
+                      } catch (e) {
+                        showToast(e.message);
+                      }
+                    }}
+                  />
+                )}
               </>
             )}
           </div>
@@ -983,6 +1025,31 @@ export default function DealDetail({
                         </div>
                       )}
                     </div>
+                    {transaction.stage === "contract" && expected != null && (() => {
+                      const c = commissionForAttorneys(transaction);
+                      const noEmails = !transaction.buyer_attorney?.email && !transaction.seller_attorney?.email;
+                      return (
+                        <>
+                          {c.deposit > 0 && (
+                            <div className="field-help">
+                              {c.retain
+                                ? `Retain the ${fmt(c.deposit)} deposit — net at closing ${fmt(c.net)}`
+                                : c.jeff
+                                  ? "Jeff Lewis — deliver the deposit check to him"
+                                  : "Deposit covers the commission — deliver it to the buyer's attorney"}
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            className="comps-status-btn deposit-release-btn"
+                            title={noEmails ? "No attorney emails on file yet — add them under the attorneys above" : "Open the commission email to the attorneys (agent cc'd)"}
+                            onClick={() => openEmailCompose(buildAttorneyCommissionEmail(transaction))}
+                          >
+                            <Mail size={12} /> Commission Email to Attorneys
+                          </button>
+                        </>
+                      );
+                    })()}
                   </div>
                 );
               })()}
