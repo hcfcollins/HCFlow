@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Tombstone from "./icons/Tombstone";
 import { sendShowingPacket } from "../lib/showingPacket";
 import { useToast } from "../lib/ToastContext";
@@ -12,6 +12,7 @@ import TodoList, { MissingInfoTodo } from "./TodoList";
 import { sideLabel } from "../lib/missingInfo";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { needsSignPickup, markSignPickedUp } from "../lib/transactions";
+import DealFileDrop from "./DealFileDrop";
 
 /** Today as YYYY-MM-DD in local time (not toISOString, which is UTC and can be
  * a day off near midnight) — todos.due_date is a plain date column, so a string
@@ -138,9 +139,37 @@ function TxCard({
   const showToast = useToast();
   // Listing-side deals with a Dropbox folder — that's where the "- Packet" file lives.
   const canSendPacket = !isBuySide && Boolean(tx.dropbox_folder_url) && ["won", "market", "contract"].includes(tx.stage) && !tx.terminated_at;
+  // Quick upload: the button by the Dropbox icon, or drop files anywhere on
+  // the card — same "which subfolder" review popup as the deal screen.
+  const canUpload = Boolean(tx.dropbox_folder_url) && tx.stage !== "comps";
+  const dropStart = useRef(null);
+  const [fileOver, setFileOver] = useState(false);
+  const isFileDrag = (e) => [...(e.dataTransfer?.types || [])].includes("Files");
+  const dropHandlers = canUpload
+    ? {
+        onDragOver: (e) => {
+          if (!isFileDrag(e)) return;
+          e.preventDefault();
+          if (!fileOver) setFileOver(true);
+        },
+        onDragLeave: (e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) setFileOver(false);
+        },
+        onDrop: (e) => {
+          if (!isFileDrag(e)) return;
+          e.preventDefault();
+          setFileOver(false);
+          dropStart.current?.(e.dataTransfer.files);
+        },
+      }
+    : {};
 
   return (
-    <div className={`tx-card ${tx.terminated_at ? "tx-card--terminated" : ""}`} onClick={() => onOpenDetail && onOpenDetail(tx)}>
+    <div
+      className={`tx-card ${tx.terminated_at ? "tx-card--terminated" : ""} ${fileOver ? "tx-card--file-over" : ""}`}
+      onClick={() => onOpenDetail && onOpenDetail(tx)}
+      {...dropHandlers}
+    >
       <div className="tx-card-top">
         <div>
           <div className="tx-address">
@@ -166,6 +195,7 @@ function TxCard({
           </div>
         </div>
         <div className="tx-card-top-right">
+          {canUpload && <DealFileDrop transaction={tx} compact startRef={dropStart} />}
           {tx.dropbox_folder_url && (
             <a
               href={tx.dropbox_folder_url}

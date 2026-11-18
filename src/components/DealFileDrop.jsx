@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { UploadCloud } from "lucide-react";
 import { dealSubfolders, listDealFiles, uploadToDealFolder } from "../lib/transactions";
 import { describe, streetOf, suggestFolder, isPhoto, highestNumber } from "../lib/folderOrganizer";
@@ -8,7 +9,10 @@ import { useToast } from "../lib/ToastContext";
 // (from its name) and the next number in that folder — "7) 3673 Fish Hill
 // Road - Waiver of Inspections.pdf". Review, adjust, then upload. Photos keep
 // their own names (the folder organizer leaves Photos alone too).
-export default function DealFileDrop({ transaction, onUploaded }) {
+// `compact` (deal cards): just a small upload button, the review popup goes
+// on document.body, and loading/errors show as toasts. `startRef` lets the
+// card hand over files dropped anywhere on it.
+export default function DealFileDrop({ transaction, onUploaded, compact = false, startRef }) {
   const showToast = useToast();
   const [dragging, setDragging] = useState(false);
   const [rows, setRows] = useState(null); // [{ file, folder, desc }]
@@ -33,10 +37,16 @@ export default function DealFileDrop({ transaction, onUploaded }) {
       setRows(files.map((file) => ({ file, folder: suggestFolder(file.name, subs), desc: describe(file.name, transaction) })));
       setStep("review");
     } catch (e) {
-      setError(e.message);
-      setStep("error");
+      if (compact) {
+        showToast(`Couldn't open the deal's Dropbox folder: ${e.message}`);
+        setStep("idle");
+      } else {
+        setError(e.message);
+        setStep("error");
+      }
     }
   }
+  if (startRef) startRef.current = start;
 
   /** Final names, numbering after what's already in each folder. */
   function named(list) {
@@ -66,8 +76,12 @@ export default function DealFileDrop({ transaction, onUploaded }) {
     setStep("idle");
     onUploaded?.();
     if (failed.length) {
-      setError(`Couldn't upload: ${failed.join("; ")}`);
-      setStep("error");
+      if (compact) {
+        showToast(`Couldn't upload: ${failed.join("; ")}`);
+      } else {
+        setError(`Couldn't upload: ${failed.join("; ")}`);
+        setStep("error");
+      }
     } else {
       showToast(`${list.length} file${list.length === 1 ? "" : "s"} added to Dropbox`);
     }
@@ -75,6 +89,74 @@ export default function DealFileDrop({ transaction, onUploaded }) {
 
   const preview = rows ? named(rows) : [];
   const setRow = (i, patch) => setRows((rs) => rs.map((r, k) => (k === i ? { ...r, ...patch } : r)));
+
+  const popup = (step === "review" || step === "uploading") && rows && (
+    <div className="confirm-dialog-overlay" onClick={step === "uploading" ? undefined : () => setStep("idle")}>
+      <div className="confirm-dialog social-post-panel packet-panel" onClick={(e) => e.stopPropagation()}>
+        <h2 className="confirm-dialog-title">
+          Add {rows.length} file{rows.length === 1 ? "" : "s"} to {compact ? transaction.address : "the deal"}
+        </h2>
+        {step === "uploading" ? (
+          <div className="packet-building">
+            <div className="won-setup-spinner" aria-hidden="true" />
+            <p className="confirm-dialog-message">{progress}</p>
+          </div>
+        ) : (
+          <>
+            <ul className="organizer-list">
+              {preview.map((r, i) => (
+                <li key={i} className="drop-row">
+                  <div className="organizer-names">
+                    <select value={r.folder} onChange={(e) => setRow(i, { folder: e.target.value })} aria-label="Folder">
+                      <option value="">Deal folder (top level)</option>
+                      {folders.map((f) => (
+                        <option key={f} value={f}>
+                          {f}
+                        </option>
+                      ))}
+                    </select>
+                    {r.name === r.file.name ? (
+                      <div className="organizer-new">{r.name}</div>
+                    ) : (
+                      <div className="organizer-new">
+                        <span className="organizer-prefix">{r.name.slice(0, r.name.indexOf(" - ") + 3)}</span>
+                        <input value={r.desc} onChange={(e) => setRow(i, { desc: e.target.value })} aria-label="Description" />
+                      </div>
+                    )}
+                    <div className="organizer-old">was: {r.file.name}</div>
+                  </div>
+                  <button type="button" className="import-link-btn" onClick={() => setRows((rs) => rs.filter((_, k) => k !== i))} title="Don't upload this one">
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="confirm-dialog-actions">
+              <button type="button" onClick={() => setStep("idle")} title="Cancel — nothing is uploaded">
+                Cancel
+              </button>
+              <button type="button" className="google-btn confirm-dialog-confirm" disabled={!rows.length} onClick={uploadAll} title="Upload to Dropbox with these names">
+                Upload {rows.length}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  if (compact) {
+    // Clicks inside (incl. the portal popup) must not open the deal.
+    return (
+      <span onClick={(e) => e.stopPropagation()}>
+        <label className="tx-dropbox-btn tx-upload-btn" title="Add files to this deal's Dropbox folder (or drop them anywhere on the card)">
+          <input type="file" multiple hidden onChange={(e) => start(e.target.files)} />
+          {step === "loading" ? <span className="tx-upload-spinner" aria-hidden="true" /> : <UploadCloud size={15} />}
+        </label>
+        {popup && createPortal(popup, document.body)}
+      </span>
+    );
+  }
 
   return (
     <>
@@ -109,58 +191,7 @@ export default function DealFileDrop({ transaction, onUploaded }) {
         </p>
       )}
 
-      {(step === "review" || step === "uploading") && rows && (
-        <div className="confirm-dialog-overlay" onClick={step === "uploading" ? undefined : () => setStep("idle")}>
-          <div className="confirm-dialog social-post-panel packet-panel" onClick={(e) => e.stopPropagation()}>
-            <h2 className="confirm-dialog-title">Add {rows.length} file{rows.length === 1 ? "" : "s"} to the deal</h2>
-            {step === "uploading" ? (
-              <div className="packet-building">
-                <div className="won-setup-spinner" aria-hidden="true" />
-                <p className="confirm-dialog-message">{progress}</p>
-              </div>
-            ) : (
-              <>
-                <ul className="organizer-list">
-                  {preview.map((r, i) => (
-                    <li key={i} className="drop-row">
-                      <div className="organizer-names">
-                        <select value={r.folder} onChange={(e) => setRow(i, { folder: e.target.value })} aria-label="Folder">
-                          <option value="">Deal folder (top level)</option>
-                          {folders.map((f) => (
-                            <option key={f} value={f}>
-                              {f}
-                            </option>
-                          ))}
-                        </select>
-                        {r.name === r.file.name ? (
-                          <div className="organizer-new">{r.name}</div>
-                        ) : (
-                          <div className="organizer-new">
-                            <span className="organizer-prefix">{r.name.slice(0, r.name.indexOf(" - ") + 3)}</span>
-                            <input value={r.desc} onChange={(e) => setRow(i, { desc: e.target.value })} aria-label="Description" />
-                          </div>
-                        )}
-                        <div className="organizer-old">was: {r.file.name}</div>
-                      </div>
-                      <button type="button" className="import-link-btn" onClick={() => setRows((rs) => rs.filter((_, k) => k !== i))} title="Don't upload this one">
-                        Remove
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <div className="confirm-dialog-actions">
-                  <button type="button" onClick={() => setStep("idle")} title="Cancel — nothing is uploaded">
-                    Cancel
-                  </button>
-                  <button type="button" className="google-btn confirm-dialog-confirm" disabled={!rows.length} onClick={uploadAll} title="Upload to Dropbox with these names">
-                    Upload {rows.length}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      {popup}
     </>
   );
 }

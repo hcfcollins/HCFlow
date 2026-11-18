@@ -1547,6 +1547,10 @@ button { cursor: pointer; }
 /* Dropbox shortcut on deal cards */
 .tx-dropbox-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; color: #0061FE; background: rgba(0, 97, 254, 0.08); text-decoration: none; flex-shrink: 0; }
 .tx-dropbox-btn:hover { background: rgba(0, 97, 254, 0.16); }
+.tx-upload-btn { cursor: pointer; }
+.tx-upload-spinner { width: 13px; height: 13px; border-radius: 50%; border: 2px solid rgba(0, 97, 254, 0.25); border-top-color: #0061FE; animation: tx-upload-spin 0.8s linear infinite; }
+@keyframes tx-upload-spin { to { transform: rotate(360deg); } }
+.tx-card.tx-card--file-over { outline: 2px dashed #0061FE; outline-offset: -2px; background: rgba(0, 97, 254, 0.05); }
 
 /* Dead leads (comps archive) */
 .comps-section--dead { background: rgba(var(--black-rgb), 0.035); }
