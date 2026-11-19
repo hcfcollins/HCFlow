@@ -159,6 +159,12 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
         </div>
       )}
 
+      <fieldset className="type-picker">
+        <legend>Property Type</legend>
+        <RadioGroup name="propertyType" value={propertyStyle} onChange={setPropertyStyle} options={PROPERTY_TYPES} />
+        <p className="field-help">Land and Multi Family change the form: land drops the house questions and adds the land valuation; multi-family adds the rent and cap rate analysis.</p>
+      </fieldset>
+
       <label>
         Address
         <input value={address} onChange={(e) => setAddress(e.target.value)} required />
@@ -253,11 +259,6 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
       <fieldset>
         <legend>Rough Timeframe</legend>
         <RadioGroup name="timeframe" value={timeframe} onChange={setTimeframe} options={TIMEFRAMES} />
-      </fieldset>
-
-      <fieldset>
-        <legend>Property Type</legend>
-        <RadioGroup name="propertyType" value={propertyStyle} onChange={setPropertyStyle} options={PROPERTY_TYPES} />
       </fieldset>
 
       <fieldset>

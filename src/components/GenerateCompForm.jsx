@@ -334,6 +334,12 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
         </a>
       )}
 
+      <fieldset className="type-picker">
+        <legend>Property Type</legend>
+        <RadioGroup name="propertyType" value={propertyStyle} onChange={setPropertyStyle} options={PROPERTY_STYLES} />
+        <p className="field-help">Land and Multi Family change the form: land drops the house questions and adds the land valuation; multi-family adds the rent and cap rate analysis.</p>
+      </fieldset>
+
       <fieldset>
         <legend>Property Details</legend>
         <p className="field-help">Pre-filled from the comp — fix anything that's changed or was entered wrong.</p>
@@ -348,10 +354,6 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
         <div>
           <div className="detail-label">Rough Timeframe</div>
           <RadioGroup name="timeframe" value={timeframe} onChange={setTimeframe} options={TIMEFRAMES} />
-        </div>
-        <div>
-          <div className="detail-label">Property Type</div>
-          <RadioGroup name="propertyType" value={propertyStyle} onChange={setPropertyStyle} options={PROPERTY_STYLES} />
         </div>
         {!isLand && (
           <>

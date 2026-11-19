@@ -1840,3 +1840,5 @@ button { cursor: pointer; }
 .cma-neg { color: var(--color-danger-text); }
 .cma-estimate-note { margin: 8px 0 0; font-size: 12px; color: var(--color-text-muted); font-style: italic; }
 .cma-suggest { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 12px; margin-bottom: 8px; border-radius: 10px; background: var(--color-info-bg); color: var(--color-navy); font-size: 13px; }
+.type-picker { border: 2px solid var(--color-pink); border-radius: 12px; background: #fff8fb; }
+.type-picker legend { color: var(--color-pink); font-weight: 700; }
