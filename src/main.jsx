@@ -4,6 +4,9 @@ import App from "./App.jsx";
 import { ToastProvider } from "./lib/ToastContext.jsx";
 import Tooltips from "./components/Tooltips.jsx";
 import "./index.css";
+import { installAutoGrowTextareas } from "./lib/autoGrowTextareas";
+
+installAutoGrowTextareas();
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

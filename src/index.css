@@ -1842,3 +1842,14 @@ button { cursor: pointer; }
 .cma-suggest { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 12px; margin-bottom: 8px; border-radius: 10px; background: var(--color-info-bg); color: var(--color-navy); font-size: 13px; }
 .type-picker { border: 2px solid var(--color-pink); border-radius: 12px; background: #fff8fb; }
 .type-picker legend { color: var(--color-pink); font-weight: 700; }
+
+/* Notes boxes grow with what's typed (no drag handle). Browsers without
+   field-sizing get the same behavior from src/lib/autoGrowTextareas.js. */
+textarea {
+  resize: none;
+  field-sizing: content;
+  min-height: 5.5em;
+  max-height: 70vh;
+  overflow-y: auto;
+  line-height: 1.45;
+}
