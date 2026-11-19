@@ -12,7 +12,7 @@ import FolderOrganizer from "./FolderOrganizer";
 import DealFileDrop from "./DealFileDrop";
 import { BoostPostPanel, ListingGraphicPanel, OpenHousePanel } from "./SocialPostPanels";
 import { useToast } from "../lib/ToastContext";
-import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents, fetchOtherSideAgentName, updateCloseoutFields, shiftDatedTodos, fetchUtilityDirectory, updateAttorneyEmail, fetchLicenseNumbers } from "../lib/transactions";
+import { fetchAttorneys, resolveAttorneyId, updateTransactionFields, updateTransactionAttorneys, emailShowingPacket, announceListingToTeam, setComplianceClosed, deleteTransaction, upsertCommissionData, pairDropboxFolder, fillZipCode, fetchAgents, fetchOtherSideAgentName, updateCloseoutFields, shiftDatedTodos, fetchUtilityDirectory, updateAttorneyEmail, fetchLicenseNumbers } from "../lib/transactions";
 import { clientIsBuyer as isClientBuyer, missingInfoItems, sideLabel, closedOptionalItems } from "../lib/missingInfo";
 import { stageSelectValue, closingStatusBadge, isExpiredListing, terminatedLabel, EXPIRED_REASON } from "../lib/stages";
 import { formatBac, bacWarning, emailComposeUrl, emailLinkTarget, openEmailCompose, buildAttorneyCommissionEmail, commissionForAttorneys } from "../lib/clientEmail";
@@ -114,6 +114,7 @@ export default function DealDetail({
   const [compDetailsCollapsed, setCompDetailsCollapsed] = useState(true);
   const [retryingDropbox, setRetryingDropbox] = useState(false);
   const [emailingPacket, setEmailingPacket] = useState(false);
+  const [emailingTeam, setEmailingTeam] = useState(false);
   const [showPacketBuilder, setShowPacketBuilder] = useState(false);
   const [showOrganizer, setShowOrganizer] = useState(false);
   // Lets New Comp's "Add & Build CMA PDF" button drop an agent straight into this
@@ -315,6 +316,23 @@ export default function DealDetail({
     await updateTransactionAttorneys(transaction.id, side === "buyer" ? { buyerAttorneyId: id } : { sellerAttorneyId: id });
     onRefresh();
     showToast("Saved");
+  }
+
+  async function handleEmailTeam() {
+    const already = transaction.team_listing_email_at;
+    if (already && !window.confirm(`The team already got the "Just Listed" email on ${new Date(already).toLocaleDateString()}. Send it again?`)) return;
+    setEmailingTeam(true);
+    try {
+      const r = await announceListingToTeam(transaction.id, { force: Boolean(already) });
+      if (r?.sent) showToast(`“Just Listed” email sent to team@ with “${r.packet}”${r.withPhoto ? "" : " (no photo found in Photos)"}`);
+      else if (r?.reason === "no_packet") showToast('No packet in Showing Docs yet — save it as "<street> - Packet.pdf" (and add it to the MLS), then try again.');
+      else if (r?.reason === "already_sent") showToast("The team already got this one.");
+      onRefresh?.();
+    } catch (e) {
+      showToast(`Couldn't email the team: ${e.message}`);
+    } finally {
+      setEmailingTeam(false);
+    }
   }
 
   async function handleEmailShowingPacket() {
@@ -1386,6 +1404,17 @@ export default function DealDetail({
               {transaction.side !== "Buy" && (
                 <button title="Open an email from your own account with a view-only link to the “- Packet” file in Showing Docs" type="button" className="cma-export-btn" disabled={emailingPacket} onClick={handleEmailShowingPacket}>
                   <Mail size={14} /> {emailingPacket ? "Getting packet…" : "Email Showing Packet"}
+                </button>
+              )}
+              {transaction.side !== "Buy" && transaction.stage === "market" && (
+                <button
+                  title={transaction.team_listing_email_at ? `Team was emailed ${new Date(transaction.team_listing_email_at).toLocaleDateString()} — click to send again` : "Send team@ the “Just Listed” email with the packet"}
+                  type="button"
+                  className="cma-export-btn"
+                  disabled={emailingTeam}
+                  onClick={handleEmailTeam}
+                >
+                  <Mail size={14} /> {emailingTeam ? "Emailing the team…" : transaction.team_listing_email_at ? "Team Emailed ✓" : "Email Team"}
                 </button>
               )}
             </>

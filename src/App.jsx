@@ -12,6 +12,7 @@ import {
   deleteTodo,
   seedWonListingTodos,
   seedGoLiveTodos,
+  announceListingToTeam,
   MLS_PARTIAL_TODO,
   needsSignPickup,
   markSignPickedUp,
@@ -353,6 +354,14 @@ export default function App() {
       })
       .catch((e) => console.error("Go Live hand-off to the coordinator failed:", e))
       .finally(() => loadTransactions({ silent: true }));
+    // "Just Listed" to team@ with the packet — or, no packet yet, a reminder
+    // to the agent to add it (and to the MLS) before it goes.
+    announceListingToTeam(transactionId, { remind: true })
+      .then((r) => {
+        if (r?.sent) showToast("“Just Listed” email sent to the team with the packet 🏡");
+        else if (r?.reason === "no_packet") showToast("No packet in Showing Docs yet — the agent got a reminder to add it (and to the MLS). The team email goes out once it's there.");
+      })
+      .catch((e) => console.error("Team listing email failed:", e));
   }
 
   async function handleToggleTodo(todo, done) {

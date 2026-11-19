@@ -538,6 +538,12 @@ async function dealEmails(body) {
 /** Congratulations email for a new Under Contract (agent, cc Kerry + partners). */
 export const sendUnderContractEmail = (transactionId) => dealEmails({ action: "under_contract", transactionId });
 
+/** "Just Listed" email to team@ with the packet link. No packet yet → nothing to
+ * the team; remind: true emails the agent to add it (and to the MLS) first.
+ * Returns { sent, reason?, reminded?, packet? }. */
+export const announceListingToTeam = (transactionId, { remind = false, force = false } = {}) =>
+  dealEmails({ action: "team_announce", transactionId, remind, force });
+
 /** Who'd get the closing docs email and which files would go: { to, cc, files, attach, totalMb }. */
 export const previewClosingDocsEmail = (transactionId) => dealEmails({ action: "closing_docs_preview", transactionId });
 

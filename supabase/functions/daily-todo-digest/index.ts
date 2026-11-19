@@ -453,6 +453,37 @@ async function sendClosingReminders(
 const DEPOSIT_REMINDER_DAYS = 5;
 const isJeffLewis = (name: string | null | undefined) => /\bjeff(rey)?\s+lewis\b/i.test(String(name || ""));
 
+/** Listings that went live without a packet: each morning, check again and
+ * send team@ the "Just Listed" email once the packet is in Showing Docs
+ * (deal-emails does the work and records it). Last 30 days only. Skipped
+ * quietly until the team_listing_email_at column exists. */
+async function sendPendingTeamAnnouncements(testMode: boolean, errors: string[]) {
+  if (testMode) return [];
+  const since = new Date(Date.now() - 30 * 86400000).toISOString();
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/transactions?terminated_at=is.null&stage=eq.market&side=neq.Buy&team_listing_email_at=is.null&social_went_live_at=gte.${encodeURIComponent(since)}&select=id,address`,
+    { headers: serviceHeaders }
+  );
+  if (!res.ok) return [];
+  const rows: { id: string; address: string }[] = await res.json();
+  const sent: string[] = [];
+  for (const row of rows) {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/deal-emails`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SERVICE_ROLE_KEY}`, apikey: SERVICE_ROLE_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "team_announce", transactionId: row.id }),
+      });
+      const data = await r.json();
+      if (data?.sent) sent.push(row.address);
+      else if (data?.error) errors.push(`Team email for ${row.address}: ${data.error}`);
+    } catch (e) {
+      errors.push(`Team email for ${row.address}: ${String(e)}`);
+    }
+  }
+  return sent;
+}
+
 async function sendDepositReminders(accessToken: string, today: string, testMode: boolean, errors: string[]) {
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/transactions?terminated_at=is.null&stage=eq.contract&select=` +
@@ -682,8 +713,9 @@ Deno.serve(async (req) => {
     // Only the real 6:15 run records a reminder as sent — the test button
     // just previews, so it never uses up a real reminder.
     const licenseReminders = await sendLicenseReminders(accessToken, today, Boolean(body.testMode), fromCron, errors);
+    const teamAnnouncements = await sendPendingTeamAnnouncements(Boolean(body.testMode), errors);
 
-    return json({ today, testMode: Boolean(body.testMode), sent, closingReminders, depositReminders, licenseReminders, errors });
+    return json({ today, testMode: Boolean(body.testMode), sent, closingReminders, depositReminders, licenseReminders, teamAnnouncements, errors });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

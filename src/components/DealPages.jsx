@@ -1047,7 +1047,11 @@ function UnderContractPage({ transactions: allTransactions, stages, currentAgent
   }, [allTransactions, roster]);
   // If the picked agent no longer has any deals here, fall back to everyone.
   const activeFilter = agentFilter && agentCounts.some((a) => a.id === agentFilter) ? agentFilter : null;
-  const transactions = canFilterByAgent && activeFilter ? allTransactions.filter((tx) => tx.agent_id === activeFilter || tx.colist_agent_id === activeFilter) : allTransactions;
+  // Soonest closing first; deals without a closing date at the bottom.
+  const closingKey = (tx) => (/^\d{4}-\d{2}-\d{2}/.test(tx.next_date || "") ? tx.next_date : "9999");
+  const transactions = (canFilterByAgent && activeFilter ? allTransactions.filter((tx) => tx.agent_id === activeFilter || tx.colist_agent_id === activeFilter) : allTransactions)
+    .slice()
+    .sort((a, b) => closingKey(a).localeCompare(closingKey(b)) || (a.address || "").localeCompare(b.address || ""));
   // Split deals go wherever *our* clients are (split_client_side, asked on the
   // Under Contract form) — Sellers if that hasn't been answered yet.
   const isBuyerGroup = (tx) => tx.side === "Buy" || (tx.side === "Split" && tx.split_client_side === "Buy");
