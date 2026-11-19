@@ -5,7 +5,7 @@ import CheckboxGroup from "./CheckboxGroup";
 import RadioGroup from "./RadioGroup";
 import { updateTransactionFields, uploadCompPdf, addActivityLog } from "../lib/transactions";
 import { focusNextOnEnter } from "../lib/formKeyNav";
-import { ROAD_FRONTAGE_OPTIONS, PARCEL_CHARACTER_OPTIONS, PERC_STATUS_OPTIONS, LAND_DEV_ITEMS } from "../lib/compPdf/landPricing";
+import { ROAD_FRONTAGE_OPTIONS, PARCEL_CHARACTER_OPTIONS, PERC_STATUS_OPTIONS, LAND_DEV_ITEMS, LAND_PER_ACRE } from "../lib/compPdf/landPricing";
 import { UTILITY_OPTIONS } from "../lib/compPdf/capRateMath";
 import {
   TIMEFRAMES,
@@ -20,7 +20,7 @@ import {
   recommendationOptionsFor,
 } from "../lib/compFieldOptions";
 
-const DEFAULT_LAND = { acres: "", roadFrontage: "None", parcelCharacter: "Standard lot", percStatus: "None done", devItems: {}, comps: [{}, {}, {}] };
+const DEFAULT_LAND = { acres: "", perAcre: "", roadFrontage: "None", parcelCharacter: "Standard lot", percStatus: "None done", devItems: {}, comps: [{}, {}, {}] };
 const DEFAULT_MF = {
   units: 2,
   unitRents: [{ label: "Unit 1", current: "", market: "" }, { label: "Unit 2", current: "", market: "" }],
@@ -371,6 +371,27 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
             Lot Size (acres)
             <input type="number" step="any" value={land.acres} onChange={(e) => updateLand({ acres: e.target.value })} />
           </label>
+          {(() => {
+            const rate = Number(land.perAcre) > 0 ? Number(land.perAcre) : LAND_PER_ACRE;
+            const acres = Number(land.acres) || 0;
+            return (
+              <label>
+                Price per Acre ($)
+                <input
+                  type="number"
+                  min="0"
+                  step="50"
+                  value={land.perAcre ?? ""}
+                  onChange={(e) => updateLand({ perAcre: e.target.value })}
+                  placeholder={`${LAND_PER_ACRE.toLocaleString()} (recommended)`}
+                />
+                <span className="field-help">
+                  Recommended: ${LAND_PER_ACRE.toLocaleString()}/acre for undeveloped land — change it if this area or parcel sells for more or less.
+                  {acres > 0 && ` ${acres} acres × $${rate.toLocaleString()} = $${Math.round(acres * rate).toLocaleString()}`}
+                </span>
+              </label>
+            );
+          })()}
           <div>
             <div className="detail-label">Road Frontage</div>
             <RadioGroup name="roadFrontage" value={land.roadFrontage} onChange={(v) => updateLand({ roadFrontage: v })} options={ROAD_FRONTAGE_OPTIONS} />

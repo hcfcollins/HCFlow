@@ -46,7 +46,9 @@ export const LAND_DEV_ITEMS = [
  */
 export function computeLandValuation(land) {
   const acres = Number(land.acres) || 0;
-  const acreValue = Math.round(acres * LAND_PER_ACRE);
+  // The agent can set their own $/acre for this parcel; blank = the firm default.
+  const perAcre = Number(land.perAcre) > 0 ? Number(land.perAcre) : LAND_PER_ACRE;
+  const acreValue = Math.round(acres * perAcre);
   const roadPremium = ROAD_PREMIUM[land.roadFrontage] ?? 0;
   const contiguousPremium = CONTIGUOUS_PREMIUM[land.parcelCharacter] ?? 0;
   const percPremium = PERC_PREMIUM[land.percStatus] ?? 0;
@@ -63,6 +65,7 @@ export function computeLandValuation(land) {
 
   return {
     acres,
+    perAcre,
     baseValue: LAND_BASE_VALUE,
     acreValue,
     roadPremium,

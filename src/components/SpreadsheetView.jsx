@@ -20,6 +20,7 @@ import { formatDate } from "./DealDetail";
 import { TC_FEE_AMOUNTS, calculateCloseout, applyTcFee, round2 } from "../lib/commissionCalc";
 import CloseoutCalculator from "./CloseoutCalculator";
 import ConfirmDialog from "./ConfirmDialog";
+import BusinessStats from "./BusinessStats";
 
 // Just for the Closing Date column — kept separate from the shared formatDate
 // (used everywhere else in the app) since this request was specifically
@@ -712,6 +713,12 @@ export default function SpreadsheetView({ transactions: rawTransactions, onBack,
           </button>
         </div>
       </header>
+
+      <BusinessStats
+        transactions={transactions}
+        agentFilter={agentFilter}
+        agentName={agentOptions.find((o) => o.value === agentFilter)?.label || ""}
+      />
 
       <div className="sv-filters">
         <input

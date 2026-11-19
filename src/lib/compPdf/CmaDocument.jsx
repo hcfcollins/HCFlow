@@ -287,7 +287,7 @@ function AgentNotes({ notes }) {
 
 function LandSection({ land, priceRec }) {
   const v = computeLandValuation(land);
-  const rows = [["Base land value (all parcels)", money(v.baseValue)], [`Acreage value (${v.acres.toFixed(1)} acres × $1,000/acre)`, money(v.acreValue)]];
+  const rows = [["Base land value (all parcels)", money(v.baseValue)], [`Acreage value (${v.acres.toFixed(1)} acres × ${money(v.perAcre)}/acre)`, money(v.acreValue)]];
   if (v.roadPremium) rows.push([`Road frontage premium — ${land.roadFrontage}`, money(v.roadPremium)]);
   if (v.contiguousPremium) rows.push([`Parcel character — ${land.parcelCharacter}`, money(v.contiguousPremium)]);
   if (v.percPremium) rows.push([`Perc/soil work — ${land.percStatus}`, money(v.percPremium)]);
@@ -302,7 +302,7 @@ function LandSection({ land, priceRec }) {
         <Text style={{ fontFamily: "Times-Bold" }}>How land is priced</Text> — Land value in this market is a
         sliding scale based entirely on the level of development already completed. Every parcel starts at a{" "}
         <Text style={{ fontFamily: "Times-Bold" }}>$35,000 baseline</Text> regardless of size, then adds
-        approximately <Text style={{ fontFamily: "Times-Bold" }}>$1,000 per acre</Text> of undeveloped land. From
+        approximately <Text style={{ fontFamily: "Times-Bold" }}>{money(v.perAcre)} per acre</Text> of undeveloped land. From
         there, value increases based on what work has already been done — a driveway, well, septic, electrical
         service, and cleared site prep all reduce the buyer's cost and risk, and are reflected directly in the
         price.
