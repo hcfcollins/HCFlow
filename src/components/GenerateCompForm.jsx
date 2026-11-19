@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { FileText, X } from "lucide-react";
+import { FileText, X, UploadCloud } from "lucide-react";
 import EmailListInput from "./EmailListInput";
 import CheckboxGroup from "./CheckboxGroup";
 import RadioGroup from "./RadioGroup";
 import { updateTransactionFields, uploadCompPdf, addActivityLog } from "../lib/transactions";
 import { focusNextOnEnter } from "../lib/formKeyNav";
+import { streetOf } from "../lib/folderOrganizer";
 import { ROAD_FRONTAGE_OPTIONS, PARCEL_CHARACTER_OPTIONS, PERC_STATUS_OPTIONS, LAND_DEV_ITEMS, LAND_PER_ACRE } from "../lib/compPdf/landPricing";
 import { UTILITY_OPTIONS } from "../lib/compPdf/capRateMath";
 import {
@@ -39,6 +40,54 @@ function resizeUnitRents(unitRents, count) {
   const next = unitRents.slice(0, count);
   while (next.length < count) next.push({ label: `Unit ${next.length + 1}`, current: "", market: "" });
   return next;
+}
+
+/** Drag-and-drop (or click to choose) for one PDF. */
+function PdfDropField({ label, help, file, onFile }) {
+  const [over, setOver] = useState(false);
+  const take = (list) => {
+    const f = [...(list || [])].find((x) => x.type === "application/pdf" || /\.pdf$/i.test(x.name));
+    if (f) onFile(f);
+  };
+  return (
+    <div className="comp-drop-field">
+      <div className="detail-label">
+        {label} {help && <span className="field-help">{help}</span>}
+      </div>
+      <label
+        className={`check-dropzone comp-dropzone ${over ? "check-dropzone--over" : ""} ${file ? "comp-dropzone--set" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setOver(false);
+          take(e.dataTransfer.files);
+        }}
+        title="Drop a PDF here, or click to choose one"
+      >
+        <input type="file" accept="application/pdf" hidden onChange={(e) => take(e.target.files)} />
+        {file ? (
+          <span>
+            <FileText size={16} style={{ verticalAlign: -3 }} /> <strong>{file.name}</strong>
+            <br />
+            <span className="field-help">Drop another to replace it</span>
+          </span>
+        ) : (
+          <span>
+            <UploadCloud size={18} style={{ verticalAlign: -4 }} /> <strong>Drop a PDF here</strong> or click to choose
+          </span>
+        )}
+      </label>
+      {file && (
+        <button type="button" className="import-link-btn" onClick={() => onFile(null)} title="Don't include this file">
+          Remove
+        </button>
+      )}
+    </div>
+  );
 }
 
 export default function GenerateCompForm({ transaction, onCancel, onGenerated }) {
@@ -83,6 +132,7 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
   const [mf, setMf] = useState({ ...DEFAULT_MF, ...saved.multiFamily });
   const [supplementalFile, setSupplementalFile] = useState(null);
   const [anrFile, setAnrFile] = useState(null);
+  const [anrNote, setAnrNote] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState(null);
   const [resultUrl, setResultUrl] = useState(transaction.last_comp_url || null);
@@ -194,7 +244,25 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
       const pdfBytes = await buildCompPdf(mergedTransaction, form, supplementalFile, anrFile);
       const fileName = compPdfFileName(mergedTransaction);
       const result = await uploadCompPdf(transaction.id, pdfBytes, fileName);
-      await updateTransactionFields(transaction.id, { comp_analysis: form });
+      // The ANR map also goes to Showing Docs — now if the listing has its
+      // folder, or (saved with the CMAs) automatically once it's won.
+      let anrMap = saved.anrMap || null;
+      setAnrNote(null);
+      if (anrFile) {
+        try {
+          const street = streetOf(mergedTransaction).replace(/[\\/:*?"<>|]/g, "") || "Property";
+          const r = await uploadCompPdf(transaction.id, await anrFile.arrayBuffer(), `${street} - ANR Map.pdf`, "anr");
+          if (r.inShowingDocs) {
+            setAnrNote("ANR map added to the listing's Showing Docs folder.");
+          } else {
+            anrMap = { path: r.filePath };
+            setAnrNote("ANR map saved — it'll go into Showing Docs automatically when the listing is won.");
+          }
+        } catch (e) {
+          setAnrNote(`Comp saved, but the ANR map couldn't be filed for Showing Docs: ${e.message}`);
+        }
+      }
+      await updateTransactionFields(transaction.id, { comp_analysis: { ...form, ...(anrMap ? { anrMap } : {}) } });
       await addActivityLog(transaction.id, "Generated comp PDF", fileName);
       setResultUrl(result.fileUrl);
       onGenerated?.();
@@ -219,6 +287,7 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
 
       {error && <div className="error-banner">{error}</div>}
 
+      {anrNote && <p className="field-note">{anrNote}</p>}
       {resultUrl && (
         <a href={resultUrl} target="_blank" rel="noreferrer" className="cma-export-btn">
           <FileText size={14} /> View Generated Comp
@@ -486,14 +555,18 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
 
       <fieldset className="comp-attachments">
         <legend>Attachments (optional)</legend>
-        <label>
-          Supplemental PDF <span className="field-help">(an existing comp PDF — its first 2 pages get replaced by our cover sheet)</span>
-          <input type="file" accept="application/pdf" onChange={(e) => setSupplementalFile(e.target.files?.[0] || null)} />
-        </label>
-        <label>
-          ANR or Parcel Map PDF <span className="field-help">(appended to the end as-is)</span>
-          <input type="file" accept="application/pdf" onChange={(e) => setAnrFile(e.target.files?.[0] || null)} />
-        </label>
+        <PdfDropField
+          label="Supplemental PDF"
+          help="(an existing comp PDF — its first 2 pages get replaced by our cover sheet)"
+          file={supplementalFile}
+          onFile={setSupplementalFile}
+        />
+        <PdfDropField
+          label="ANR or Parcel Map PDF"
+          help="(appended to the end as-is, and filed in Showing Docs when the listing is won)"
+          file={anrFile}
+          onFile={setAnrFile}
+        />
       </fieldset>
 
       <button title="Build the CMA PDF and save it to Dropbox" type="submit" className="google-btn uc-submit" disabled={generating}>

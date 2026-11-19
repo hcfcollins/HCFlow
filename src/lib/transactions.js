@@ -772,8 +772,10 @@ export async function createDropboxFolderForBuyer(transactionId) {
 }
 
 /** Uploads a generated comp PDF via the upload-comp-pdf Edge Function; routes to the
- * listing's Pitch Docs subfolder if Won, or the shared general comps repository otherwise. */
-export async function uploadCompPdf(transactionId, pdfBytes, fileName) {
+ * listing's Pitch Docs subfolder if Won, or the shared general comps repository otherwise.
+ * kind "anr": the ANR/parcel map instead — into Showing Docs if the listing has
+ * a folder, else saved with the CMAs (returns { filePath, inShowingDocs }). */
+export async function uploadCompPdf(transactionId, pdfBytes, fileName, kind = null) {
   // supabase-js only auto-detects Content-Type for Blob/ArrayBuffer/File/FormData/String —
   // a raw Uint8Array (what pdf-lib returns) isn't in that list and would silently get
   // JSON-stringified, corrupting the binary. Wrap it in a Blob explicitly.
@@ -783,6 +785,7 @@ export async function uploadCompPdf(transactionId, pdfBytes, fileName) {
       "x-transaction-id": transactionId,
       "x-file-name": encodeURIComponent(fileName),
       "Content-Type": "application/pdf",
+      ...(kind ? { "x-kind": kind } : {}),
     },
   });
   if (error) {

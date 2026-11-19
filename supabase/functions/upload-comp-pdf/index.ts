@@ -23,7 +23,7 @@ const dropboxPathRootHeader = JSON.stringify({ ".tag": "root", root: DROPBOX_TEA
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-transaction-id, x-file-name",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-transaction-id, x-file-name, x-kind",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -185,6 +185,33 @@ Deno.serve(async (req) => {
 
     const accessToken = await getDropboxAccessToken();
     const dealFolder = tx.dropbox_folder_path ? await resolveDealFolderPath(accessToken, transactionId, tx.dropbox_folder_path) : null;
+
+    // x-kind: anr — the ANR/parcel map from the CMA screen. Listing already
+    // has a folder → straight into its Showing Docs, numbered after what's
+    // there ("4) 12 Main St - ANR Map.pdf"). Not won yet → saved with the
+    // CMAs, and create-dropbox-folder copies it into Showing Docs on Won.
+    // Never touches last_comp_url.
+    if (req.headers.get("x-kind") === "anr") {
+      if (dealFolder) {
+        const headers = { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader };
+        const subRes = await fetch("https://api.dropboxapi.com/2/files/list_folder", { method: "POST", headers, body: JSON.stringify({ path: dealFolder }) });
+        const subs = subRes.ok ? (await subRes.json()).entries || [] : [];
+        const showing = subs.find((e: { [k: string]: string }) => e[".tag"] === "folder" && /showing/i.test(e.name))?.name || "3) Showing Docs";
+        const showingPath = `${dealFolder}/${showing}`;
+        await ensureFolder(accessToken, showingPath);
+        const listRes = await fetch("https://api.dropboxapi.com/2/files/list_folder", { method: "POST", headers, body: JSON.stringify({ path: showingPath }) });
+        const names: string[] = listRes.ok ? ((await listRes.json()).entries || []).map((e: { name: string }) => e.name) : [];
+        const highest = names.reduce((m, n) => {
+          const hit = /^\s*(\d+)\s*[a-z]?\s*[.)]/i.exec(n);
+          return hit ? Math.max(m, Number(hit[1])) : m;
+        }, 0);
+        const path = await uploadFile(accessToken, `${showingPath}/${highest + 1}) ${fileName}`, pdfBytes);
+        return jsonResponse({ filePath: path, inShowingDocs: true });
+      }
+      const path = await uploadFile(accessToken, `${GENERAL_COMPS_PATH}/${fileName}`, pdfBytes);
+      return jsonResponse({ filePath: path, inShowingDocs: false });
+    }
+
     const targetFolder = dealFolder ? `${dealFolder}/1) Pitch Docs` : GENERAL_COMPS_PATH;
     await ensureFolder(accessToken, targetFolder);
     const actualPath = await uploadFile(accessToken, `${targetFolder}/${fileName}`, pdfBytes);

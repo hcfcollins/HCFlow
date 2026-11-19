@@ -210,7 +210,7 @@ Deno.serve(async (req) => {
     }
 
     const txRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}&select=id,address,seller_name,agent:agents!transactions_agent_id_fkey(name,dropbox_listing_path)`,
+      `${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}&select=id,address,seller_name,comp_analysis,agent:agents!transactions_agent_id_fkey(name,dropbox_listing_path)`,
       {
         headers: {
           apikey: SERVICE_ROLE_KEY,
@@ -249,6 +249,23 @@ Deno.serve(async (req) => {
     // Where agents drop the hand-picked images for social media — checked first
     // by the Social Scheduler's photo pickers before falling back to Compressed_MLS.
     await createDropboxFolder(accessToken, `${actualPath}/4) Photos/Chosen Ones`);
+    // An ANR map added on the CMA screen before the listing was won was saved
+    // with the CMAs — copy it into Showing Docs now. Best-effort: a missing
+    // file must never stop the folder from being set up.
+    const anrPath = tx.comp_analysis?.anrMap?.path;
+    if (anrPath) {
+      try {
+        const base = String(anrPath).split("/").pop();
+        const copyRes = await fetch("https://api.dropboxapi.com/2/files/copy_v2", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
+          body: JSON.stringify({ from_path: anrPath, to_path: `${actualPath}/3) Showing Docs/1) ${base}`, autorename: true }),
+        });
+        if (!copyRes.ok) console.error("ANR copy failed:", await copyRes.text());
+      } catch (e) {
+        console.error("ANR copy failed:", e);
+      }
+    }
     const sharedLink = await getOrCreateSharedLink(accessToken, actualPath);
 
     const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}`, {
