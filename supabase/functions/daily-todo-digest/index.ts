@@ -438,14 +438,15 @@ async function sendClosingReminders(
 }
 
 // ── Deposit: retain or release, 5 days before closing ──
-// Every Under Contract deal gets one email exactly 5 days out saying what
-// to do with the earnest money deposit — so nobody tells the attorneys the
-// wrong thing:
+// Every Under Contract LISTING of ours (not buyer-side-only deals) gets one
+// email exactly 5 days out saying what to do with the earnest money deposit
+// — so nobody tells the attorneys the wrong thing. Shows the price,
+// commission % and net commission it's based on, so a stale price gets caught:
 //  - We hold it, and it's less than our net commission → retain it against
 //    the commission (attorney owes us the rest).
 //  - We hold it, and it covers the commission, or the buyer's attorney is
 //    Jeff Lewis (he always wants the check) → deliver the check.
-//  - We DON'T hold it → say so, loudly.
+//  - We DON'T hold it → a reminder not to send anything.
 // Net commission = (price − seller credit) × commission % (same as the
 // commission statement in the app). To the agent (+ co-list), cc Fran,
 // Holly and the coordinator.
@@ -456,7 +457,7 @@ async function sendDepositReminders(accessToken: string, today: string, testMode
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/transactions?terminated_at=is.null&stage=eq.contract&select=` +
       encodeURIComponent(
-        "id,address,price,agent_id,colist_agent_id,next_date,other_side_id," +
+        "id,address,price,side,split_client_side,agent_id,colist_agent_id,next_date,other_side_id," +
           "buyer_attorney:attorneys!transactions_buyer_attorney_id_fkey(name),seller_attorney:attorneys!transactions_seller_attorney_id_fkey(name)," +
           "commission_data(*),closeouts(commission_pct,price)"
       ),
@@ -484,7 +485,8 @@ async function sendDepositReminders(accessToken: string, today: string, testMode
     const price = Number(t.price ?? co.price) || 0;
     const credit = Number(cd.seller_credit) || 0;
     const pct = Number(cd.commission_pct ?? co.commission_pct) || 0;
-    return { held, deposit: held ? first + second : 0, credit, commission: price && pct ? ((price - credit) * pct) / 100 : null };
+    const isListing = !(t.side === "Buy" || (t.side === "Split" && t.split_client_side === "Buy"));
+    return { held, isListing, price, pct, deposit: held ? first + second : 0, credit, commission: price && pct ? ((price - credit) * pct) / 100 : null };
   };
 
   // deno-lint-ignore no-explicit-any
@@ -498,6 +500,8 @@ async function sendDepositReminders(accessToken: string, today: string, testMode
     if (partner && partner.id < tx.id) continue; // the pair is handled once
     const closing = normalizeYmd(tx.next_date)!;
     const sides = [tx, partner].filter(Boolean).map(sideNumbers);
+    // Only our listings — a buyer-side-only deal gets no deposit email.
+    if (!sides.some((s) => s.isListing)) continue;
     const held = sides.some((s) => s.held);
     const deposit = Math.max(...sides.map((s) => s.deposit));
     const credit = Math.max(...sides.map((s) => s.credit));
@@ -505,27 +509,36 @@ async function sendDepositReminders(accessToken: string, today: string, testMode
     const buyerAtty = tx.buyer_attorney?.name || partner?.buyer_attorney?.name || null;
     const jeff = isJeffLewis(buyerAtty);
 
+    // The numbers behind the decision, price first — so anyone can spot a
+    // price that changed and needs updating in HC Flow.
+    const price = Math.max(...sides.map((s) => s.price));
+    const pctText = sides
+      .map((s) => (s.pct ? `${s.pct}%` : "not on file"))
+      .join(" + ");
+    const numbers = `<p style="margin:8px 0;">Purchase price: <strong>${price ? money(price) : "not on file"}</strong>${credit ? `<br/>Less seller credit: −${money(credit)}` : ""}<br/>Commission: ${pctText}${sides.length > 1 ? " (both sides)" : ""}${commission != null ? `<br/>Net commission: <strong>${money(commission)}</strong>` : ""}<br/>Deposit we hold: <strong>${money(deposit)}</strong></p>
+<p style="font-size:13px;color:#666;">If the price or commission isn't right, update it in HC Flow before closing — this decision is based on these numbers.</p>`;
+
     let decision: string;
     let html: string;
     if (!held) {
       decision = "not held";
-      html = `<p style="background:#FDE8E8;border:1px solid #F5B5B5;border-radius:8px;padding:10px 14px;">⚠️ <strong>Hall Collins is NOT holding the deposit on this deal.</strong> The other side holds it — please don't tell the attorneys we have it.</p>`;
+      html = `<p style="background:#FDE8E8;border:1px solid #F5B5B5;border-radius:8px;padding:10px 14px;">⚠️ <strong>Reminder: Hall Collins is NOT holding the deposit on this listing — don't send anything.</strong> The other side holds it, so there's no check from us and nothing to retain.</p>`;
     } else if (!deposit) {
       decision = "held, amount unknown";
       html = `<p>We're marked as holding the deposit, but <strong>no amount is on file</strong>. Please add it in HC Flow and check with Fran whether to retain or release it.</p>`;
     } else if (jeff) {
       decision = "release (Jeff Lewis)";
-      html = `<p>📤 <strong>Deliver the ${money(deposit)} deposit check to Jeff Lewis</strong> before closing — he always requires the deposit check delivered to him (we don't retain it on his closings).</p>`;
+      html = `<p>📤 <strong>Deliver the ${money(deposit)} deposit check to Jeff Lewis</strong> before closing — he always requires the deposit check delivered to him (we don't retain it on his closings).</p>${numbers}`;
     } else if (commission == null) {
       decision = "held, commission unknown";
-      html = `<p>We hold the <strong>${money(deposit)}</strong> deposit, but the commission % or price isn't on file, so HC Flow can't tell whether to retain or release it. Please check with Fran.</p>`;
+      html = `<p>We hold the <strong>${money(deposit)}</strong> deposit, but the commission % or price isn't on file, so HC Flow can't tell whether to retain or release it. Please check with Fran.</p>${numbers}`;
     } else if (deposit < commission) {
       decision = "retain";
-      html = `<p>✅ <strong>Retain the ${money(deposit)} deposit</strong> against our commission — don't send the check.</p>
-<p>Net commission: ${money(commission)}${credit ? ` (after the ${money(credit)} seller credit)` : ""}<br/>Less the deposit we keep: −${money(deposit)}<br/><strong>The attorney owes Hall Collins ${money(commission - deposit)} at closing.</strong></p>`;
+      html = `<p>✅ <strong>Retain the ${money(deposit)} deposit</strong> against our commission — don't send the check.</p>${numbers}
+<p><strong>The attorney owes Hall Collins ${money(commission - deposit)} at closing</strong> (${money(commission)} net commission − ${money(deposit)} deposit we keep).</p>`;
     } else {
       decision = "release";
-      html = `<p>📤 <strong>Deliver the ${money(deposit)} deposit check to ${escapeHtml(buyerAtty || "the buyer's attorney")}</strong> before closing — it covers our ${money(commission)} net commission, so we don't retain it.</p>`;
+      html = `<p>📤 <strong>Deliver the ${money(deposit)} deposit check to ${escapeHtml(buyerAtty || "the buyer's attorney")}</strong> before closing — it covers our ${money(commission)} net commission, so we don't retain it.</p>${numbers}`;
     }
 
     if (partner && commission != null && decision === "retain") {
@@ -545,7 +558,7 @@ ${html}
     if (testMode) {
       body = `<div style="background:#FBF2D5;border:1px solid #E0C23A;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:13px;">🧪 <strong>TEST MODE</strong> — this would have gone to <strong>${escapeHtml(realTo.join(", "))}</strong> (cc ${escapeHtml(realCc.join(", "))}).</div>${body}`;
     }
-    const subject = `Deposit ${held && deposit ? (decision === "retain" ? "— RETAIN" : decision.startsWith("release") ? "— DELIVER CHECK" : "— check with Fran") : held ? "— amount missing" : "— NOT held by us"}: ${tx.address}`;
+    const subject = `Deposit ${held && deposit ? (decision === "retain" ? "— RETAIN" : decision.startsWith("release") ? "— DELIVER CHECK" : "— check with Fran") : held ? "— amount missing" : "— NOT held by us, don't send anything"}: ${tx.address}`;
     try {
       // sendGmail takes one "to"; extra agents ride along on cc.
       await sendGmail(accessToken, testMode ? FRAN_EMAIL : realTo[0], subject, body, testMode ? [] : [...realTo.slice(1), ...realCc]);
