@@ -3,7 +3,7 @@ import { FileText, X, UploadCloud } from "lucide-react";
 import EmailListInput from "./EmailListInput";
 import CheckboxGroup from "./CheckboxGroup";
 import RadioGroup from "./RadioGroup";
-import { updateTransactionFields, uploadCompPdf, addActivityLog } from "../lib/transactions";
+import { updateTransactionFields, uploadCompPdf, addActivityLog, polishAgentNotes } from "../lib/transactions";
 import { focusNextOnEnter } from "../lib/formKeyNav";
 import { streetOf } from "../lib/folderOrganizer";
 import { ROAD_FRONTAGE_OPTIONS, PARCEL_CHARACTER_OPTIONS, PERC_STATUS_OPTIONS, LAND_DEV_ITEMS, LAND_PER_ACRE } from "../lib/compPdf/landPricing";
@@ -133,6 +133,42 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
   const [supplementalFile, setSupplementalFile] = useState(null);
   const [anrFile, setAnrFile] = useState(null);
   const [anrNote, setAnrNote] = useState(null);
+  // ✨ Polish: { status: "working" | "ready" | "error", text?, error? } | null
+  const [polish, setPolish] = useState(null);
+
+  async function runPolish() {
+    setPolish({ status: "working" });
+    try {
+      const text = await polishAgentNotes(agentNotes, {
+        address: transaction.address,
+        town: transaction.town,
+        seller: sellerName,
+        propertyStyle,
+        beds,
+        baths,
+        lotAcres,
+        yearBuilt,
+        garageSpaces,
+        heating: heatingSystem,
+        basement,
+        water: waterSource,
+        septic,
+        solar: solar === NOT_SPECIFIED ? "" : solar,
+        view: hasView === NOT_SPECIFIED ? "" : hasView,
+        features: featuresNotes,
+        finishes: finishesNote,
+        boundaries: boundaryNotes,
+        recommendations,
+        priceRangeLow: priceLow,
+        priceRangeHigh: priceHigh,
+        recommendedListPrice: priceRec,
+        pricingNotes: priceNotes,
+      });
+      setPolish({ status: "ready", text });
+    } catch (e) {
+      setPolish({ status: "error", error: e.message });
+    }
+  }
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState(null);
   const [resultUrl, setResultUrl] = useState(transaction.last_comp_url || null);
@@ -551,6 +587,44 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
       <fieldset>
         <legend>Agent Notes</legend>
         <textarea value={agentNotes} onChange={(e) => setAgentNotes(e.target.value)} rows={4} placeholder="General notes for this write-up…" />
+        <div className="polish-row">
+          <button
+            type="button"
+            className="comps-status-btn polish-btn"
+            disabled={!agentNotes.trim() || polish?.status === "working"}
+            onClick={runPolish}
+            title="AI cleans up your notes: a compliment, then any hurdles, then excitement and how we'll tailor the marketing. You review it before anything changes."
+          >
+            {polish?.status === "working" ? "Polishing…" : "✨ Polish with AI"}
+          </button>
+          <span className="field-help">Opens with a compliment, covers any hurdles, ends with the listing and marketing plan — you review it first.</span>
+        </div>
+        {polish?.status === "error" && <p className="field-note">{polish.error}</p>}
+        {polish?.status === "ready" && (
+          <div className="polish-preview">
+            <div className="detail-label">Polished version — edit it here if you like</div>
+            <textarea value={polish.text} onChange={(e) => setPolish({ ...polish, text: e.target.value })} rows={8} />
+            <div className="polish-actions">
+              <button
+                type="button"
+                className="google-btn"
+                onClick={() => {
+                  setAgentNotes(polish.text);
+                  setPolish(null);
+                }}
+                title="Replace your notes with this version"
+              >
+                Use this
+              </button>
+              <button type="button" className="comps-status-btn" onClick={runPolish} title="Ask for a different version">
+                Try again
+              </button>
+              <button type="button" className="comps-status-btn" onClick={() => setPolish(null)} title="Keep your original notes">
+                Keep mine
+              </button>
+            </div>
+          </div>
+        )}
       </fieldset>
 
       <fieldset className="comp-attachments">

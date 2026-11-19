@@ -771,6 +771,15 @@ export async function createDropboxFolderForBuyer(transactionId) {
   return data;
 }
 
+/** ✨ Polish: AI rewrite of the CMA's Agent Notes (compliment → hurdles →
+ * excitement + tailored marketing). Returns the suggested text only. */
+export async function polishAgentNotes(notes, property) {
+  const { data, error } = await supabase.functions.invoke("polish-notes", { body: { notes, property } });
+  if (error) throw await functionError(error);
+  if (data?.error) throw new Error(data.error);
+  return data.text;
+}
+
 /** Uploads a generated comp PDF via the upload-comp-pdf Edge Function; routes to the
  * listing's Pitch Docs subfolder if Won, or the shared general comps repository otherwise.
  * kind "anr": the ANR/parcel map instead — into Showing Docs if the listing has
