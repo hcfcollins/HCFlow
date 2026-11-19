@@ -705,3 +705,27 @@ drop policy if exists agent_licenses_own_insert on storage.objects;
 create policy agent_licenses_own_insert on storage.objects for insert
   with check (bucket_id = 'agent-licenses' and (storage.foldername(name))[1] = current_agent_id()::text);
 notify pgrst, 'reload schema';
+
+-- New VT agents: 8 hrs Commission-approved post-licensing within 90 days of
+-- their first license (CE page → "First VT license date", set by Fran).
+alter table agents add column if not exists vt_first_licensed_on date;
+alter table ce_credits drop constraint if exists ce_credits_credit_type_check;
+alter table ce_credits add constraint ce_credits_credit_type_check check (credit_type in ('mandatory', 'elective', 'post_licensing'));
+insert into ce_requirements (key, label, mandatory_hours, elective_hours) values ('VT-post', 'Vermont post-licensing (new agents)', 8, 0) on conflict (key) do nothing;
+
+-- Buyer Packets: a record of each merged packet (not the file itself).
+create table if not exists buyer_packets (
+  id uuid primary key default gen_random_uuid(),
+  agent_id uuid not null references agents(id) on delete cascade,
+  address text not null,
+  file_name text,
+  file_count int,
+  page_count int,
+  created_at timestamptz not null default now()
+);
+alter table buyer_packets enable row level security;
+drop policy if exists buyer_packets_select on buyer_packets;
+create policy buyer_packets_select on buyer_packets for select using (is_broker() or agent_id = current_agent_id());
+drop policy if exists buyer_packets_insert on buyer_packets;
+create policy buyer_packets_insert on buyer_packets for insert with check (agent_id = current_agent_id());
+notify pgrst, 'reload schema';

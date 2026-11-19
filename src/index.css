@@ -1906,3 +1906,17 @@ textarea {
 .ce-req-row > strong { min-width: 150px; color: var(--color-navy); align-self: center; }
 .ce-req-row label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
 .ce-req-row input { width: 80px; }
+
+/* Buyer packets */
+.bp-list { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.bp-list li { padding: 4px 0; }
+.bp-list li > * { vertical-align: middle; }
+.bp-list li { display: list-item; }
+.bp-list li .license-status-actions { float: right; }
+.bp-name { margin-left: 6px; word-break: break-all; }
+.bp-item--skip .bp-name { color: var(--color-text-faint); text-decoration: line-through; }
+.ce-line--late .ce-line-fill { background: var(--color-danger-text); }
+.ce-line--late .ce-line-label strong { color: var(--color-danger-text); }
+.ce-first-license { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; }
+.ce-first-license label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; color: var(--color-navy); }
+.ce-first-license .field-help { margin: 0; flex: 1; min-width: 180px; }

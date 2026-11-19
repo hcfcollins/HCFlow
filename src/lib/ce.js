@@ -17,7 +17,11 @@ export const DEFAULT_REQUIREMENTS = {
   "VT-salesperson": { label: "Vermont salesperson", mandatory_hours: 4, elective_hours: 12 },
   "VT-broker": { label: "Vermont broker", mandatory_hours: 4, elective_hours: 20 },
   NH: { label: "New Hampshire", mandatory_hours: 3, elective_hours: 12 },
+  // New VT agents: Commission-approved post-licensing within 90 days of
+  // first getting their license. Separate from the regular CE hours.
+  "VT-post": { label: "Vermont post-licensing (new agents)", mandatory_hours: 8, elective_hours: 0 },
 };
+export const POST_LICENSING_DAYS = 90;
 export const STATE_NAMES = { VT: "Vermont", NH: "New Hampshire" };
 
 const extOf = (file) => (file.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "") || "pdf";
@@ -163,7 +167,7 @@ export function ceProgress(agent, state, reqKey, credits, requirements) {
   const inCycle = credits.filter((c) => c.agent_id === agent.id && c.state === state && String(c.completed_on || c.created_at).slice(0, 10) > cycle.start);
   const sum = (list, type) => list.filter((c) => c.credit_type === type).reduce((n, c) => n + (Number(c.hours) || 0), 0);
   const approved = inCycle.filter((c) => c.status === "approved");
-  const pending = inCycle.filter((c) => c.status === "pending");
+  const pending = inCycle.filter((c) => c.status === "pending" && c.credit_type !== "post_licensing");
   const m = sum(approved, "mandatory");
   const e = sum(approved, "elective");
   const mandatoryDone = Math.min(m, needM);
@@ -172,6 +176,34 @@ export function ceProgress(agent, state, reqKey, credits, requirements) {
   const done = mandatoryDone + electiveDone;
   const pendingHours = pending.reduce((n, c) => n + (Number(c.hours) || 0), 0);
   return { state, label: req.label, needM, needE, need, mandatoryDone, electiveDone, done, pendingHours, complete: done >= need, cycle };
+}
+
+/** New agents: post-licensing hours vs. what's needed, due 90 days after the
+ * first VT license (agents.vt_first_licensed_on, set by Fran). null if not a
+ * new agent. */
+export function postLicensingProgress(agent, credits, requirements) {
+  const first = agent?.vt_first_licensed_on;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(first || "")) return null;
+  const req = requirements["VT-post"] || DEFAULT_REQUIREMENTS["VT-post"];
+  const need = (Number(req.mandatory_hours) || 0) + (Number(req.elective_hours) || 0);
+  const mine = credits.filter((c) => c.agent_id === agent.id && c.credit_type === "post_licensing");
+  const hrs = (list) => list.reduce((n, c) => n + (Number(c.hours) || 0), 0);
+  const done = Math.min(hrs(mine.filter((c) => c.status === "approved")), need);
+  const [y, m, d] = first.split("-").map(Number);
+  const due = new Date(Date.UTC(y, m - 1, d + POST_LICENSING_DAYS)).toISOString().slice(0, 10);
+  const daysLeft = Math.round((Date.UTC(...due.split("-").map((v, i) => (i === 1 ? Number(v) - 1 : Number(v)))) - Date.now()) / 86400000);
+  return {
+    state: "VT",
+    title: "Post-licensing",
+    postLicensing: true,
+    label: req.label,
+    need,
+    done,
+    pendingHours: hrs(mine.filter((c) => c.status === "pending")),
+    complete: done >= need,
+    due,
+    daysLeft,
+  };
 }
 
 export const fmtHours = (n) => (Math.round(n * 10) / 10).toString();

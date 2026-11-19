@@ -19,8 +19,10 @@ import {
   reviewLicense,
   licensedStates,
   ceProgress,
+  postLicensingProgress,
   fmtHours,
 } from "../lib/ce";
+import { updateAgentFields } from "../lib/transactions";
 
 const isReviewer = (agent) => (agent?.email || "").toLowerCase() === REVIEWER_EMAIL;
 const LICENSE_LABEL = { vt: "Vermont license", nh: "New Hampshire license", broker: "Broker license" };
@@ -57,9 +59,9 @@ function ProgressLine({ p, compact = false }) {
   const pct = p.need ? Math.min(100, (p.done / p.need) * 100) : 100;
   const pendPct = p.need ? Math.min(100 - pct, (p.pendingHours / p.need) * 100) : 0;
   return (
-    <div className={`ce-line ${compact ? "ce-line--compact" : ""} ${p.complete ? "ce-line--done" : ""}`}>
+    <div className={`ce-line ${compact ? "ce-line--compact" : ""} ${p.complete ? "ce-line--done" : ""} ${p.postLicensing && !p.complete && p.daysLeft < 0 ? "ce-line--late" : ""}`}>
       <div className="ce-line-label">
-        <strong>{p.state} CE</strong>
+        <strong>{p.title || `${p.state} CE`}</strong>
         <span>
           {fmtHours(p.done)} of {fmtHours(p.need)} hrs{p.complete ? " ✓" : ""}
           {p.pendingHours > 0 && <em> · {fmtHours(p.pendingHours)} in review</em>}
@@ -69,7 +71,13 @@ function ProgressLine({ p, compact = false }) {
         <div className="ce-line-fill" style={{ width: `${pct}%` }} />
         {pendPct > 0 && <div className="ce-line-pending" style={{ left: `${pct}%`, width: `${pendPct}%` }} />}
       </div>
-      {!compact && (
+      {!compact && p.postLicensing && (
+        <div className="ce-line-sub">
+          Commission-approved post-licensing · due {longDate(p.due)}
+          {!p.complete && (p.daysLeft < 0 ? ` — ${-p.daysLeft} days overdue` : ` — ${p.daysLeft} days left`)}
+        </div>
+      )}
+      {!compact && !p.postLicensing && (
         <div className="ce-line-sub">
           Mandatory {fmtHours(p.mandatoryDone)}/{fmtHours(p.needM)} · Elective {fmtHours(p.electiveDone)}/{fmtHours(p.needE)}
           {p.cycle.fromLicense ? ` · cycle ends ${longDate(p.cycle.end)}` : " · last 2 years (add your license expiration for the exact cycle)"}
@@ -92,6 +100,10 @@ export function CeProgressStrip({ agent, onOpen }) {
   if (!data || !states.length || data.reqs._missing) return null;
   return (
     <button type="button" className="ce-strip" onClick={onOpen} title="Your continuing education — open CE & Licenses">
+      {(() => {
+        const post = postLicensingProgress(agent, data.credits, data.reqs);
+        return post && !post.complete ? <ProgressLine p={post} compact /> : null;
+      })()}
       {states.map(({ state, key }) => (
         <ProgressLine key={state} p={ceProgress(agent, state, key, data.credits, data.reqs)} compact />
       ))}
@@ -108,7 +120,7 @@ export function CeReviewCard({ agent, onOpen }) {
       .then(([credits, subs, agents]) => {
         const name = (id) => agents.find((a) => a.id === id)?.name?.split(" ")[0] || "An agent";
         setItems([
-          ...credits.filter((c) => c.status === "pending").map((c) => `${name(c.agent_id)}'s ${c.state} CE certificate (${fmtHours(c.hours)} hrs ${c.credit_type})`),
+          ...credits.filter((c) => c.status === "pending").map((c) => `${name(c.agent_id)}'s ${c.state} ${c.credit_type === "post_licensing" ? "post-licensing" : "CE"} certificate (${fmtHours(c.hours)} hrs${c.credit_type === "post_licensing" ? "" : ` ${c.credit_type}`})`),
           ...subs.filter((s) => s.status === "pending").map((s) => `${name(s.agent_id)}'s new ${LICENSE_LABEL[s.state] || "license"}`),
         ]);
       })
@@ -134,7 +146,11 @@ export function CeReviewCard({ agent, onOpen }) {
 }
 
 function CeUploadForm({ agent, states, autoApprove, onDone }) {
-  const [state, setState] = useState(states[0]?.state || "VT");
+  const [state, setStateRaw] = useState(states[0]?.state || "VT");
+  const setState = (v) => {
+    setStateRaw(v);
+    if (v !== "VT") setCreditType((t) => (t === "post_licensing" ? "elective" : t));
+  };
   const [creditType, setCreditType] = useState("elective");
   const [courseName, setCourseName] = useState("");
   const [hours, setHours] = useState("");
@@ -184,8 +200,12 @@ function CeUploadForm({ agent, states, autoApprove, onDone }) {
           options={[
             { value: "mandatory", label: "Mandatory (core)" },
             { value: "elective", label: "Elective" },
+            ...(state === "VT" ? [{ value: "post_licensing", label: "Post-licensing (new agents)" }] : []),
           ]}
         />
+        {creditType === "post_licensing" && (
+          <p className="field-help">New Vermont agents: 8 hours of Commission-approved post-licensing within 90 days of first getting your license. Tracked separately from regular CE.</p>
+        )}
       </div>
       <label>
         Course name
@@ -337,7 +357,7 @@ function ReviewList({ credits, submissions, agents, onError }) {
       {pendingCredits.map((c) => (
         <li key={c.id}>
           <div>
-            <strong>{name(c.agent_id)}</strong> — {c.state} {c.credit_type} CE, {fmtHours(c.hours)} hrs
+            <strong>{name(c.agent_id)}</strong> — {c.state} {c.credit_type === "post_licensing" ? "post-licensing" : `${c.credit_type} CE`}, {fmtHours(c.hours)} hrs
             <div className="field-help">
               {c.course_name || "Untitled course"}
               {c.completed_on ? ` · completed ${longDate(c.completed_on)}` : ""}
@@ -391,7 +411,7 @@ function RequirementsEditor({ reqs, onError }) {
   const showToast = useToast();
   return (
     <div className="ce-req-grid">
-      {["VT-salesperson", "VT-broker", "NH"].map((k) => (
+      {["VT-salesperson", "VT-broker", "NH", "VT-post"].map((k) => (
         <ReqRow key={k} k={k} req={reqs[k]} onError={onError} onSaved={() => showToast("Requirement saved")} />
       ))}
     </div>
@@ -421,6 +441,40 @@ function ReqRow({ k, req, onError, onSaved }) {
             saveRequirement(k, { mandatory_hours: Number(m) || 0, elective_hours: Number(e) || 0 })
               .then(onSaved)
               .catch((err) => onError(err.message))
+          }
+        >
+          Save
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Broker: the date a new agent first got their VT license — starts the
+ * 90-day post-licensing clock. */
+function FirstLicenseDate({ agent, onError }) {
+  const [v, setV] = useState(agent.vt_first_licensed_on || "");
+  const showToast = useToast();
+  useEffect(() => setV(agent.vt_first_licensed_on || ""), [agent.id, agent.vt_first_licensed_on]);
+  if (!("vt_first_licensed_on" in agent)) return <p className="field-help">Run the post-licensing SQL to track new agents.</p>;
+  return (
+    <div className="ce-first-license">
+      <label>
+        New agent? First VT license date
+        <input type="date" value={v} onChange={(e) => setV(e.target.value)} />
+      </label>
+      <span className="field-help">Starts the 90-day, 8-hour post-licensing clock. Leave blank for experienced agents.</span>
+      {v !== (agent.vt_first_licensed_on || "") && (
+        <button
+          type="button"
+          className="license-mini-btn"
+          onClick={() =>
+            updateAgentFields(agent.id, { vt_first_licensed_on: v || null })
+              .then(() => {
+                showToast("Saved");
+                window.dispatchEvent(new Event("hcflow:ce-changed"));
+              })
+              .catch((e) => onError(e.message))
           }
         >
           Save
@@ -501,9 +555,14 @@ export default function CeTracker({ currentAgent, onBack }) {
         <>
           <div className="detail-section">
             <h2 className="comps-section-title">{viewed.id === currentAgent.id ? "Where You Stand" : `${viewed.name.split(" ")[0]}'s CE`}</h2>
+            {(() => {
+              const post = postLicensingProgress(viewed, credits, reqs);
+              return post ? <ProgressLine p={post} /> : null;
+            })()}
             {states.map(({ state, key }) => (
               <ProgressLine key={state} p={ceProgress(viewed, state, key, credits, reqs)} />
             ))}
+            {isBroker && <FirstLicenseDate agent={viewed} onError={setError} />}
           </div>
 
           {viewed.id === currentAgent.id && (
@@ -526,7 +585,7 @@ export default function CeTracker({ currentAgent, onBack }) {
                     <div className="ce-credit-main">
                       <strong>{c.course_name || "CE course"}</strong>
                       <span className="field-help">
-                        {c.state} · {c.credit_type} · {fmtHours(c.hours)} hrs{c.completed_on ? ` · ${longDate(c.completed_on)}` : ""}
+                        {c.state} · {c.credit_type === "post_licensing" ? "post-licensing" : c.credit_type} · {fmtHours(c.hours)} hrs{c.completed_on ? ` · ${longDate(c.completed_on)}` : ""}
                         {c.status === "rejected" && c.review_note ? ` · “${c.review_note}”` : ""}
                       </span>
                     </div>

@@ -54,6 +54,7 @@ import DealDetail from "./components/DealDetail";
 import Celebration from "./components/Celebration";
 import ManageAgents from "./components/ManageAgents";
 import CeTracker, { CeProgressStrip, CeReviewCard } from "./components/CeTracker";
+import BuyerPackets from "./components/BuyerPackets";
 import SocialScheduler from "./components/SocialScheduler";
 import SpreadsheetView from "./components/SpreadsheetView";
 import DealImport from "./components/DealImport";
@@ -62,7 +63,7 @@ import { clientIsBuyer } from "./lib/missingInfo";
 import TutorialGuide from "./components/TutorialGuide";
 import AgentSpreadsheetView from "./components/AgentSpreadsheetView";
 import { SkeletonList } from "./components/Skeleton";
-import { LogOut, HelpCircle, ArrowLeft, GraduationCap } from "lucide-react";
+import { LogOut, HelpCircle, ArrowLeft, GraduationCap, Package } from "lucide-react";
 
 const STAGES = [
   { key: "comps", label: "Comp" },
@@ -117,6 +118,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showManageAgents, setShowManageAgents] = useState(false);
   const [showCeTracker, setShowCeTracker] = useState(false);
+  const [showBuyerPackets, setShowBuyerPackets] = useState(false);
   const [focusAgentId, setFocusAgentId] = useState(null); // open Manage Agents on this agent
   const [showSocialScheduler, setShowSocialScheduler] = useState(false);
   const [showSpreadsheetView, setShowSpreadsheetView] = useState(false);
@@ -762,6 +764,14 @@ export default function App() {
     );
   }
 
+  if (showBuyerPackets) {
+    return (
+      <div className="app">
+        <BuyerPackets currentAgent={agent} onBack={() => setShowBuyerPackets(false)} />
+      </div>
+    );
+  }
+
   if (showCeTracker) {
     return (
       <div className="app">
@@ -971,6 +981,9 @@ export default function App() {
           </div>
           <div className="main-header-right">
             <h1>Deal Flow</h1>
+            <button className="header-icon-btn" onClick={() => setShowBuyerPackets(true)} aria-label="Buyer Packets" title="Buyer Packets — merge PDFs, photos and zips into one packet for your buyer">
+              <Package size={18} />
+            </button>
             {agent?.role !== "coordinator" && (
               <button className="header-icon-btn" onClick={() => setShowCeTracker(true)} aria-label="CE & Licenses" title="CE & Licenses — your continuing education and license copies">
                 <GraduationCap size={18} />
