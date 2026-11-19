@@ -36,6 +36,7 @@ import {
   initialsFor,
   backfillDropboxFolderIds,
   fillAllZipCodes,
+  fetchAgents as fetchAgentRoster,
 } from "./lib/transactions";
 import { TodoActionsContext } from "./lib/TodoActionsContext";
 import { buildUtilityEmail, openEmailCompose } from "./lib/clientEmail";
@@ -131,6 +132,12 @@ export default function App() {
   // Broker-only previews: null (normal), "agent", or "coordinator" (TC View).
   const [viewAs, setViewAs] = useState(null);
   const viewAsAgent = viewAs === "agent";
+  // View as Agent: which agent (null = yourself, as a plain agent).
+  const [viewAsAgentId, setViewAsAgentId] = useState(null);
+  const [agentRoster, setAgentRoster] = useState([]);
+  useEffect(() => {
+    if (viewAsAgent && !agentRoster.length) fetchAgentRoster().then(setAgentRoster).catch(() => {});
+  }, [viewAsAgent, agentRoster.length]);
   const showToast = useToast();
 
   useEffect(() => {
@@ -714,7 +721,8 @@ export default function App() {
   // Transaction coordinator: sees every deal (RLS is_staff()) and the
   // Spreadsheet View with all commission figures stripped, but not Manage
   // Agents, the Social Scheduler, or View as Agent.
-  const effectiveAgent = viewAs ? { ...agent, role: viewAs } : agent;
+  const viewedAgent = viewAsAgent && viewAsAgentId ? agentRoster.find((a) => a.id === viewAsAgentId) || null : null;
+  const effectiveAgent = viewAsAgent && viewedAgent ? { ...viewedAgent, role: "agent" } : viewAs ? { ...agent, role: viewAs } : agent;
   const isCoordinator = effectiveAgent.role === "coordinator";
   const viewerStages = effectiveAgent.role === "broker" ? STAGES : NON_BROKER_STAGES;
 
@@ -902,7 +910,8 @@ export default function App() {
 
   // A broker previewing "as agent" should see exactly what that agent would see —
   // just their own deals — same as RLS would actually enforce for a real agent.
-  const visibleTxs = viewAsAgent ? txs.filter((tx) => tx.agent_id === agent.id || tx.colist_agent_id === agent.id) : txs;
+  const viewAsId = viewedAgent?.id || agent.id;
+  const visibleTxs = viewAsAgent ? txs.filter((tx) => tx.agent_id === viewAsId || tx.colist_agent_id === viewAsId) : txs;
   const trimmedQuery = searchQuery.trim().toLowerCase();
   const isSearching = trimmedQuery.length > 0;
   const searchResults = isSearching
@@ -1002,6 +1011,24 @@ export default function App() {
                 {viewAs === "agent" ? "View as Broker" : "View as Agent"}
               </button>
             )}
+            {isRealBroker && viewAsAgent && (
+              <select
+                className="view-as-picker"
+                value={viewAsAgentId || ""}
+                onChange={(e) => setViewAsAgentId(e.target.value || null)}
+                title="Which agent to see the app as"
+                aria-label="View as which agent"
+              >
+                <option value="">Myself (as an agent)</option>
+                {agentRoster
+                  .filter((a) => a.id !== agent.id)
+                  .map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+              </select>
+            )}
             {isRealBroker && (
               <button onClick={() => setViewAs((v) => (v === "coordinator" ? null : "coordinator"))} title="Broker only — preview the app as the transaction coordinator would see it">
                 {viewAs === "coordinator" ? "View as Broker" : "TC View"}
@@ -1028,10 +1055,12 @@ export default function App() {
       </header>
 
       {!viewAs && <CeReviewCard agent={agent} onOpen={() => setShowCeTracker(true)} />}
-      {!viewAs && <CeProgressStrip agent={agent} onOpen={() => setShowCeTracker(true)} />}
+      {(!viewAs || viewAsAgent) && <CeProgressStrip agent={viewAsAgent ? effectiveAgent : agent} onOpen={() => setShowCeTracker(true)} />}
 
       {viewAsAgent && (
-        <div className="view-as-banner">Viewing as an agent would — showing only your own deals.</div>
+        <div className="view-as-banner">
+          {viewedAgent ? `Viewing as ${viewedAgent.name} — only their deals, the way they see the app. Actions are still real.` : "Viewing as an agent would — showing only your own deals."}
+        </div>
       )}
       {viewAs === "coordinator" && (
         <div className="view-as-banner">

@@ -1920,3 +1920,4 @@ textarea {
 .ce-first-license { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; }
 .ce-first-license label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; color: var(--color-navy); }
 .ce-first-license .field-help { margin: 0; flex: 1; min-width: 180px; }
+.view-as-picker { width: auto; max-width: 200px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--color-border-input); font-size: 13px; background: var(--color-white); color: var(--color-navy); }
