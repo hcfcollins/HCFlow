@@ -693,7 +693,7 @@ function LicenseEditor({ agent, state, label, onChanged }) {
 }
 
 /** Expiration date (saved with a button) + upload/view a copy, for any license record. */
-function LicenseFields({ record, expKey, pathKey, numberKey, label, saveFields, uploadFile, afterChange, onChanged }) {
+function LicenseFields({ record, expKey, pathKey, numberKey, numberLabel = "License #", label, saveFields, uploadFile, afterChange, onChanged }) {
   const agent = record;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -737,7 +737,7 @@ function LicenseFields({ record, expKey, pathKey, numberKey, label, saveFields, 
       await uploadFile(file);
       onChanged();
       copyToDropbox();
-      showToast(`${label} license uploaded`);
+      showToast(`${label}${/policy/i.test(label) ? "" : " license"} uploaded`);
     } catch (e) {
       setError(e.message.includes("Bucket not found") ? "The license storage isn't set up yet — run the license SQL first." : e.message);
     } finally {
@@ -801,7 +801,7 @@ function LicenseFields({ record, expKey, pathKey, numberKey, label, saveFields, 
       </div>
 
       {/* License number — printed on commission statements. Shown once the column exists. */}
-      {numberKey && numberKey in agent && <LicenseNumberRow value={agent[numberKey] || ""} onSave={(v) => saveFields({ [numberKey]: v || null }).then(onChanged)} />}
+      {numberKey && numberKey in agent && <LicenseNumberRow label={numberLabel} value={agent[numberKey] || ""} onSave={(v) => saveFields({ [numberKey]: v || null }).then(onChanged)} />}
 
       {/* Expiration date */}
       <div className={`license-status-row ${expires ? (left < 0 ? "license-status-row--bad" : "license-status-row--ok") : "license-status-row--missing"}`}>
@@ -860,7 +860,7 @@ function LicenseFields({ record, expKey, pathKey, numberKey, label, saveFields, 
 }
 
 /** "License #" with an inline edit + Save. */
-function LicenseNumberRow({ value, onSave }) {
+function LicenseNumberRow({ value, onSave, label = "License #" }) {
   const [draft, setDraft] = useState(value);
   const [busy, setBusy] = useState(false);
   const showToast = useToast();
@@ -870,7 +870,7 @@ function LicenseNumberRow({ value, onSave }) {
     <div className={`license-status-row ${value ? "license-status-row--ok" : "license-status-row--missing"}`}>
       {value ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
       <span className="license-status-text license-number-field">
-        <strong>License #</strong>
+        <strong>{label}</strong>
         <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="e.g. 081.0134567" disabled={busy} />
       </span>
       {changed && (
@@ -1018,6 +1018,37 @@ function BrokerageLicenses({ focused = false }) {
               saveFields={(patch) => saveBrokerageLicense(st, patch)}
               uploadFile={(file) => uploadBrokerageLicense(st, file)}
               afterChange={() => syncAgentDocsToDropbox({ brokerage: st })}
+              onChanged={load}
+            />
+          );
+        })
+      )}
+
+      <h2 className="comps-section-title" style={{ marginTop: 18 }}>
+        Insurance Policies
+      </h2>
+      <p className="field-help">This year's policies. Renewal reminders go to Fran at 3 months, 1 month, 2 weeks, and 1 day before the policy ends.</p>
+      {rows && !rows.some((r) => r.state === "BOP") ? (
+        <p className="field-help dbx-picker-error">Run the insurance policy SQL first.</p>
+      ) : (
+        rows &&
+        [
+          ["BOP", "Business Owner's Policy"],
+          ["EO", "Errors & Omissions Policy"],
+        ].map(([key, label]) => {
+          const row = rows.find((r) => r.state === key) || { state: key };
+          return (
+            <LicenseFields
+              key={key}
+              record={row}
+              expKey="expires"
+              pathKey="license_path"
+              numberKey="license_number"
+              numberLabel="Policy #"
+              label={label}
+              saveFields={(patch) => saveBrokerageLicense(key, patch)}
+              uploadFile={(file) => uploadBrokerageLicense(key, file)}
+              afterChange={() => syncAgentDocsToDropbox({ brokerage: key })}
               onChanged={load}
             />
           );

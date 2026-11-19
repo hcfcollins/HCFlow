@@ -53,6 +53,7 @@ import NewCompForm from "./components/NewCompForm";
 import DealDetail from "./components/DealDetail";
 import Celebration from "./components/Celebration";
 import ManageAgents from "./components/ManageAgents";
+import CeTracker, { CeProgressStrip, CeReviewCard } from "./components/CeTracker";
 import SocialScheduler from "./components/SocialScheduler";
 import SpreadsheetView from "./components/SpreadsheetView";
 import DealImport from "./components/DealImport";
@@ -61,7 +62,7 @@ import { clientIsBuyer } from "./lib/missingInfo";
 import TutorialGuide from "./components/TutorialGuide";
 import AgentSpreadsheetView from "./components/AgentSpreadsheetView";
 import { SkeletonList } from "./components/Skeleton";
-import { LogOut, HelpCircle, ArrowLeft } from "lucide-react";
+import { LogOut, HelpCircle, ArrowLeft, GraduationCap } from "lucide-react";
 
 const STAGES = [
   { key: "comps", label: "Comp" },
@@ -115,6 +116,7 @@ export default function App() {
   const [pageIndex, setPageIndex] = useState(2); // Under Contract — see PAGES in DealPages.jsx
   const [searchQuery, setSearchQuery] = useState("");
   const [showManageAgents, setShowManageAgents] = useState(false);
+  const [showCeTracker, setShowCeTracker] = useState(false);
   const [focusAgentId, setFocusAgentId] = useState(null); // open Manage Agents on this agent
   const [showSocialScheduler, setShowSocialScheduler] = useState(false);
   const [showSpreadsheetView, setShowSpreadsheetView] = useState(false);
@@ -760,6 +762,14 @@ export default function App() {
     );
   }
 
+  if (showCeTracker) {
+    return (
+      <div className="app">
+        <CeTracker currentAgent={agent} onBack={() => setShowCeTracker(false)} />
+      </div>
+    );
+  }
+
   if (showManageAgents) {
     return (
       <div className="app">
@@ -961,6 +971,11 @@ export default function App() {
           </div>
           <div className="main-header-right">
             <h1>Deal Flow</h1>
+            {agent?.role !== "coordinator" && (
+              <button className="header-icon-btn" onClick={() => setShowCeTracker(true)} aria-label="CE & Licenses" title="CE & Licenses — your continuing education and license copies">
+                <GraduationCap size={18} />
+              </button>
+            )}
             <NotificationBell transactions={txs} onOpenDeal={setSelectedTransaction} />
             <button className="header-icon-btn" onClick={signOut} aria-label="Sign out" title="Sign out">
               <LogOut size={18} />
@@ -998,6 +1013,9 @@ export default function App() {
           </div>
         )}
       </header>
+
+      {!viewAs && <CeReviewCard agent={agent} onOpen={() => setShowCeTracker(true)} />}
+      {!viewAs && <CeProgressStrip agent={agent} onOpen={() => setShowCeTracker(true)} />}
 
       {viewAsAgent && (
         <div className="view-as-banner">Viewing as an agent would — showing only your own deals.</div>

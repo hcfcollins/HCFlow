@@ -362,13 +362,12 @@ function justListedHtml(tx: Record<string, any>, packetUrl: string, hasPhoto: bo
     .filter(([, v]) => v)
     .map(([k, v]) => `<tr><td style="padding:4px 14px 4px 0;color:#666;white-space:nowrap;">${esc(k)}</td><td style="padding:4px 0;"><strong>${esc(v)}</strong></td></tr>`)
     .join("");
-  const highlights = String(tx.features_notes || "").trim();
   return `<div style="font-family:Arial,sans-serif;color:#173348;max-width:640px;">
 <p style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#C7155B;margin:0 0 4px;"><strong>Just Listed</strong></p>
 <h2 style="margin:0 0 12px;font-family:Georgia,serif;">${esc(tx.address)}${tx.town ? `, ${esc(tx.town)}` : ""}</h2>
 ${hasPhoto ? `<img src="cid:cover" alt="${esc(tx.address)}" style="width:100%;max-width:640px;border-radius:10px;display:block;margin:0 0 14px;"/>` : ""}
 <table style="border-collapse:collapse;font-size:14px;margin:0 0 12px;">${table}</table>
-${highlights ? `<p style="margin:0 0 4px;"><strong>Highlights</strong></p><p style="margin:0 0 14px;white-space:pre-line;">${esc(highlights)}</p>` : ""}
+
 <p style="margin:18px 0;"><a href="${esc(packetUrl)}" style="background:#C7155B;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:bold;display:inline-block;">View the listing packet</a></p>
 <p>Know a buyer who'd love it? Reply to reach ${esc(String(tx.agent?.name || "the listing agent").split(/\s+/)[0])}.</p>
 <p><em>Love, Jeeves — your happy Hall Collins robot!</em></p>

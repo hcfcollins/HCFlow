@@ -314,8 +314,15 @@ async function sendLicenseReminders(accessToken: string, today: string, testMode
       if (!due.length) continue;
       const step = due[due.length - 1];
       const stateName = STATE_NAME[row.state] || row.state;
-      const subject = `License reminder: the ${stateName} BROKERAGE license expires ${step.when}`;
-      const html = `<p>Hi Fran,</p>
+      // BOP / EO rows are the firm's insurance policies, not licenses.
+      const POLICY: Record<string, string> = { BOP: "Business Owner's insurance policy", EO: "Errors & Omissions insurance policy" };
+      const policy = POLICY[row.state];
+      const subject = policy ? `Insurance reminder: the ${policy} ends ${step.when}` : `License reminder: the ${stateName} BROKERAGE license expires ${step.when}`;
+      const html = policy
+        ? `<p>Hi Fran,</p>
+<p>Hall Collins Real Estate Group's <strong>${policy}</strong> ends <strong>${step.when}</strong>, on <strong>${longDate(row.expires)}</strong>.</p>
+<p>${step.days >= 30 ? "Time to get the renewal started." : "Please renew as soon as possible."} Once it's renewed, upload the new policy and end date on Manage Agents → Insurance Policies.</p>`
+        : `<p>Hi Fran,</p>
 <p>Hall Collins Real Estate Group's <strong>${stateName} brokerage (firm) license</strong> expires <strong>${step.when}</strong>, on <strong>${longDate(row.expires)}</strong>.</p>
 <p>${step.days >= 30 ? "Time to get the renewal started." : "Please renew as soon as possible."} Once it's renewed, upload the new license and expiration date on Manage Agents → Brokerage Licenses.</p>
 <p><em>Love, Jeeves — your happy Hall Collins robot!</em></p>`;
@@ -327,7 +334,7 @@ async function sendLicenseReminders(accessToken: string, today: string, testMode
             await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
               method: "POST",
               headers: { ...serviceHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
-              body: JSON.stringify([{ recipient_agent_id: fran.id, transaction_id: null, kind: "todo_assigned", message: `The ${stateName} brokerage license expires ${step.when} (${longDate(row.expires)}).` }]),
+              body: JSON.stringify([{ recipient_agent_id: fran.id, transaction_id: null, kind: "todo_assigned", message: policy ? `The ${policy} ends ${step.when} (${longDate(row.expires)}).` : `The ${stateName} brokerage license expires ${step.when} (${longDate(row.expires)}).` }]),
             });
           }
           log[key] = [...new Set([...already, ...LICENSE_STEPS.filter((s) => s.days >= step.days).map((s) => s.days)])];

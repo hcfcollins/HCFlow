@@ -177,7 +177,11 @@ async function syncBrokerage(token: string, state: string, copied: string[], ski
     return;
   }
   const bytes = await fromStorage(row.license_path);
-  const target = `${ADMIN}/Active Licenses/${state} Licenses/${FIRM} - ${state} Brokerage License - Exp ${expText(row.expires)}.${ext(row.license_path)}`;
+  // BOP / EO are the firm's insurance policies → the Insurance folder.
+  const policy: Record<string, string> = { BOP: "Business Owners Policy", EO: "Errors and Omissions Policy" };
+  const target = policy[state]
+    ? `${ADMIN}/Insurance/${FIRM} - ${policy[state]} - Exp ${expText(row.expires)}.${ext(row.license_path)}`
+    : `${ADMIN}/Active Licenses/${state} Licenses/${FIRM} - ${state} Brokerage License - Exp ${expText(row.expires)}.${ext(row.license_path)}`;
   await upload(token, target, bytes);
   copied.push(target);
 }

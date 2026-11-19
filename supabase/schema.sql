@@ -623,3 +623,85 @@ notify pgrst, 'reload schema';
 -- Yard sign pickup confirmed (card "Pick Up Sign" / Ready for Closeout).
 alter table transactions add column if not exists sign_picked_up_at timestamptz;
 notify pgrst, 'reload schema';
+
+-- ============================================================
+-- Brokerage insurance policies (Manage Agents → Insurance Policies): rows
+-- 'BOP' (Business Owner's Policy) and 'EO' (Errors & Omissions) in
+-- brokerage_licenses — same copy / end date / reminders as the firm licenses.
+-- ============================================================
+alter table brokerage_licenses drop constraint if exists brokerage_licenses_state_check;
+alter table brokerage_licenses add constraint brokerage_licenses_state_check check (state in ('VT', 'NH', 'BOP', 'EO'));
+insert into brokerage_licenses (state) values ('BOP'), ('EO') on conflict (state) do nothing;
+
+-- ============================================================
+-- CE tracker: requirements per 2-year cycle, agents' CE certificates, and
+-- agent-uploaded license renewals — both wait for Fran's review.
+-- ============================================================
+create table if not exists ce_requirements (
+  key text primary key, -- 'VT-salesperson' | 'VT-broker' | 'NH'
+  label text not null,
+  mandatory_hours numeric not null default 0,
+  elective_hours numeric not null default 0,
+  updated_at timestamptz not null default now()
+);
+insert into ce_requirements (key, label, mandatory_hours, elective_hours) values
+  ('VT-salesperson', 'Vermont salesperson', 4, 12),
+  ('VT-broker', 'Vermont broker', 4, 20),
+  ('NH', 'New Hampshire', 3, 12)
+on conflict (key) do nothing;
+alter table ce_requirements enable row level security;
+drop policy if exists ce_requirements_select on ce_requirements;
+create policy ce_requirements_select on ce_requirements for select using (auth.uid() is not null);
+drop policy if exists ce_requirements_write on ce_requirements;
+create policy ce_requirements_write on ce_requirements for all using (is_broker()) with check (is_broker());
+
+create table if not exists ce_credits (
+  id uuid primary key default gen_random_uuid(),
+  agent_id uuid not null references agents(id) on delete cascade,
+  state text not null check (state in ('VT', 'NH')),
+  credit_type text not null check (credit_type in ('mandatory', 'elective')),
+  course_name text,
+  hours numeric not null check (hours > 0),
+  completed_on date,
+  file_path text,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  review_note text,
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists ce_credits_agent_idx on ce_credits (agent_id);
+alter table ce_credits enable row level security;
+drop policy if exists ce_credits_select on ce_credits;
+create policy ce_credits_select on ce_credits for select using (is_broker() or agent_id = current_agent_id());
+drop policy if exists ce_credits_insert on ce_credits;
+create policy ce_credits_insert on ce_credits for insert with check (is_broker() or (agent_id = current_agent_id() and status = 'pending'));
+drop policy if exists ce_credits_update on ce_credits;
+create policy ce_credits_update on ce_credits for update using (is_broker());
+drop policy if exists ce_credits_delete on ce_credits;
+create policy ce_credits_delete on ce_credits for delete using (is_broker() or (agent_id = current_agent_id() and status <> 'approved'));
+
+create table if not exists license_submissions (
+  id uuid primary key default gen_random_uuid(),
+  agent_id uuid not null references agents(id) on delete cascade,
+  state text not null check (state in ('vt', 'nh', 'broker')),
+  file_path text not null,
+  expires date,
+  license_number text,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  review_note text,
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table license_submissions enable row level security;
+drop policy if exists license_submissions_select on license_submissions;
+create policy license_submissions_select on license_submissions for select using (is_broker() or agent_id = current_agent_id());
+drop policy if exists license_submissions_insert on license_submissions;
+create policy license_submissions_insert on license_submissions for insert with check (is_broker() or (agent_id = current_agent_id() and status = 'pending'));
+drop policy if exists license_submissions_update on license_submissions;
+create policy license_submissions_update on license_submissions for update using (is_broker());
+
+-- Agents may upload into their own folder of the private agent-licenses bucket.
+drop policy if exists agent_licenses_own_insert on storage.objects;
+create policy agent_licenses_own_insert on storage.objects for insert
+  with check (bucket_id = 'agent-licenses' and (storage.foldername(name))[1] = current_agent_id()::text);
+notify pgrst, 'reload schema';
