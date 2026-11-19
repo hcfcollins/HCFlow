@@ -8,6 +8,7 @@ import { focusNextOnEnter } from "../lib/formKeyNav";
 import { streetOf } from "../lib/folderOrganizer";
 import { ROAD_FRONTAGE_OPTIONS, PARCEL_CHARACTER_OPTIONS, PERC_STATUS_OPTIONS, LAND_DEV_ITEMS, LAND_PER_ACRE } from "../lib/compPdf/landPricing";
 import { UTILITY_OPTIONS } from "../lib/compPdf/capRateMath";
+import { LandEstimate, IncomeAnalysis, suggestedPrices } from "./CompValuationPreview";
 import {
   TIMEFRAMES,
   PROPERTY_STYLES,
@@ -108,7 +109,7 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
   const [beds, setBeds] = useState(transaction.beds ?? "");
   const [baths, setBaths] = useState(transaction.baths ?? "");
   const [garageSpaces, setGarageSpaces] = useState(transaction.garage_spaces ?? "");
-  const [lotAcres, setLotAcres] = useState(transaction.lot_acres ?? "");
+  const [lotAcres, setLotAcres] = useState(transaction.lot_acres ?? saved.land?.acres ?? "");
   const [yearBuilt, setYearBuilt] = useState(transaction.year_built ?? "");
   const [featuresNotes, setFeaturesNotes] = useState(transaction.features_notes || "");
   const [finishesNote, setFinishesNote] = useState(transaction.finishes_note || "");
@@ -144,19 +145,14 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
         town: transaction.town,
         seller: sellerName,
         propertyStyle,
-        beds,
-        baths,
+        ...(isLand
+          ? { roadFrontage: land.roadFrontage, parcelCharacter: land.parcelCharacter, percSoilWork: land.percStatus, improvementsDone: LAND_DEV_ITEMS.filter((i) => land.devItems[i.key]).map((i) => i.label) }
+          : { beds, baths, yearBuilt, garageSpaces, heating: heatingSystem, basement, water: waterSource, septic, solar: solar === NOT_SPECIFIED ? "" : solar }),
+        ...(isMultiFamily ? { units: mf.units, includedInRent: mf.includedUtilities } : {}),
         lotAcres,
-        yearBuilt,
-        garageSpaces,
-        heating: heatingSystem,
-        basement,
-        water: waterSource,
-        septic,
-        solar: solar === NOT_SPECIFIED ? "" : solar,
         view: hasView === NOT_SPECIFIED ? "" : hasView,
         features: featuresNotes,
-        finishes: finishesNote,
+        finishes: isLand ? "" : finishesNote,
         boundaries: boundaryNotes,
         recommendations,
         priceRangeLow: priceLow,
@@ -169,6 +165,13 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
       setPolish({ status: "error", error: e.message });
     }
   }
+  // Land uses the one Lot Size field; the income analysis runs at the recommended price.
+  const landForCalc = { ...land, acres: lotAcres };
+  const priceForCap = Number(priceRec) || Number(priceHigh) || 0;
+  const suggestion = suggestedPrices({ isLand, isMultiFamily, land: landForCalc, mf, priceForCap });
+  const suggestionApplied =
+    suggestion && Number(priceLow) === suggestion.low && Number(priceHigh) === suggestion.high && Number(priceRec) === suggestion.rec;
+
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState(null);
   const [resultUrl, setResultUrl] = useState(transaction.last_comp_url || null);
@@ -219,7 +222,7 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
       priceRec: rec,
       priceNotes,
       agentNotes,
-      land: isLand ? { ...land, acres: Number(land.acres) || 0 } : undefined,
+      land: isLand ? { ...land, acres: Number(lotAcres) || 0 } : undefined,
       multiFamily: isMultiFamily
         ? {
             ...mf,
@@ -261,7 +264,8 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
       has_view: hasView === NOT_SPECIFIED ? null : hasView,
       solar: solar === NOT_SPECIFIED ? null : solar,
       boundary_notes: boundaryNotes || null,
-      recommendations,
+      // Drop recommendations that don't apply to this type (e.g. staging on land).
+      recommendations: recommendations.filter((r) => recommendationOptionsFor(propertyStyle).includes(r)),
     };
     // Used for PDF generation immediately, since the `transaction` prop won't reflect
     // these edits until the parent reloads.
@@ -349,6 +353,8 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
           <div className="detail-label">Property Type</div>
           <RadioGroup name="propertyType" value={propertyStyle} onChange={setPropertyStyle} options={PROPERTY_STYLES} />
         </div>
+        {!isLand && (
+          <>
         <div>
           <div className="detail-label">Electrical</div>
           <RadioGroup name="electrical" value={electrical} onChange={setElectrical} options={ELECTRICAL_OPTIONS} />
@@ -370,6 +376,8 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
           Septic (type and where it is)
           <input value={septic} onChange={(e) => setSeptic(e.target.value)} placeholder="e.g. Conventional, front yard" />
         </label>
+          </>
+        )}
         <div>
           <div className="detail-label">Recommendations</div>
           <CheckboxGroup name="recommendations" values={recommendations} onChange={setRecommendations} options={recommendationOptionsFor(propertyStyle)} />
@@ -377,8 +385,10 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
       </fieldset>
 
       <fieldset>
-        <legend>Subject Property Stats</legend>
+        <legend>{isLand ? "Parcel Details" : "Subject Property Stats"}</legend>
         <p className="field-help">Appears in the Subject Property Overview section of the generated CMA.</p>
+        {!isLand && (
+          <>
         <label>
           Bedrooms
           <input type="number" min="0" value={beds} onChange={(e) => setBeds(e.target.value)} />
@@ -399,10 +409,19 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
           Year Built
           <input type="number" min="1700" max="2100" value={yearBuilt} onChange={(e) => setYearBuilt(e.target.value)} />
         </label>
+          </>
+        )}
         <label>
           Notable Features / Highlights
-          <textarea value={featuresNotes} onChange={(e) => setFeaturesNotes(e.target.value)} rows={2} />
+          <textarea
+            value={featuresNotes}
+            onChange={(e) => setFeaturesNotes(e.target.value)}
+            rows={2}
+            placeholder={isLand ? "e.g. Southern exposure, open meadow, stone walls, brook, mountain views, build sites…" : ""}
+          />
         </label>
+        {!isLand && (
+          <>
         <label>
           Quality of Finishes
           <textarea value={finishesNote} onChange={(e) => setFinishesNote(e.target.value)} rows={2} />
@@ -427,6 +446,8 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
             ))}
           </select>
         </label>
+          </>
+        )}
         <label>
           View
           <select value={hasView} onChange={(e) => setHasView(e.target.value)}>
@@ -435,50 +456,33 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
             ))}
           </select>
         </label>
-        <label>
-          Solar
-          <select value={solar} onChange={(e) => setSolar(e.target.value)}>
-            {SOLAR_OPTIONS.map((o) => (
-              <option key={o} value={o}>{o}</option>
-            ))}
-          </select>
-        </label>
+        {!isLand && (
+          <label>
+            Solar
+            <select value={solar} onChange={(e) => setSolar(e.target.value)}>
+              {SOLAR_OPTIONS.map((o) => (
+                <option key={o} value={o}>{o}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           Notes on Boundary Lines
           <textarea value={boundaryNotes} onChange={(e) => setBoundaryNotes(e.target.value)} rows={2} />
         </label>
       </fieldset>
 
-      <fieldset>
-        <legend>Price Band</legend>
-        <label>
-          Lowest Price — As-Is ($)
-          <input type="number" value={priceLow} onChange={(e) => setPriceLow(e.target.value)} placeholder="e.g. 400000" required />
-        </label>
-        <label>
-          Highest Price — Instagram-Worthy ($)
-          <input type="number" value={priceHigh} onChange={(e) => setPriceHigh(e.target.value)} placeholder="e.g. 450000" required />
-        </label>
-        <label>
-          Recommended List Price ($)
-          <input type="number" value={priceRec} onChange={(e) => setPriceRec(e.target.value)} placeholder="e.g. 425000" required />
-        </label>
-        <label>
-          Agent Pricing Notes
-          <textarea value={priceNotes} onChange={(e) => setPriceNotes(e.target.value)} rows={2} placeholder="Rationale behind the price…" />
-        </label>
-      </fieldset>
-
       {isLand && (
         <fieldset>
           <legend>Land Valuation</legend>
+          <p className="field-help">Land is priced on a sliding scale by how much development is already done. Fill this in and the model suggests a price range for the CMA.</p>
           <label>
             Lot Size (acres)
-            <input type="number" step="any" value={land.acres} onChange={(e) => updateLand({ acres: e.target.value })} />
+            <input type="number" min="0" step="any" value={lotAcres} onChange={(e) => setLotAcres(e.target.value)} />
           </label>
           {(() => {
             const rate = Number(land.perAcre) > 0 ? Number(land.perAcre) : LAND_PER_ACRE;
-            const acres = Number(land.acres) || 0;
+            const acres = Number(lotAcres) || 0;
             return (
               <label>
                 Price per Acre ($)
@@ -518,6 +522,7 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
               options={LAND_DEV_ITEMS.map((i) => ({ value: i.key, label: `${i.label} (+$${i.value.toLocaleString()})` }))}
             />
           </div>
+          <LandEstimate land={landForCalc} />
           <div className="detail-label">Land Comparable Sales (optional, up to 3)</div>
           {land.comps.map((c, i) => (
             <div key={i} className="land-comp-row">
@@ -533,13 +538,19 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
       {isMultiFamily && (
         <fieldset>
           <legend>Multi-Family Income Analysis</legend>
+          <p className="field-help">Fill in income and expenses — the cap rate and an income-based price range are figured live and included in the CMA.</p>
           <label>
             Number of Units
-            <input type="number" min={1} max={20} value={mf.units} onChange={(e) => setUnitCount(Number(e.target.value) || 1)} />
+            <input type="number" min={2} max={20} value={mf.units} onChange={(e) => setUnitCount(Math.min(20, Math.max(2, Number(e.target.value) || 2)))} />
           </label>
+          <div className="unit-rent-row unit-rent-head">
+            <span>Unit description</span>
+            <span>Current rent/mo</span>
+            <span>Market rent/mo</span>
+          </div>
           {mf.unitRents.map((u, i) => (
             <div key={i} className="unit-rent-row">
-              <input placeholder={`Unit ${i + 1} description`} value={u.label} onChange={(e) => updateUnitRent(i, { label: e.target.value })} />
+              <input placeholder={`Unit ${i + 1} — e.g. 2BR/1BA upstairs`} value={u.label} onChange={(e) => updateUnitRent(i, { label: e.target.value })} />
               <input type="number" placeholder="Current rent/mo" value={u.current} onChange={(e) => updateUnitRent(i, { current: e.target.value })} />
               <input type="number" placeholder="Market rent/mo" value={u.market} onChange={(e) => updateUnitRent(i, { market: e.target.value })} />
             </div>
@@ -567,6 +578,7 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
           <label>
             Capital Reserve (% of gross rent)
             <input type="number" step="0.5" value={mf.reservePct} onChange={(e) => updateMf({ reservePct: e.target.value })} />
+            <span className="field-help">For big replacements (roof, heating, appliances, paint). Rule of thumb: 5% for newer or well-kept buildings, 8–10% for older ones or aging systems.</span>
           </label>
           <p className="field-help">Financing (optional — leave down payment or rate at 0 to skip cash-on-cash/financing sections)</p>
           <label>
@@ -581,8 +593,56 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
             Loan Term (years)
             <input type="number" value={mf.loanTermYrs} onChange={(e) => updateMf({ loanTermYrs: e.target.value })} />
           </label>
+          <IncomeAnalysis mf={mf} priceForCap={priceForCap} />
         </fieldset>
       )}
+
+      <fieldset>
+        <legend>Price Band</legend>
+        {suggestion && (
+          <div className="cma-suggest">
+            <span>
+              💡 <strong>{suggestion.source === "land" ? "Land valuation suggestion" : "Income-based suggestion"}</strong> —{" "}
+              {suggestion.source === "land"
+                ? `the model suggests $${suggestion.rec.toLocaleString()} (range $${suggestion.low.toLocaleString()} – $${suggestion.high.toLocaleString()}).`
+                : `a 7–11% cap rate on current NOI implies $${suggestion.low.toLocaleString()} – $${suggestion.high.toLocaleString()}.${suggestion.marketCeiling ? ` Market rents support up to $${suggestion.marketCeiling.toLocaleString()}.` : ""}`}{" "}
+              Adjust for comps and condition.
+            </span>
+            {suggestionApplied ? (
+              <span className="field-help">Using these ✓</span>
+            ) : (
+              <button
+                type="button"
+                className="comps-status-btn"
+                onClick={() => {
+                  setPriceLow(String(suggestion.low));
+                  setPriceHigh(String(suggestion.high));
+                  setPriceRec(String(suggestion.rec));
+                }}
+                title="Fill the low, high and recommended prices with this suggestion"
+              >
+                Use these prices
+              </button>
+            )}
+          </div>
+        )}
+        <label>
+          Lowest Price — As-Is ($)
+          <input type="number" value={priceLow} onChange={(e) => setPriceLow(e.target.value)} placeholder="e.g. 400000" required />
+        </label>
+        <label>
+          Highest Price — Instagram-Worthy ($)
+          <input type="number" value={priceHigh} onChange={(e) => setPriceHigh(e.target.value)} placeholder="e.g. 450000" required />
+        </label>
+        <label>
+          Recommended List Price ($)
+          <input type="number" value={priceRec} onChange={(e) => setPriceRec(e.target.value)} placeholder="e.g. 425000" required />
+        </label>
+        <label>
+          Agent Pricing Notes
+          <textarea value={priceNotes} onChange={(e) => setPriceNotes(e.target.value)} rows={2} placeholder="Rationale behind the price…" />
+        </label>
+      </fieldset>
 
       <fieldset>
         <legend>Agent Notes</legend>

@@ -1811,3 +1811,32 @@ button { cursor: pointer; }
 .polish-preview { margin-top: 10px; padding: 12px; border: 1px solid #f2b6cb; border-radius: 10px; background: #fff8fb; }
 .polish-preview textarea { width: 100%; margin-top: 4px; }
 .polish-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
+/* CMA land / multi-family live estimates (Generate Comp) */
+.unit-rent-row, .land-comp-row { display: grid; gap: 6px; margin-bottom: 6px; }
+.unit-rent-row { grid-template-columns: 2fr 1fr 1fr; }
+.land-comp-row { grid-template-columns: 2fr 1fr 0.8fr 2fr; }
+.unit-rent-head { font-size: 12px; font-weight: 600; color: var(--color-text-subtle); margin-bottom: 2px; }
+@media (max-width: 560px) {
+  .land-comp-row { grid-template-columns: 1fr 1fr; }
+  .unit-rent-row { grid-template-columns: 1.4fr 1fr 1fr; }
+}
+.cma-estimate { margin-top: 12px; padding: 12px 14px; border: 1px solid #f2b6cb; border-radius: 10px; background: #fff8fb; }
+.cma-estimate--navy { border: 2px solid var(--color-navy); background: #f0f7ff; }
+.cma-estimate-title { font-family: Georgia, serif; font-weight: 700; color: var(--color-navy); margin-bottom: 8px; }
+.cma-estimate-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cma-estimate-table th { text-align: right; padding: 4px 6px; color: var(--color-navy); border-bottom: 2px solid var(--color-navy); font-weight: 700; }
+.cma-estimate-table th:first-child { text-align: left; }
+.cma-estimate-table td { padding: 4px 6px; }
+.cma-estimate-table td:not(:first-child) { text-align: right; white-space: nowrap; }
+.cma-estimate-table tbody tr:nth-child(odd):not(.cma-subhead):not(.cma-estimate-total) { background: rgba(199, 21, 91, 0.04); }
+.cma-estimate-total td { font-weight: 700; border-top: 1px solid var(--color-pink); }
+.cma-estimate-total td:last-child { color: var(--color-pink); }
+.cma-cap td { color: var(--color-pink); font-size: 14px; }
+.cma-subhead td { font-weight: 700; font-size: 12px; color: var(--color-navy); background: #d8e4f0; text-align: left !important; }
+.cma-mkt, .cma-mkt td { color: var(--color-pink); }
+.cma-subhead.cma-mkt td { background: #fce4ec; color: var(--color-pink); }
+.cma-pos { color: var(--color-success-text); }
+.cma-neg { color: var(--color-danger-text); }
+.cma-estimate-note { margin: 8px 0 0; font-size: 12px; color: var(--color-text-muted); font-style: italic; }
+.cma-suggest { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 12px; margin-bottom: 8px; border-radius: 10px; background: var(--color-info-bg); color: var(--color-navy); font-size: 13px; }

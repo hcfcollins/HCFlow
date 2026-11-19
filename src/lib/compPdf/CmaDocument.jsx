@@ -103,7 +103,10 @@ function Footer({ logoUrl }) {
 
 function SubjectOverview({ transaction }) {
   const rows = [];
-  const push = (label, val) => val && rows.push([label, String(val)]);
+  // Land: skip house-only details (they may linger from before the type was changed).
+  const isLand = transaction.property_style === "Land";
+  const HOUSE_ONLY = ["Bedrooms", "Bathrooms", "Garage Spaces", "Year Built", "Electrical", "Heating System", "Fuel Type(s)", "Basement", "Water Source", "Septic", "Private Septic", "Private Well", "Solar"];
+  const push = (label, val) => val && !(isLand && HOUSE_ONLY.includes(label)) && rows.push([label, String(val)]);
   push("Street Address", transaction.address);
   push("Town", transaction.town);
   push("Property Type", transaction.property_style);
@@ -127,7 +130,7 @@ function SubjectOverview({ transaction }) {
 
   const textBlocks = [
     ["Notable Features / Highlights", transaction.features_notes],
-    ["Quality of Finishes", transaction.finishes_note],
+    ["Quality of Finishes", isLand ? "" : transaction.finishes_note],
     ["Notes on Boundary Lines", transaction.boundary_notes],
   ].filter(([, val]) => val?.trim());
 

@@ -35,7 +35,10 @@ export const RECOMMENDATION_OPTIONS = [
 // from the Streamlit CMA generator's "Multi-Family specific:" sub-section, which only
 // shows these when Property Type == "Multi Family".
 const MF_ONLY_RECOMMENDATIONS = ["Organize Leases & Tenant Documents", "Consider Evicting Tenants Before Listing", "Make Repairs to Major Systems"];
+// Land has no house, so only the timing and subdivision recommendations apply.
+const LAND_RECOMMENDATIONS = ["🌸 Wait for Spring", "📐 Land Subdivision Opportunity"];
 export function recommendationOptionsFor(propertyStyle) {
+  if (propertyStyle === "Land") return LAND_RECOMMENDATIONS;
   return propertyStyle === "Multi Family" ? RECOMMENDATION_OPTIONS : RECOMMENDATION_OPTIONS.filter((o) => !MF_ONLY_RECOMMENDATIONS.includes(o));
 }
 

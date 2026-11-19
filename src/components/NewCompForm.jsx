@@ -28,6 +28,7 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
   const [sellerEmails, setSellerEmails] = useState(draft?.sellerEmails || [""]);
   const [timeframe, setTimeframe] = useState(draft?.timeframe || TIMEFRAMES[0]);
   const [propertyStyle, setPropertyStyle] = useState(draft?.propertyStyle || PROPERTY_TYPES[0]);
+  const isLand = propertyStyle === "Land";
   const [electrical, setElectrical] = useState(draft?.electrical || "");
   const [heatingSystem, setHeatingSystem] = useState(draft?.heatingSystem || []);
   const [heatingOther, setHeatingOther] = useState(draft?.heatingOther || "");
@@ -117,7 +118,7 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
         hasView: hasView === NOT_SPECIFIED ? null : hasView,
         solar: solar === NOT_SPECIFIED ? null : solar,
         boundaryNotes: boundaryNotes || null,
-        recommendations,
+        recommendations: recommendations.filter((r) => recommendationOptionsFor(propertyStyle).includes(r)),
         referralNote: referralNote || null,
         leadType,
         clientSource,
@@ -260,7 +261,9 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
       </fieldset>
 
       <fieldset>
-        <legend>Property Stats</legend>
+        <legend>{isLand ? "Parcel Details" : "Property Stats"}</legend>
+        {!isLand && (
+          <>
         <label>
           Bedrooms
           <input type="number" min="0" value={beds} onChange={(e) => setBeds(e.target.value)} />
@@ -273,18 +276,29 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
           Garage Spaces
           <input type="number" min="0" value={garageSpaces} onChange={(e) => setGarageSpaces(e.target.value)} />
         </label>
+          </>
+        )}
         <label>
           Lot Size (acres)
           <input type="number" min="0" step="any" value={lotAcres} onChange={(e) => setLotAcres(e.target.value)} />
         </label>
-        <label>
-          Year Built
-          <input type="number" min="1700" max="2100" value={yearBuilt} onChange={(e) => setYearBuilt(e.target.value)} />
-        </label>
+        {!isLand && (
+          <label>
+            Year Built
+            <input type="number" min="1700" max="2100" value={yearBuilt} onChange={(e) => setYearBuilt(e.target.value)} />
+          </label>
+        )}
         <label>
           Notable Features / Highlights
-          <textarea value={featuresNotes} onChange={(e) => setFeaturesNotes(e.target.value)} rows={2} />
+          <textarea
+            value={featuresNotes}
+            onChange={(e) => setFeaturesNotes(e.target.value)}
+            rows={2}
+            placeholder={isLand ? "e.g. Southern exposure, open meadow, stone walls, brook, mountain views, build sites…" : ""}
+          />
         </label>
+        {!isLand && (
+          <>
         <label>
           Quality of Finishes
           <textarea value={finishesNote} onChange={(e) => setFinishesNote(e.target.value)} rows={2} />
@@ -309,6 +323,8 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
             ))}
           </select>
         </label>
+          </>
+        )}
         <label>
           View
           <select value={hasView} onChange={(e) => setHasView(e.target.value)}>
@@ -317,20 +333,26 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
             ))}
           </select>
         </label>
-        <label>
-          Solar
-          <select value={solar} onChange={(e) => setSolar(e.target.value)}>
-            {SOLAR_OPTIONS.map((o) => (
-              <option key={o} value={o}>{o}</option>
-            ))}
-          </select>
-        </label>
+        {!isLand && (
+          <label>
+            Solar
+            <select value={solar} onChange={(e) => setSolar(e.target.value)}>
+              {SOLAR_OPTIONS.map((o) => (
+                <option key={o} value={o}>{o}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           Notes on Boundary Lines
           <textarea value={boundaryNotes} onChange={(e) => setBoundaryNotes(e.target.value)} rows={2} />
         </label>
       </fieldset>
 
+      {isLand ? (
+        <p className="field-help">Land: well, septic, power, driveway and perc work are captured in the Land Valuation section when you generate the CMA.</p>
+      ) : (
+        <>
       <fieldset>
         <legend>Electrical</legend>
         <RadioGroup name="electrical" value={electrical} onChange={setElectrical} options={ELECTRICAL_OPTIONS} />
@@ -355,6 +377,8 @@ export default function NewCompForm({ currentAgent, onCancel, onSubmitted }) {
         Septic (type and where it is)
         <input value={septic} onChange={(e) => setSeptic(e.target.value)} placeholder="e.g. Conventional, front yard" />
       </label>
+        </>
+      )}
 
       <fieldset>
         <legend>Recommendations</legend>
