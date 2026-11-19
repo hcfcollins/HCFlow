@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FileText, X, UploadCloud } from "lucide-react";
 import EmailListInput from "./EmailListInput";
 import CheckboxGroup from "./CheckboxGroup";
 import RadioGroup from "./RadioGroup";
-import { updateTransactionFields, uploadCompPdf, addActivityLog, polishAgentNotes } from "../lib/transactions";
+import { updateTransactionFields, uploadCompPdf, addActivityLog, polishAgentNotes, downloadCompUpload } from "../lib/transactions";
 import { focusNextOnEnter } from "../lib/formKeyNav";
 import { streetOf } from "../lib/folderOrganizer";
 import { ROAD_FRONTAGE_OPTIONS, PARCEL_CHARACTER_OPTIONS, PERC_STATUS_OPTIONS, LAND_DEV_ITEMS, LAND_PER_ACRE } from "../lib/compPdf/landPricing";
@@ -44,7 +44,7 @@ function resizeUnitRents(unitRents, count) {
 }
 
 /** Drag-and-drop (or click to choose) for one PDF. */
-function PdfDropField({ label, help, file, onFile }) {
+function PdfDropField({ label, help, file, savedName, busy, note, onFile }) {
   const [over, setOver] = useState(false);
   const take = (list) => {
     const f = [...(list || [])].find((x) => x.type === "application/pdf" || /\.pdf$/i.test(x.name));
@@ -70,9 +70,11 @@ function PdfDropField({ label, help, file, onFile }) {
         title="Drop a PDF here, or click to choose one"
       >
         <input type="file" accept="application/pdf" hidden onChange={(e) => take(e.target.files)} />
-        {file ? (
+        {busy ? (
+          <span>Saving to Dropbox…</span>
+        ) : file || savedName ? (
           <span>
-            <FileText size={16} style={{ verticalAlign: -3 }} /> <strong>{file.name}</strong>
+            <FileText size={16} style={{ verticalAlign: -3 }} /> <strong>{file?.name || savedName}</strong>
             <br />
             <span className="field-help">Drop another to replace it</span>
           </span>
@@ -82,12 +84,49 @@ function PdfDropField({ label, help, file, onFile }) {
           </span>
         )}
       </label>
-      {file && (
-        <button type="button" className="import-link-btn" onClick={() => onFile(null)} title="Don't include this file">
+      {note && <p className="field-note">{note}</p>}
+      {(file || savedName) && !busy && (
+        <button type="button" className="import-link-btn" onClick={() => onFile(null)} title="Don't include this file (it stays in Dropbox)">
           Remove
         </button>
       )}
     </div>
+  );
+}
+
+const TOWN_DOC_TYPES = ["Deed", "Tax Bill", "Lister Card", "Other Town Doc"];
+
+/** Drop zone for town docs (PDFs or photos/scans; several at once). */
+function TownDocDrop({ label, busy, onFiles }) {
+  const [over, setOver] = useState(false);
+  const take = (list) => {
+    const files = [...(list || [])];
+    if (files.length) onFiles(files);
+  };
+  return (
+    <label
+      className={`check-dropzone comp-dropzone ${over ? "check-dropzone--over" : ""}`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        take(e.dataTransfer.files);
+      }}
+      title="Drop files here, or click to choose"
+    >
+      <input type="file" accept="application/pdf,image/*" multiple hidden onChange={(e) => take(e.target.files)} />
+      {busy ? (
+        <span>Saving to Dropbox…</span>
+      ) : (
+        <span>
+          <UploadCloud size={18} style={{ verticalAlign: -4 }} /> <strong>Drop the {label.toLowerCase()} here</strong> or click to choose
+        </span>
+      )}
+    </label>
   );
 }
 
@@ -131,11 +170,19 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
   const [agentNotes, setAgentNotes] = useState(saved.agentNotes ?? "");
   const [land, setLand] = useState({ ...DEFAULT_LAND, ...saved.land });
   const [mf, setMf] = useState({ ...DEFAULT_MF, ...saved.multiFamily });
+  // Files dropped here upload right away and are remembered on the comp, so the
+  // CMA can be finished in a later session. The File objects are just this
+  // session's copy (saves a re-download when generating now).
   const [supplementalFile, setSupplementalFile] = useState(null);
   const [anrFile, setAnrFile] = useState(null);
-  const [anrNote, setAnrNote] = useState(null);
-  // ✨ Polish: { status: "working" | "ready" | "error", text?, error? } | null
-  const [polish, setPolish] = useState(null);
+  const [uploads, setUploads] = useState({ anrMap: saved.anrMap || null, supplemental: saved.supplemental || null, townDocs: saved.townDocs || [] });
+  const [uploading, setUploading] = useState(null); // "anr" | "supplemental" | "towndoc"
+  const [uploadNote, setUploadNote] = useState({});
+  const [townDocType, setTownDocType] = useState(TOWN_DOC_TYPES[0]);
+  // ✨ Polish: the AI's version goes straight into the notes box; the version
+  // before the last polish is kept so it can be undone.
+  const [polish, setPolish] = useState(null); // { status: "working" | "error", error? } | null
+  const [notesBeforePolish, setNotesBeforePolish] = useState(saved.notesBeforePolish ?? null);
 
   async function runPolish() {
     setPolish({ status: "working" });
@@ -160,7 +207,9 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
         recommendedListPrice: priceRec,
         pricingNotes: priceNotes,
       });
-      setPolish({ status: "ready", text });
+      setNotesBeforePolish(agentNotes);
+      setAgentNotes(text);
+      setPolish(null);
     } catch (e) {
       setPolish({ status: "error", error: e.message });
     }
@@ -204,6 +253,165 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
     });
   }
 
+  const street = streetOf(transaction).replace(/[\\/:*?"<>|]/g, "") || "Property";
+
+  function buildDetailsPatch() {
+    // Property/comp detail edits made here save back onto the transaction itself
+    // (real columns, same as NewCompForm), separate from comp_analysis.
+    return {
+      seller_name: sellerName || null,
+      seller_emails: sellerEmails.map((e) => e.trim()).filter(Boolean),
+      timeframe,
+      property_style: propertyStyle,
+      electrical: electrical || null,
+      heating_system: heatingOther ? [...heatingSystem, heatingOther] : heatingSystem,
+      basement,
+      water_source: waterSource,
+      septic,
+      beds: beds === "" ? null : Number(beds),
+      baths: baths === "" ? null : Number(baths),
+      garage_spaces: garageSpaces === "" ? null : Number(garageSpaces),
+      lot_acres: lotAcres === "" ? null : Number(lotAcres),
+      year_built: yearBuilt === "" ? null : Number(yearBuilt),
+      features_notes: featuresNotes || null,
+      finishes_note: finishesNote || null,
+      fuel_types: fuelTypes,
+      private_septic: privateSeptic === NOT_SPECIFIED ? null : privateSeptic,
+      private_well: privateWell === NOT_SPECIFIED ? null : privateWell,
+      has_view: hasView === NOT_SPECIFIED ? null : hasView,
+      solar: solar === NOT_SPECIFIED ? null : solar,
+      boundary_notes: boundaryNotes || null,
+      // Drop recommendations that don't apply to this type (e.g. staging on land).
+      recommendations: recommendations.filter((r) => recommendationOptionsFor(propertyStyle).includes(r)),
+    };
+  }
+
+  /** Everything typed on this screen, as saved on the comp (work in progress included). */
+  function buildCompDraft() {
+    return {
+      priceLow,
+      priceHigh,
+      priceRec,
+      priceNotes,
+      agentNotes,
+      notesBeforePolish,
+      land: { ...land, acres: lotAcres },
+      multiFamily: mf,
+      ...(uploads.anrMap ? { anrMap: uploads.anrMap } : {}),
+      ...(uploads.supplemental ? { supplemental: uploads.supplemental } : {}),
+      townDocs: uploads.townDocs,
+      draftSavedAt: new Date().toISOString(),
+    };
+  }
+
+  // ── Autosave: a moment after you stop typing, everything is saved on the deal.
+  const snapshot = JSON.stringify({ d: buildDetailsPatch(), c: { ...buildCompDraft(), draftSavedAt: null } });
+  const snapshotRef = useRef(snapshot);
+  snapshotRef.current = snapshot;
+  const lastSavedRef = useRef(snapshot);
+  const saveChainRef = useRef(Promise.resolve());
+  const compDraftRef = useRef(null);
+  compDraftRef.current = buildCompDraft;
+  const [saveState, setSaveState] = useState(saved.draftSavedAt ? { status: "saved", at: saved.draftSavedAt } : { status: "idle" });
+
+  function flushSave() {
+    saveChainRef.current = saveChainRef.current.then(async () => {
+      const snap = snapshotRef.current;
+      if (snap === lastSavedRef.current) return;
+      const { d } = JSON.parse(snap);
+      const c = compDraftRef.current();
+      setSaveState({ status: "saving" });
+      try {
+        await updateTransactionFields(transaction.id, { ...d, comp_analysis: c });
+        lastSavedRef.current = snap;
+        setSaveState({ status: "saved", at: c.draftSavedAt });
+      } catch (e) {
+        setSaveState({ status: "error", error: e.message });
+      }
+    });
+    return saveChainRef.current;
+  }
+
+  useEffect(() => {
+    if (snapshot === lastSavedRef.current) return;
+    const t = setTimeout(flushSave, 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot]);
+
+  // Leaving the screen any other way still saves what's there.
+  useEffect(
+    () => () => {
+      flushSave().then(() => window.dispatchEvent(new Event("hcflow:refresh")));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  async function handleClose() {
+    await flushSave();
+    window.dispatchEvent(new Event("hcflow:refresh"));
+    onCancel();
+  }
+
+  // ── Uploads (saved the moment they're dropped)
+  async function saveUpload(kind, file, fileName) {
+    setUploading(kind);
+    setUploadNote((n) => ({ ...n, [kind]: null }));
+    try {
+      return await uploadCompPdf(transaction.id, await file.arrayBuffer(), fileName, kind);
+    } finally {
+      setUploading(null);
+    }
+  }
+  const whereNote = (r, what) =>
+    r.inShowingDocs ? `${what} saved — it's in the listing's Showing Docs folder.` : `${what} saved — it'll go into Showing Docs automatically if we win the listing.`;
+
+  async function handleAnr(file) {
+    setAnrFile(file);
+    if (!file) {
+      setUploads((u) => ({ ...u, anrMap: null }));
+      setUploadNote((n) => ({ ...n, anr: null }));
+      return;
+    }
+    try {
+      const r = await saveUpload("anr", file, `${street} - ANR Map.pdf`);
+      setUploads((u) => ({ ...u, anrMap: { path: r.filePath, name: file.name, inShowingDocs: Boolean(r.inShowingDocs) } }));
+      setUploadNote((n) => ({ ...n, anr: whereNote(r, "ANR map") }));
+    } catch (e) {
+      setAnrFile(null);
+      setUploadNote((n) => ({ ...n, anr: `Couldn't save the ANR map: ${e.message}` }));
+    }
+  }
+
+  async function handleSupplemental(file) {
+    setSupplementalFile(file);
+    if (!file) {
+      setUploads((u) => ({ ...u, supplemental: null }));
+      return;
+    }
+    try {
+      const r = await saveUpload("supplemental", file, `${street} - Supplemental - ${file.name.replace(/[\\/:*?"<>|]/g, "")}`);
+      setUploads((u) => ({ ...u, supplemental: { path: r.filePath, name: file.name } }));
+      setUploadNote((n) => ({ ...n, supplemental: "Saved — it'll be here when you come back." }));
+    } catch (e) {
+      setUploadNote((n) => ({ ...n, supplemental: `Couldn't save it for later (it'll still be used if you generate now): ${e.message}` }));
+    }
+  }
+
+  async function handleTownDocs(files) {
+    for (const file of files) {
+      const ext = (/\.[a-z0-9]+$/i.exec(file.name) || [".pdf"])[0].toLowerCase();
+      try {
+        const r = await saveUpload("towndoc", file, `${street} - ${townDocType}${ext}`);
+        setUploads((u) => ({ ...u, townDocs: [...u.townDocs, { type: townDocType, name: file.name, path: r.filePath, inShowingDocs: Boolean(r.inShowingDocs) }] }));
+        setUploadNote((n) => ({ ...n, towndoc: whereNote(r, townDocType) }));
+      } catch (e) {
+        setUploadNote((n) => ({ ...n, towndoc: `Couldn't save ${file.name}: ${e.message}` }));
+      }
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError(null);
@@ -239,34 +447,7 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
         : undefined,
     };
 
-    // Property/comp detail edits made here save back onto the transaction itself
-    // (real columns, same as NewCompForm), separate from `form` (the comp_analysis blob).
-    const detailsPatch = {
-      seller_name: sellerName || null,
-      seller_emails: sellerEmails.map((e) => e.trim()).filter(Boolean),
-      timeframe,
-      property_style: propertyStyle,
-      electrical: electrical || null,
-      heating_system: heatingOther ? [...heatingSystem, heatingOther] : heatingSystem,
-      basement,
-      water_source: waterSource,
-      septic,
-      beds: beds === "" ? null : Number(beds),
-      baths: baths === "" ? null : Number(baths),
-      garage_spaces: garageSpaces === "" ? null : Number(garageSpaces),
-      lot_acres: lotAcres === "" ? null : Number(lotAcres),
-      year_built: yearBuilt === "" ? null : Number(yearBuilt),
-      features_notes: featuresNotes || null,
-      finishes_note: finishesNote || null,
-      fuel_types: fuelTypes,
-      private_septic: privateSeptic === NOT_SPECIFIED ? null : privateSeptic,
-      private_well: privateWell === NOT_SPECIFIED ? null : privateWell,
-      has_view: hasView === NOT_SPECIFIED ? null : hasView,
-      solar: solar === NOT_SPECIFIED ? null : solar,
-      boundary_notes: boundaryNotes || null,
-      // Drop recommendations that don't apply to this type (e.g. staging on land).
-      recommendations: recommendations.filter((r) => recommendationOptionsFor(propertyStyle).includes(r)),
-    };
+    const detailsPatch = buildDetailsPatch();
     // Used for PDF generation immediately, since the `transaction` prop won't reflect
     // these edits until the parent reloads.
     const mergedTransaction = {
@@ -277,32 +458,18 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
 
     setGenerating(true);
     try {
+      await flushSave();
       await updateTransactionFields(transaction.id, detailsPatch);
+      // Files saved in an earlier session come back from Dropbox.
+      const anrSource = anrFile || (uploads.anrMap?.path ? await downloadCompUpload(transaction.id, uploads.anrMap.path) : null);
+      const suppSource = supplementalFile || (uploads.supplemental?.path ? await downloadCompUpload(transaction.id, uploads.supplemental.path) : null);
       // Dynamically imported so @react-pdf/renderer and pdf-lib (a couple MB combined)
       // only load when someone actually generates a comp, not on every app load.
       const { buildCompPdf, compPdfFileName } = await import("../lib/compPdf/buildCompPdf");
-      const pdfBytes = await buildCompPdf(mergedTransaction, form, supplementalFile, anrFile);
+      const pdfBytes = await buildCompPdf(mergedTransaction, form, suppSource, anrSource);
       const fileName = compPdfFileName(mergedTransaction);
       const result = await uploadCompPdf(transaction.id, pdfBytes, fileName);
-      // The ANR map also goes to Showing Docs — now if the listing has its
-      // folder, or (saved with the CMAs) automatically once it's won.
-      let anrMap = saved.anrMap || null;
-      setAnrNote(null);
-      if (anrFile) {
-        try {
-          const street = streetOf(mergedTransaction).replace(/[\\/:*?"<>|]/g, "") || "Property";
-          const r = await uploadCompPdf(transaction.id, await anrFile.arrayBuffer(), `${street} - ANR Map.pdf`, "anr");
-          if (r.inShowingDocs) {
-            setAnrNote("ANR map added to the listing's Showing Docs folder.");
-          } else {
-            anrMap = { path: r.filePath };
-            setAnrNote("ANR map saved — it'll go into Showing Docs automatically when the listing is won.");
-          }
-        } catch (e) {
-          setAnrNote(`Comp saved, but the ANR map couldn't be filed for Showing Docs: ${e.message}`);
-        }
-      }
-      await updateTransactionFields(transaction.id, { comp_analysis: { ...form, ...(anrMap ? { anrMap } : {}) } });
+      await updateTransactionFields(transaction.id, { comp_analysis: { ...buildCompDraft(), priceLow: low, priceHigh: high, priceRec: rec } });
       await addActivityLog(transaction.id, "Generated comp PDF", fileName);
       setResultUrl(result.fileUrl);
       onGenerated?.();
@@ -320,14 +487,22 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
           <div className="brand-eyebrow">{transaction.address}</div>
           <h1>Generate Comp</h1>
         </div>
-        <button type="button" className="header-icon-btn" onClick={onCancel} aria-label="Close" title="Close">
-          <X size={20} />
-        </button>
+        <div className="autosave-wrap">
+          <span className={`autosave-status autosave-status--${saveState.status}`}>
+            {saveState.status === "saving" && "Saving…"}
+            {saveState.status === "saved" && `Saved ✓ ${new Date(saveState.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`}
+            {saveState.status === "error" && "Not saved — check your connection"}
+            {saveState.status === "idle" && "Saves as you go"}
+          </span>
+          <button type="button" className="header-icon-btn" onClick={handleClose} aria-label="Close" title="Close (your work is saved)">
+            <X size={20} />
+          </button>
+        </div>
       </header>
 
       {error && <div className="error-banner">{error}</div>}
 
-      {anrNote && <p className="field-note">{anrNote}</p>}
+      {saveState.status === "error" && <div className="error-banner">Your latest changes didn't save: {saveState.error}</div>}
       {resultUrl && (
         <a href={resultUrl} target="_blank" rel="noreferrer" className="cma-export-btn">
           <FileText size={14} /> View Generated Comp
@@ -655,57 +830,84 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
             className="comps-status-btn polish-btn"
             disabled={!agentNotes.trim() || polish?.status === "working"}
             onClick={runPolish}
-            title="AI cleans up your notes: a compliment, then any hurdles, then excitement and how we'll tailor the marketing. You review it before anything changes."
+            title="AI cleans up your notes: a compliment, then any hurdles, then excitement and how we'll tailor the marketing. Edit the result and polish again as often as you like."
           >
-            {polish?.status === "working" ? "Polishing…" : "✨ Polish with AI"}
+            {polish?.status === "working" ? "Polishing…" : notesBeforePolish != null ? "✨ Polish again" : "✨ Polish with AI"}
           </button>
-          <span className="field-help">Opens with a compliment, covers any hurdles, ends with the listing and marketing plan — you review it first.</span>
+          {notesBeforePolish != null && polish?.status !== "working" && (
+            <button
+              type="button"
+              className="import-link-btn"
+              onClick={() => {
+                setAgentNotes(notesBeforePolish);
+                setNotesBeforePolish(null);
+              }}
+              title="Put back the notes from before the last polish"
+            >
+              Undo polish
+            </button>
+          )}
+          <span className="field-help">
+            {notesBeforePolish != null
+              ? "Polished — add your own touches right in the box, then polish again whenever you like. Everything saves as you go."
+              : "Opens with a compliment, covers any hurdles, ends with the listing and marketing plan."}
+          </span>
         </div>
         {polish?.status === "error" && <p className="field-note">{polish.error}</p>}
-        {polish?.status === "ready" && (
-          <div className="polish-preview">
-            <div className="detail-label">Polished version — edit it here if you like</div>
-            <textarea value={polish.text} onChange={(e) => setPolish({ ...polish, text: e.target.value })} rows={8} />
-            <div className="polish-actions">
-              <button
-                type="button"
-                className="google-btn"
-                onClick={() => {
-                  setAgentNotes(polish.text);
-                  setPolish(null);
-                }}
-                title="Replace your notes with this version"
-              >
-                Use this
-              </button>
-              <button type="button" className="comps-status-btn" onClick={runPolish} title="Ask for a different version">
-                Try again
-              </button>
-              <button type="button" className="comps-status-btn" onClick={() => setPolish(null)} title="Keep your original notes">
-                Keep mine
-              </button>
-            </div>
-          </div>
-        )}
       </fieldset>
 
       <fieldset className="comp-attachments">
         <legend>Attachments (optional)</legend>
+        <p className="field-help">Each file saves the moment you drop it — you can come back and generate later.</p>
         <PdfDropField
           label="Supplemental PDF"
           help="(an existing comp PDF — its first 2 pages get replaced by our cover sheet)"
           file={supplementalFile}
-          onFile={setSupplementalFile}
+          savedName={uploads.supplemental?.name}
+          busy={uploading === "supplemental"}
+          note={uploadNote.supplemental}
+          onFile={handleSupplemental}
         />
         <PdfDropField
           label="ANR or Parcel Map PDF"
           help="(appended to the end as-is, and filed in Showing Docs when the listing is won)"
           file={anrFile}
-          onFile={setAnrFile}
+          savedName={uploads.anrMap ? uploads.anrMap.name || "ANR map (saved)" : null}
+          busy={uploading === "anr"}
+          note={uploadNote.anr}
+          onFile={handleAnr}
         />
       </fieldset>
 
-      <button title="Build the CMA PDF and save it to Dropbox" type="submit" className="google-btn uc-submit" disabled={generating}>
+      <fieldset className="comp-attachments">
+        <legend>Town Docs (optional)</legend>
+        <p className="field-help">Deed, tax bill, lister card and so on. Saved with this comp (not added to the CMA) and filed in Showing Docs if we win the listing.</p>
+        <div>
+          <div className="detail-label">What are you adding?</div>
+          <RadioGroup name="townDocType" value={townDocType} onChange={setTownDocType} options={TOWN_DOC_TYPES} />
+        </div>
+        <TownDocDrop label={townDocType} busy={uploading === "towndoc"} onFiles={handleTownDocs} />
+        {uploadNote.towndoc && <p className="field-note">{uploadNote.towndoc}</p>}
+        {uploads.townDocs.length > 0 && (
+          <ul className="town-doc-list">
+            {uploads.townDocs.map((d, i) => (
+              <li key={d.path}>
+                <FileText size={14} /> <strong>{d.type}</strong> <span className="field-help">{d.name}{d.inShowingDocs ? " · in Showing Docs" : " · goes to Showing Docs on Won"}</span>
+                <button
+                  type="button"
+                  className="import-link-btn"
+                  onClick={() => setUploads((u) => ({ ...u, townDocs: u.townDocs.filter((_, k) => k !== i) }))}
+                  title="Take it off this comp (the file stays in Dropbox)"
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </fieldset>
+
+      <button title="Build the CMA PDF and save it to Dropbox" type="submit" className="google-btn uc-submit" disabled={generating || Boolean(uploading)}>
         {generating ? "Generating…" : "Generate Comp"}
       </button>
     </form>

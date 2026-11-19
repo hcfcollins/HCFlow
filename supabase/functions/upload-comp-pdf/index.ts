@@ -12,6 +12,10 @@
 // base64 bloat on a multi-MB file.
 
 const GENERAL_COMPS_PATH = "/Hall Collins REG Team Folder/Listings/0. CMAs/CMAs";
+// Town docs / supplemental PDFs dropped on the CMA screen before the listing
+// has its own folder wait here (create-dropbox-folder copies town docs and the
+// ANR map into Showing Docs on Won).
+const SAVED_UPLOADS_PATH = `${GENERAL_COMPS_PATH}/Saved Uploads`;
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -165,12 +169,13 @@ Deno.serve(async (req) => {
     }
     const fileName = decodeURIComponent(fileNameHeader);
     const pdfBytes = await req.arrayBuffer();
-    if (!pdfBytes.byteLength) {
+    if (!pdfBytes.byteLength && req.headers.get("x-kind") !== "download") {
       return jsonResponse({ error: "Empty PDF body" }, 400);
     }
 
+    const kind = req.headers.get("x-kind");
     const txRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}&select=id,dropbox_folder_path`,
+      `${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}&select=id,dropbox_folder_path,comp_analysis`,
       {
         headers: {
           apikey: SERVICE_ROLE_KEY,
@@ -184,6 +189,22 @@ Deno.serve(async (req) => {
     }
 
     const accessToken = await getDropboxAccessToken();
+
+    // x-kind: download — hands back a file saved earlier from the CMA screen
+    // (ANR map / supplemental PDF) so the comp can be generated later. Only
+    // paths recorded on this deal's comp_analysis can be fetched.
+    if (kind === "download") {
+      const ca = tx.comp_analysis || {};
+      const allowed = [ca.anrMap?.path, ca.supplemental?.path, ...(ca.townDocs || []).map((d: { path?: string }) => d.path)].filter(Boolean);
+      if (!allowed.includes(fileName)) return jsonResponse({ error: "That file isn't saved on this comp." }, 403);
+      const dl = await fetch("https://content.dropboxapi.com/2/files/download", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Dropbox-API-Path-Root": dropboxPathRootHeader, "Dropbox-API-Arg": JSON.stringify({ path: fileName }) },
+      });
+      if (!dl.ok) return jsonResponse({ error: `Couldn't get the saved file from Dropbox: ${await dl.text()}` }, 502);
+      return new Response(await dl.arrayBuffer(), { headers: { ...CORS_HEADERS, "Content-Type": "application/octet-stream" } });
+    }
+
     const dealFolder = tx.dropbox_folder_path ? await resolveDealFolderPath(accessToken, transactionId, tx.dropbox_folder_path) : null;
 
     // x-kind: anr — the ANR/parcel map from the CMA screen. Listing already
@@ -191,7 +212,16 @@ Deno.serve(async (req) => {
     // there ("4) 12 Main St - ANR Map.pdf"). Not won yet → saved with the
     // CMAs, and create-dropbox-folder copies it into Showing Docs on Won.
     // Never touches last_comp_url.
-    if (req.headers.get("x-kind") === "anr") {
+    // x-kind: supplemental — the EasyCMA export, saved so the comp can be
+    // generated later. Never goes to Showing Docs.
+    if (kind === "supplemental") {
+      await ensureFolder(accessToken, SAVED_UPLOADS_PATH);
+      const path = await uploadFile(accessToken, `${SAVED_UPLOADS_PATH}/${fileName}`, pdfBytes);
+      return jsonResponse({ filePath: path, inShowingDocs: false });
+    }
+
+    // x-kind: towndoc (deed, tax bill, lister card…) — same as the ANR map.
+    if (kind === "anr" || kind === "towndoc") {
       if (dealFolder) {
         const headers = { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader };
         const subRes = await fetch("https://api.dropboxapi.com/2/files/list_folder", { method: "POST", headers, body: JSON.stringify({ path: dealFolder }) });
@@ -208,7 +238,9 @@ Deno.serve(async (req) => {
         const path = await uploadFile(accessToken, `${showingPath}/${highest + 1}) ${fileName}`, pdfBytes);
         return jsonResponse({ filePath: path, inShowingDocs: true });
       }
-      const path = await uploadFile(accessToken, `${GENERAL_COMPS_PATH}/${fileName}`, pdfBytes);
+      const stash = kind === "anr" ? GENERAL_COMPS_PATH : SAVED_UPLOADS_PATH;
+      if (stash !== GENERAL_COMPS_PATH) await ensureFolder(accessToken, stash);
+      const path = await uploadFile(accessToken, `${stash}/${fileName}`, pdfBytes);
       return jsonResponse({ filePath: path, inShowingDocs: false });
     }
 

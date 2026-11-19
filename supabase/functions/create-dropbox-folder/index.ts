@@ -252,18 +252,24 @@ Deno.serve(async (req) => {
     // An ANR map added on the CMA screen before the listing was won was saved
     // with the CMAs — copy it into Showing Docs now. Best-effort: a missing
     // file must never stop the folder from being set up.
-    const anrPath = tx.comp_analysis?.anrMap?.path;
-    if (anrPath) {
+    // Town docs (deed, tax bill, lister card…) saved the same way follow it,
+    // numbered 2), 3)…
+    const ca = tx.comp_analysis || {};
+    const toCopy = [
+      ...(ca.anrMap?.path && !ca.anrMap.inShowingDocs ? [ca.anrMap.path] : []),
+      ...(ca.townDocs || []).filter((d: { path?: string; inShowingDocs?: boolean }) => d.path && !d.inShowingDocs).map((d: { path: string }) => d.path),
+    ];
+    for (const [i, fromPath] of toCopy.entries()) {
       try {
-        const base = String(anrPath).split("/").pop();
+        const base = String(fromPath).split("/").pop();
         const copyRes = await fetch("https://api.dropboxapi.com/2/files/copy_v2", {
           method: "POST",
           headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader },
-          body: JSON.stringify({ from_path: anrPath, to_path: `${actualPath}/3) Showing Docs/1) ${base}`, autorename: true }),
+          body: JSON.stringify({ from_path: fromPath, to_path: `${actualPath}/3) Showing Docs/${i + 1}) ${base}`, autorename: true }),
         });
-        if (!copyRes.ok) console.error("ANR copy failed:", await copyRes.text());
+        if (!copyRes.ok) console.error("Showing doc copy failed:", await copyRes.text());
       } catch (e) {
-        console.error("ANR copy failed:", e);
+        console.error("Showing doc copy failed:", e);
       }
     }
     const sharedLink = await getOrCreateSharedLink(accessToken, actualPath);

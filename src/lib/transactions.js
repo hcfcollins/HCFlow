@@ -780,6 +780,18 @@ export async function polishAgentNotes(notes, property) {
   return data.text;
 }
 
+/** Gets back a file saved from the CMA screen (ANR map / supplemental PDF) as a Blob,
+ * so a comp can be generated in a later session. Only paths saved on the comp work. */
+export async function downloadCompUpload(transactionId, path) {
+  const { data, error } = await supabase.functions.invoke("upload-comp-pdf", {
+    body: new Blob([]),
+    headers: { "x-transaction-id": transactionId, "x-file-name": encodeURIComponent(path), "x-kind": "download", "Content-Type": "application/pdf" },
+  });
+  if (error) throw await functionError(error);
+  if (!(data instanceof Blob)) throw new Error(data?.error || "Couldn't get the saved file.");
+  return data;
+}
+
 /** Uploads a generated comp PDF via the upload-comp-pdf Edge Function; routes to the
  * listing's Pitch Docs subfolder if Won, or the shared general comps repository otherwise.
  * kind "anr": the ANR/parcel map instead — into Showing Docs if the listing has
