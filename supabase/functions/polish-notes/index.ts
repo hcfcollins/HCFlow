@@ -7,7 +7,8 @@
 // the output drifts toward how the team actually writes as more get saved.
 //
 // POST { notes, property } (signed-in user) → { text }
-// Needs the ANTHROPIC_API_KEY secret.
+// Needs the ANTHROPIC_API_KEY secret. A key that isn't scoped to a workspace
+// also needs ANTHROPIC_WORKSPACE_ID (sent as the anthropic-workspace-id header).
 
 import Anthropic from "npm:@anthropic-ai/sdk";
 
@@ -84,7 +85,8 @@ Deno.serve(async (req) => {
       .filter(Boolean)
       .join("\n\n");
 
-    const client = new Anthropic();
+    const workspaceId = Deno.env.get("ANTHROPIC_WORKSPACE_ID");
+    const client = new Anthropic(workspaceId ? { defaultHeaders: { "anthropic-workspace-id": workspaceId } } : {});
     const response = await client.beta.messages.create({
       model: "claude-opus-5-5",
       max_tokens: 16000,
@@ -107,6 +109,8 @@ Deno.serve(async (req) => {
   } catch (e) {
     if (e instanceof Anthropic.AuthenticationError) return json({ error: "The Anthropic API key isn't valid — check the ANTHROPIC_API_KEY secret." }, 500);
     if (e instanceof Anthropic.RateLimitError) return json({ error: "The AI is busy — try again in a minute." }, 429);
+    if (e instanceof Anthropic.APIError && /not scoped to a workspace|anthropic-workspace-id/i.test(e.message))
+      return json({ error: "AI polishing needs one more setting: the Anthropic key isn't tied to a workspace. Add the ANTHROPIC_WORKSPACE_ID secret in Supabase, or replace the key with one made inside a workspace." }, 500);
     if (e instanceof Anthropic.APIError) return json({ error: `AI error (${e.status}): ${e.message}` }, 502);
     return json({ error: String(e instanceof Error ? e.message : e) }, 500);
   }
