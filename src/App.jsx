@@ -783,7 +783,7 @@ export default function App() {
   if (showCeTracker) {
     return (
       <div className="app">
-        <CeTracker currentAgent={agent} onBack={() => setShowCeTracker(false)} />
+        <CeTracker currentAgent={viewAs ? effectiveAgent : agent} onBack={() => setShowCeTracker(false)} />
       </div>
     );
   }

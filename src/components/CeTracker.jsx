@@ -510,7 +510,7 @@ export default function CeTracker({ currentAgent, onBack }) {
   const states = licensedStates(viewed);
   const mine = credits.filter((c) => c.agent_id === viewed?.id);
   const mySubs = subs.filter((s) => s.agent_id === viewed?.id);
-  const autoApprove = isReviewer(currentAgent);
+  const autoApprove = isBroker && isReviewer(currentAgent);
 
   return (
     <div className="ce-page">
