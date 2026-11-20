@@ -817,13 +817,13 @@ export default function GenerateCompForm({ transaction, onCancel, onGenerated })
         </label>
         <label>
           Agent Pricing Notes
-          <textarea value={priceNotes} onChange={(e) => setPriceNotes(e.target.value)} rows={2} placeholder="Rationale behind the price…" />
+          <textarea className="notes-medium" value={priceNotes} onChange={(e) => setPriceNotes(e.target.value)} rows={6} placeholder="Rationale behind the price…" />
         </label>
       </fieldset>
 
       <fieldset>
         <legend>Agent Notes</legend>
-        <textarea value={agentNotes} onChange={(e) => setAgentNotes(e.target.value)} rows={4} placeholder="General notes for this write-up…" />
+        <textarea className="notes-big" value={agentNotes} onChange={(e) => setAgentNotes(e.target.value)} rows={12} placeholder="General notes for this write-up…" />
         <div className="polish-row">
           <button
             type="button"

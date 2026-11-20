@@ -1921,3 +1921,17 @@ textarea {
 .ce-first-license label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; color: var(--color-navy); }
 .ce-first-license .field-help { margin: 0; flex: 1; min-width: 180px; }
 .view-as-picker { width: auto; max-width: 200px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--color-border-input); font-size: 13px; background: var(--color-white); color: var(--color-navy); }
+
+/* Deal card top: address gets the room; stage dropdown on top, small icon row
+   under it, never wider than the card. */
+.tx-card-top { gap: 10px; }
+.tx-card-top > div:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.tx-card-top-right { flex-direction: column; align-items: flex-end; gap: 6px; max-width: 48%; min-width: 0; }
+.tx-card-icons { display: flex; align-items: center; gap: 5px; }
+.tx-card-icons:empty { display: none; }
+.tx-card-top-right .tx-stage-stack { order: -1; max-width: 100%; }
+.tx-card-top-right .tx-stage-select { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* CMA notes: start big (no growing as you type until it's long). */
+textarea.notes-big { min-height: 18em; }
+textarea.notes-medium { min-height: 9em; }

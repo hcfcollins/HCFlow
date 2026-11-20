@@ -729,3 +729,10 @@ create policy buyer_packets_select on buyer_packets for select using (is_broker(
 drop policy if exists buyer_packets_insert on buyer_packets;
 create policy buyer_packets_insert on buyer_packets for insert with check (agent_id = current_agent_id());
 notify pgrst, 'reload schema';
+
+-- Only Fran edits the CE requirements (Holly can still see them).
+drop policy if exists ce_requirements_write on ce_requirements;
+create policy ce_requirements_write on ce_requirements for all
+  using (exists (select 1 from agents where id = current_agent_id() and lower(email) = 'fran.collins@hallcollins.com'))
+  with check (exists (select 1 from agents where id = current_agent_id() and lower(email) = 'fran.collins@hallcollins.com'));
+notify pgrst, 'reload schema';

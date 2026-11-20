@@ -407,17 +407,17 @@ function ReviewList({ credits, submissions, agents, onError }) {
   );
 }
 
-function RequirementsEditor({ reqs, onError }) {
+function RequirementsEditor({ reqs, onError, canEdit }) {
   const showToast = useToast();
   return (
     <div className="ce-req-grid">
       {["VT-salesperson", "VT-broker", "NH", "VT-post"].map((k) => (
-        <ReqRow key={k} k={k} req={reqs[k]} onError={onError} onSaved={() => showToast("Requirement saved")} />
+        <ReqRow key={k} k={k} req={reqs[k]} canEdit={canEdit} onError={onError} onSaved={() => showToast("Requirement saved")} />
       ))}
     </div>
   );
 }
-function ReqRow({ k, req, onError, onSaved }) {
+function ReqRow({ k, req, onError, onSaved, canEdit }) {
   const [m, setM] = useState(String(req.mandatory_hours));
   const [e, setE] = useState(String(req.elective_hours));
   const dirty = m !== String(req.mandatory_hours) || e !== String(req.elective_hours);
@@ -426,14 +426,14 @@ function ReqRow({ k, req, onError, onSaved }) {
       <strong>{req.label}</strong>
       <label>
         Mandatory
-        <input type="number" min="0" step="0.5" value={m} onChange={(ev) => setM(ev.target.value)} />
+        <input type="number" min="0" step="0.5" value={m} disabled={!canEdit} onChange={(ev) => setM(ev.target.value)} />
       </label>
       <label>
         Elective
-        <input type="number" min="0" step="0.5" value={e} onChange={(ev) => setE(ev.target.value)} />
+        <input type="number" min="0" step="0.5" value={e} disabled={!canEdit} onChange={(ev) => setE(ev.target.value)} />
       </label>
       <span className="field-help">= {fmtHours((Number(m) || 0) + (Number(e) || 0))} hrs / 2 yrs</span>
-      {dirty && (
+      {canEdit && dirty && (
         <button
           type="button"
           className="license-mini-btn"
@@ -631,7 +631,8 @@ export default function CeTracker({ currentAgent, onBack }) {
             <div className="detail-section">
               <h2 className="comps-section-title">Requirements</h2>
               <p className="field-help">Hours per 2-year license cycle. Defaults come from the course providers — double-check them against the VT OPR and NH Real Estate Commission and change them here if needed.</p>
-              <RequirementsEditor reqs={reqs} onError={setError} />
+              {!isReviewer(currentAgent) && <p className="field-help">Only Fran can change these.</p>}
+              <RequirementsEditor reqs={reqs} onError={setError} canEdit={isReviewer(currentAgent)} />
             </div>
           )}
         </>

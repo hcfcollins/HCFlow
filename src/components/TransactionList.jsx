@@ -195,6 +195,7 @@ function TxCard({
           </div>
         </div>
         <div className="tx-card-top-right">
+          <div className="tx-card-icons">
           {canUpload && <DealFileDrop transaction={tx} compact startRef={dropStart} />}
           {tx.dropbox_folder_url && (
             <a
@@ -271,6 +272,7 @@ function TxCard({
               )}
             </div>
           )}
+          </div>
           <div className="tx-stage-stack">
           <select
             value={stageSelectValue(tx, stages)}
