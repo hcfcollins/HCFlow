@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Tombstone from "./icons/Tombstone";
 import { sendShowingPacket } from "../lib/showingPacket";
 import { useToast } from "../lib/ToastContext";
@@ -88,6 +88,20 @@ export default function TransactionList({
   );
 }
 
+/** True on phone-width screens (the card puts its icons in the bottom row). */
+function useIsNarrow(query = "(max-width: 699px)") {
+  const get = () => typeof window !== "undefined" && window.matchMedia?.(query).matches;
+  const [narrow, setNarrow] = useState(get);
+  useEffect(() => {
+    const mq = window.matchMedia?.(query);
+    if (!mq) return;
+    const on = () => setNarrow(mq.matches);
+    mq.addEventListener?.("change", on);
+    return () => mq.removeEventListener?.("change", on);
+  }, [query]);
+  return Boolean(narrow);
+}
+
 function TxCard({
   tx,
   stages,
@@ -106,6 +120,7 @@ function TxCard({
   const [lockboxOpen, setLockboxOpen] = useState(false);
   const [signNoteOpen, setSignNoteOpen] = useState(false);
   const [showSocialMenu, setShowSocialMenu] = useState(false);
+  const isNarrow = useIsNarrow();
   const [showBoostPost, setShowBoostPost] = useState(false);
   const [graphicPostType, setGraphicPostType] = useState(null);
   const [showOpenHouse, setShowOpenHouse] = useState(false);
@@ -164,37 +179,7 @@ function TxCard({
       }
     : {};
 
-  return (
-    <div
-      className={`tx-card ${tx.terminated_at ? "tx-card--terminated" : ""} ${fileOver ? "tx-card--file-over" : ""}`}
-      onClick={() => onOpenDetail && onOpenDetail(tx)}
-      {...dropHandlers}
-    >
-      <div className="tx-card-top">
-        <div>
-          <div className="tx-address">
-            {tx.address}
-            {tx.terminated_at && <span className="tx-terminated-badge">{terminatedLabel(tx)}</span>}
-            {tx.other_side_id && !tx.terminated_at && (
-              <span className="tx-inhouse-badge" title="In-house deal: the other side is also Hall Collins. Each side has its own agent, commission, referral and close-out.">
-                🤝 In-house
-              </span>
-            )}
-            {statusBadge && <span className={`tx-status-badge ${statusBadge.className}`}>{statusBadge.label}</span>}
-            {!tx.terminated_at && dueTodoCount > 0 && (
-              <span className="tx-due-badge">
-                {dueTodoCount} To-Do{dueTodoCount > 1 ? "s" : ""} Due
-              </span>
-            )}
-          </div>
-          <div className="tx-sub">
-            {tx.town}
-            {isActiveListing ? "" : ` · ${sideLabel(tx)}`}
-            {isBroker && tx.agent ? ` · ${tx.agent.name}` : ""}
-            {colistName ? ` · Co-list: ${colistName}` : ""}
-          </div>
-        </div>
-        <div className="tx-card-top-right">
+  const iconRow = (
           <div className="tx-card-icons">
           {canUpload && <DealFileDrop transaction={tx} compact startRef={dropStart} />}
           {tx.dropbox_folder_url && (
@@ -273,6 +258,40 @@ function TxCard({
             </div>
           )}
           </div>
+  );
+
+  return (
+    <div
+      className={`tx-card ${tx.terminated_at ? "tx-card--terminated" : ""} ${fileOver ? "tx-card--file-over" : ""}`}
+      onClick={() => onOpenDetail && onOpenDetail(tx)}
+      {...dropHandlers}
+    >
+      <div className="tx-card-top">
+        <div>
+          <div className="tx-address">
+            {tx.address}
+            {tx.terminated_at && <span className="tx-terminated-badge">{terminatedLabel(tx)}</span>}
+            {tx.other_side_id && !tx.terminated_at && (
+              <span className="tx-inhouse-badge" title="In-house deal: the other side is also Hall Collins. Each side has its own agent, commission, referral and close-out.">
+                🤝 In-house
+              </span>
+            )}
+            {statusBadge && <span className={`tx-status-badge ${statusBadge.className}`}>{statusBadge.label}</span>}
+            {!tx.terminated_at && dueTodoCount > 0 && (
+              <span className="tx-due-badge">
+                {dueTodoCount} To-Do{dueTodoCount > 1 ? "s" : ""} Due
+              </span>
+            )}
+          </div>
+          <div className="tx-sub">
+            {tx.town}
+            {isActiveListing ? "" : ` · ${sideLabel(tx)}`}
+            {isBroker && tx.agent ? ` · ${tx.agent.name}` : ""}
+            {colistName ? ` · Co-list: ${colistName}` : ""}
+          </div>
+        </div>
+        <div className="tx-card-top-right">
+          {!isNarrow && iconRow}
           <div className="tx-stage-stack">
           <select
             value={stageSelectValue(tx, stages)}
@@ -441,7 +460,7 @@ function TxCard({
         )
       )}
 
-      {(tx.seller_emails?.length > 0 || canSendPacket) && (
+      {(tx.seller_emails?.length > 0 || canSendPacket || isNarrow) && (
         <div className="tx-card-footer">
           {tx.seller_emails?.length > 0 ? (
             <button
@@ -453,11 +472,12 @@ function TxCard({
                 openEmailCompose({ to: tx.seller_emails, subject: tx.address });
               }}
             >
-              <Mail size={14} /> Email Client
+              <Mail size={14} /> Client
             </button>
           ) : (
             <span />
           )}
+          {isNarrow && iconRow}
           {canSendPacket && (
             <button
               type="button"
