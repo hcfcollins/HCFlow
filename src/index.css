@@ -1942,3 +1942,15 @@ textarea.notes-medium { min-height: 9em; }
   .tx-card-footer .tx-card-icons { margin-left: auto; margin-right: 4px; }
   .tx-card-footer .detail-social-menu { top: auto; bottom: calc(100% + 6px); }
 }
+
+/* To-do due dates: readable everywhere, and on phones the date drops under
+   the text instead of getting squeezed by long (tagged) to-dos. */
+.todo-due-badge--upcoming { background: var(--color-border-blue); color: var(--color-navy); }
+.todo-due-badge, .todo-set-due { flex-shrink: 0; }
+@media (max-width: 699px) {
+  .todo-item { align-items: flex-start; }
+  .todo-item > input[type="checkbox"] { margin-top: 3px; }
+  .todo-item-top-row { flex-wrap: wrap; row-gap: 4px; }
+  .todo-item-top-row .todo-text { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; }
+  .todo-item-top-row .todo-due-badge, .todo-item-top-row .todo-set-due, .todo-item-top-row .todo-completed-date { margin-left: 0; font-size: 11px; padding: 3px 8px; }
+}
