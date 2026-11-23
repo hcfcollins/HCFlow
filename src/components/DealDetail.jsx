@@ -280,7 +280,12 @@ export default function DealDetail({
   }
 
   async function handleCommissionSave(patch) {
-    await upsertCommissionData(transaction.id, patch);
+    try {
+      await upsertCommissionData(transaction.id, patch);
+    } catch (e) {
+      showToast(`Couldn't save: ${e.message}`);
+      throw e;
+    }
     onRefresh();
     showToast("Saved");
   }
@@ -2124,10 +2129,48 @@ function EditableText({ label, value, rawValue, placeholder, type = "text", atto
   const editValue = (rawValue !== undefined ? rawValue : value) || "";
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(editValue);
+  // What was just typed, shown while it saves (until the deal reloads).
+  const [pending, setPending] = useState(null);
+  const [saveError, setSaveError] = useState(null);
+  const openedAt = useRef(0);
+  useEffect(() => setPending(null), [value]);
 
   function startEditing() {
     setDraft(editValue);
+    setSaveError(null);
+    openedAt.current = Date.now();
     setEditing(true);
+  }
+
+  function finish(input) {
+    // Some phones / password-manager extensions blur a field the instant it
+    // opens — that used to close it before anything could be typed.
+    if (Date.now() - openedAt.current < 400) {
+      input?.focus();
+      return;
+    }
+    setEditing(false);
+    if (draft === editValue) return;
+    setPending(draft);
+    Promise.resolve()
+      .then(() => onSave(draft))
+      .then(() => setTimeout(() => setPending(null), 4000))
+      .catch((e) => {
+        // Keep what was typed and say why, instead of snapping back to "—".
+        setPending(null);
+        setSaveError(e?.message || "Couldn't save");
+        openedAt.current = Date.now();
+        setEditing(true);
+      });
+  }
+
+  if (pending !== null && !editing) {
+    return (
+      <div data-field={field}>
+        <div className="detail-label">{label}</div>
+        <div className="editable-missing editable-set">{pending || placeholder} <span className="field-help">Saving…</span></div>
+      </div>
+    );
   }
 
   if (!value && !editing) {
@@ -2155,10 +2198,7 @@ function EditableText({ label, value, rawValue, placeholder, type = "text", atto
           autoFocus
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => {
-            setEditing(false);
-            if (draft !== editValue) onSave(draft);
-          }}
+          onBlur={(e) => finish(e.currentTarget)}
           onKeyDown={(e) => {
             if (e.key === "Enter") e.currentTarget.blur();
             if (e.key === "Escape") {
@@ -2167,6 +2207,7 @@ function EditableText({ label, value, rawValue, placeholder, type = "text", atto
             }
           }}
         />
+        {saveError && <div className="field-note">Didn't save: {saveError} — fix it and tap away to try again.</div>}
         {attorneyList && (
           <datalist id={listId}>
             {attorneyList.map((a) => (
