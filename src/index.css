@@ -1954,3 +1954,37 @@ textarea.notes-medium { min-height: 9em; }
   .todo-item-top-row .todo-text { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; }
   .todo-item-top-row .todo-due-badge, .todo-item-top-row .todo-set-due, .todo-item-top-row .todo-completed-date { margin-left: 0; font-size: 11px; padding: 3px 8px; }
 }
+
+/* Trust account reconciliation (Spreadsheet View) */
+.trust-recon { margin-bottom: 12px; }
+.trust-recon .comps-section-header { gap: 10px; flex-wrap: wrap; }
+.trust-toggle { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; padding: 0; cursor: pointer; color: var(--color-navy); }
+.trust-toggle .comps-section-title { margin: 0; display: inline-flex; align-items: center; gap: 8px; }
+.trust-flag-count { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: var(--color-danger-bg); color: var(--color-danger-text); }
+.trust-due { margin: 6px 0 0; font-size: 12px; color: var(--color-pink); font-weight: 600; }
+.trust-tabs { display: flex; gap: 6px; margin: 10px 0 4px; }
+.trust-tab { border: 1px solid var(--color-border-input); background: var(--color-white); color: var(--color-navy); border-radius: 99px; padding: 4px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.trust-tab--on { background: var(--color-navy); color: var(--color-white); border-color: var(--color-navy); }
+.trust-summary { font-size: 13px; color: var(--color-text-subtle); margin: 10px 0; }
+.trust-h3 { font-size: 13px; margin: 14px 0 6px; color: var(--color-navy); }
+.trust-h3--flag { color: var(--color-danger-text); }
+.trust-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.trust-row { padding: 10px 12px; border: 1px solid var(--color-border); border-left: 4px solid var(--color-border-blue); border-radius: 10px; background: var(--color-white); font-size: 13px; }
+.trust-row--flag { border-left-color: var(--color-danger-text); background: #fffafa; }
+.trust-row--warn { border-left-color: #E0A43A; }
+.trust-row-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.trust-row-top { display: flex; align-items: baseline; gap: 8px; }
+.trust-row-top strong { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.trust-amt { font-weight: 700; white-space: nowrap; color: var(--color-navy); }
+.trust-amt--neg { color: var(--color-danger-text); }
+.trust-new { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 99px; background: var(--color-info-bg); color: var(--color-info-text); }
+.trust-row-deal { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.trust-deal-link { background: none; border: none; padding: 0; color: var(--color-info-text); text-decoration: underline; cursor: pointer; font-size: 13px; text-align: left; }
+.trust-status { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 99px; background: var(--color-bg-slate); color: var(--color-text-subtle); }
+.trust-status--closed, .trust-status--terminated, .trust-status--expired { background: var(--color-danger-bg); color: var(--color-danger-text); }
+.trust-issues { margin: 0; padding-left: 16px; color: var(--color-text-subtle); }
+.trust-issues li { margin: 1px 0; }
+.trust-issue--flag { color: var(--color-danger-text); font-weight: 600; list-style: none; margin-left: -16px !important; display: flex; align-items: center; gap: 4px; }
+.trust-last { margin: 0; overflow-wrap: anywhere; }
+.trust-more { display: inline-flex; align-items: center; gap: 4px; margin-top: 12px; background: none; border: none; padding: 0; color: var(--color-text-subtle); font-size: 12px; font-weight: 700; cursor: pointer; }
+.trust-cleared { margin-top: 10px; color: var(--color-success-text); }

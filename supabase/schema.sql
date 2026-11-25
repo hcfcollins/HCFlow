@@ -736,3 +736,20 @@ create policy ce_requirements_write on ce_requirements for all
   using (exists (select 1 from agents where id = current_agent_id() and lower(email) = 'fran.collins@hallcollins.com'))
   with check (exists (select 1 from agents where id = current_agent_id() and lower(email) = 'fran.collins@hallcollins.com'));
 notify pgrst, 'reload schema';
+
+-- Trust account reconciliation: each uploaded Xero "Earnest Money Held
+-- (Trust Acct Liability) Transactions" report, parsed per client. Brokers only.
+create table if not exists trust_reconciliations (
+  id uuid primary key default gen_random_uuid(),
+  account text,               -- 'VT' / 'NH'
+  file_name text,
+  period text,                -- "January 1, 2025 to December 31, 2026"
+  report_date date,           -- the date Xero printed on the report
+  clients jsonb not null,     -- [{ name, balance, txns: [{date, description, reference, related, gross, debit, credit}] }]
+  uploaded_by uuid references agents(id) on delete set null,
+  uploaded_at timestamptz not null default now()
+);
+alter table trust_reconciliations enable row level security;
+drop policy if exists trust_reconciliations_broker on trust_reconciliations;
+create policy trust_reconciliations_broker on trust_reconciliations for all using (is_broker()) with check (is_broker());
+notify pgrst, 'reload schema';

@@ -58,6 +58,7 @@ import CeTracker, { CeProgressStrip, CeReviewCard } from "./components/CeTracker
 import BuyerPackets from "./components/BuyerPackets";
 import SocialScheduler from "./components/SocialScheduler";
 import SpreadsheetView from "./components/SpreadsheetView";
+import { TrustReminderCard } from "./components/TrustReconciliation";
 import DealImport from "./components/DealImport";
 import { finishImportedDeals } from "./lib/dealImport";
 import { clientIsBuyer } from "./lib/missingInfo";
@@ -123,6 +124,7 @@ export default function App() {
   const [focusAgentId, setFocusAgentId] = useState(null); // open Manage Agents on this agent
   const [showSocialScheduler, setShowSocialScheduler] = useState(false);
   const [showSpreadsheetView, setShowSpreadsheetView] = useState(false);
+  const [trustOpen, setTrustOpen] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showMySpreadsheet, setShowMySpreadsheet] = useState(false);
   const [showAllDeals, setShowAllDeals] = useState(false);
@@ -822,10 +824,16 @@ export default function App() {
         <SpreadsheetView
           transactions={txs}
           hideMoney={isCoordinator}
-          onBack={() => setShowSpreadsheetView(false)}
+          currentAgent={agent}
+          trustOpen={trustOpen}
+          onBack={() => {
+            setShowSpreadsheetView(false);
+            setTrustOpen(false);
+          }}
           onRefresh={() => loadTransactions({ silent: true })}
           onOpenDetail={(tx) => {
             setShowSpreadsheetView(false);
+            setTrustOpen(false);
             setSelectedTransaction(tx);
           }}
         />
@@ -1055,6 +1063,15 @@ export default function App() {
       </header>
 
       {!viewAs && <CeReviewCard agent={agent} onOpen={() => setShowCeTracker(true)} />}
+      {!viewAs && (
+        <TrustReminderCard
+          agent={agent}
+          onOpen={() => {
+            setTrustOpen(true);
+            setShowSpreadsheetView(true);
+          }}
+        />
+      )}
       {(!viewAs || viewAsAgent) && <CeProgressStrip agent={viewAsAgent ? effectiveAgent : agent} onOpen={() => setShowCeTracker(true)} />}
 
       {viewAsAgent && (

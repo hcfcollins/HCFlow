@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import TrustReconciliation from "./TrustReconciliation";
 import { DollarSign, Ban, RotateCcw, ArrowLeft, Download } from "lucide-react";
 import { exportClientContacts } from "../lib/contactExport";
 import {
@@ -388,7 +389,7 @@ function monthLabel(monthStr) {
   return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
-export default function SpreadsheetView({ transactions: rawTransactions, onBack, onOpenDetail, onRefresh, hideMoney = false }) {
+export default function SpreadsheetView({ transactions: rawTransactions, onBack, onOpenDetail, onRefresh, hideMoney = false, currentAgent = null, trustOpen = false }) {
   const visibleColumns = hideMoney ? COLUMNS.filter((c) => !MONEY_COLUMN_KEYS.has(c.key)) : COLUMNS;
   const [staffTotals, setStaffTotals] = useState({});
   useEffect(() => {
@@ -713,6 +714,8 @@ export default function SpreadsheetView({ transactions: rawTransactions, onBack,
           </button>
         </div>
       </header>
+
+      {!hideMoney && <TrustReconciliation transactions={rawTransactions} currentAgent={currentAgent} onOpenDetail={onOpenDetail} startOpen={trustOpen} />}
 
       <BusinessStats
         transactions={transactions}
