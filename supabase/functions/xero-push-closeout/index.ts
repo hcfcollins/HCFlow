@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
         date,
         dueDate: date,
         reference: payload.address,
-        description: `Gross Commission per CD - ${payload.address}`,
+        description: `Commission - ${payload.address}`,
         amount: payload.total_commission_check,
         accountCode: payload.vt_or_nh === "NH" ? "4001" : "4000",
       });
