@@ -1091,7 +1091,7 @@ export async function submitUnderContract(fields) {
     tx._xeroWarning = `The other side (${tx._otherSide.agentName || "other agent"}) already recorded the deposit, so it wasn't added to Xero again.`;
   } else if (deposits.length) {
     try {
-      await pushDepositsToXero({ address, region, buyer_name: buyerName, closing_date: closingDate || null, deposits });
+      await pushDepositsToXero({ address: fullAddress({ ...tx, address: tx.address || address, region: tx.region || region }), region, buyer_name: buyerName, closing_date: closingDate || null, deposits });
     } catch (e) {
       tx._xeroWarning = `Couldn't create the Xero deposit record${deposits.length > 1 ? "s" : ""}: ${e.message}`;
     }
@@ -1112,6 +1112,19 @@ export async function submitUnderContract(fields) {
   }
 
   return tx;
+}
+
+/** "1021 VT RT 113, West Fairlee, VT" — street + town + state for Xero.
+ * Copes with addresses that already carry the town/state ("169 Whitney Hill
+ * Road Tunbridge, VT") and towns typed as "Northfield, VT". */
+export function fullAddress(tx) {
+  const region = String(tx?.region || "").trim().toUpperCase();
+  const town = String(tx?.town || "").replace(/[,\s]+(VT|NH)\.?$/i, "").trim();
+  let street = String(tx?.address || "").trim();
+  if (region) street = street.replace(new RegExp(`[,\\s]+${region}\\.?$`, "i"), "");
+  if (town) street = street.replace(new RegExp(`[,\\s]+${town.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"), "");
+  street = street.replace(/[,\s]+$/, "");
+  return [street, town, region].filter(Boolean).join(", ");
 }
 
 /** Creates a Xero Invoice (ACCREC, billed to the buyer, coded to the region's

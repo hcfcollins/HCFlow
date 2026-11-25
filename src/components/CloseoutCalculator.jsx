@@ -6,6 +6,7 @@ import {
   saveCloseout,
   fetchAllAgents,
   pushCloseoutToXero,
+  fullAddress,
   sendCloseoutEmail,
   fetchSignInventory,
   incrementSignInventory,
@@ -251,6 +252,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
   //     its own column — if the sheet expects it net of TC fee, swap to
   //     finalBankAmount instead.
   function buildSheetPayload() {
+    const xeroAddress = fullAddress(transaction);
     const realPercentage = priceNum > 0 ? round2((commissionAfterReferral / priceNum) * 100) : commissionPctNum;
     const brokerageSplitPct = !result.isOwnerDeal && result.agentPct != null ? round2(result.agentPct * 100) : null;
     const leftoverForTeam = round2(commissionAfterReferral - result.bankAmount);
@@ -258,7 +260,7 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
 
     return {
       closing_date: transaction.next_date || null,
-      address: transaction.address,
+      address: xeroAddress,
       seller_attorney: transaction.seller_attorney?.name || null,
       buyer_attorney: transaction.buyer_attorney?.name || null,
       agent_name: transaction.agent?.name || null,
@@ -294,9 +296,9 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
       // Reference string for that Bill's memo line.
       referral_owed_to: transaction.commission_data?.referral_owed_to || null,
       tc_fee_payee_name: tcFeeType ? coordinatorAgent?.name || "Kerry Dawson" : null,
-      commission_reference: `Commission - ${transaction.address}`,
-      referral_reference: `Referral Fee - ${transaction.address}`,
-      tc_fee_reference: `Transaction Coordinator Fee - ${transaction.address}`,
+      commission_reference: `Commission - ${xeroAddress}`,
+      referral_reference: `Referral Fee - ${xeroAddress}`,
+      tc_fee_reference: `Transaction Coordinator Fee - ${xeroAddress}`,
     };
   }
 
