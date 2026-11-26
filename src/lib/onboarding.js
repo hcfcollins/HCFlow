@@ -80,6 +80,13 @@ We need both memberships so you can access the most up-to-date forms in dotloop.
 • Update the objects/view settings as needed so you're seeing your contacts.
 • Install the HubSpot Sales Chrome extension and connect it to your Gmail so emails log to contacts automatically.
 
+4. YOUR EMAIL SIGNATURE
+Please set this as your Gmail signature (Gmail → Settings → See all settings → Signature):
+
+${agent.name}
+REALTOR® | Hall Collins Real Estate Group
+${agent.email || "[your Hall Collins email]"} | ${agent.phone || "[your cell]"}
+
 Once your board memberships are active, let me know and we'll get you fully connected in dotloop.
 
 Welcome aboard. We're thrilled you're here and think you will make an invaluable addition to the team!
