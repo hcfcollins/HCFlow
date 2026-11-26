@@ -143,7 +143,7 @@ const FOLDER_RULES = [
 export function suggestFolder(fileName, folders) {
   for (const rule of FOLDER_RULES) {
     if (!rule.test.test(fileName)) continue;
-    const f = folders.find((name) => rule.match.test(name));
+    const f = folders.find((name) => rule.match.test(name) && !/terminat/i.test(name));
     if (f) return f;
   }
   return "";

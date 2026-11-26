@@ -17,6 +17,10 @@ const DROPBOX_REFRESH_TOKEN = Deno.env.get("DROPBOX_REFRESH_TOKEN")!;
 const DROPBOX_TEAM_ROOT_NAMESPACE_ID = Deno.env.get("DROPBOX_TEAM_ROOT_NAMESPACE_ID")!;
 const dropboxPathRootHeader = JSON.stringify({ ".tag": "root", root: DROPBOX_TEAM_ROOT_NAMESPACE_ID });
 
+// A fallen-through buyer's archived paperwork ("5) Under Contract - TERMINATED - …",
+// made by relist-listing). Nothing new ever goes in there.
+const isArchivedFolder = (name: string) => /terminat/i.test(name);
+
 const PHOTOS_SUBFOLDER = "4) Photos";
 const SHOWING_DOCS_SUBFOLDER = "3) Showing Docs";
 // Checked in this order for social media source photos: agents drop their hand-picked
@@ -363,7 +367,9 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ path: folderPath }),
       });
       const listed = listRes.ok ? await listRes.json() : { entries: [] };
-      const subfolders = (listed.entries || []).filter((e: { [k: string]: string }) => e[".tag"] === "folder").map((e: { name: string }) => e.name);
+      const subfolders = (listed.entries || [])
+        .filter((e: { [k: string]: string }) => e[".tag"] === "folder" && !isArchivedFolder(e.name))
+        .map((e: { name: string }) => e.name);
       const target =
         subfolders.find((n: string) => /under contract|contract docs/i.test(n)) ||
         subfolders.find((n: string) => /closing docs/i.test(n)) ||
@@ -390,7 +396,9 @@ Deno.serve(async (req) => {
       });
       const data = await res.json();
       if (!res.ok) return jsonResponse({ error: `Couldn't open the deal folder: ${JSON.stringify(data)}` }, 500);
-      const folders = (data.entries || []).filter((e: { [k: string]: string }) => e[".tag"] === "folder").map((e: { name: string }) => e.name);
+      const folders = (data.entries || [])
+        .filter((e: { [k: string]: string }) => e[".tag"] === "folder" && !isArchivedFolder(e.name))
+        .map((e: { name: string }) => e.name);
       return jsonResponse({ root: folderPath, folders });
     }
 
@@ -409,6 +417,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({ path: folderPath }),
         });
         const data = await list.json();
+        if (isArchivedFolder(subfolder)) return jsonResponse({ error: "That's a terminated deal's archived folder — nothing new goes in there." }, 400);
         const ok = (data.entries || []).some((e: { [k: string]: string }) => e[".tag"] === "folder" && e.name === subfolder);
         if (!ok) return jsonResponse({ error: `No "${subfolder}" folder in this deal` }, 400);
         target = `${folderPath}/${subfolder}`;
@@ -440,7 +449,7 @@ Deno.serve(async (req) => {
           if (e[".tag"] !== "file") continue;
           const rel = String(e.path_display).slice(folderPath.length + 1);
           const parts = rel.split("/");
-          if (parts.slice(0, -1).some((p: string) => /photo/i.test(p))) continue; // skip Photos
+          if (parts.slice(0, -1).some((p: string) => /photo/i.test(p) || isArchivedFolder(p))) continue; // skip Photos + terminated archives
           if (/^(\.|icon\r?$|desktop\.ini$)/i.test(e.name)) continue;
           files.push({ name: e.name, path: e.path_display, folder: parts.slice(0, -1).join("/"), added: e.server_modified, size: e.size || 0 });
         }
@@ -464,7 +473,8 @@ Deno.serve(async (req) => {
       for (const r of list) {
         const from = String(r.from || "");
         const toName = String(r.toName || "").replace(/[\\/:*?"<>|]/g, "").trim();
-        if (!from.toLowerCase().startsWith(lower) || !toName || /photo/i.test(from.slice(lower.length).split("/").slice(0, -1).join("/"))) {
+        const relDirs = from.slice(lower.length).split("/").slice(0, -1);
+        if (!from.toLowerCase().startsWith(lower) || !toName || relDirs.some((d) => /photo/i.test(d) || isArchivedFolder(d))) {
           return jsonResponse({ error: `Not allowed: ${from}` }, 400);
         }
         r.to = `${parentOf(from)}/${toName}`;
