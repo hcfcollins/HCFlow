@@ -17,7 +17,7 @@ export const MANUAL_ONBOARDING_ITEMS = [
   { key: "email_geri", label: "Email Geri" },
   { key: "nh_membership", label: "Add secondary membership for NH" },
   { key: "dotloop", label: "Dotloop license" },
-  { key: "welcome_email", label: "Send welcome email (important links, standard contract language, email signature)" },
+  { key: "welcome_email", label: "Send welcome email (boards of Realtors, links to bookmark, HubSpot)" },
 ];
 
 export const PROFILE_ONBOARDING_ITEMS = [
@@ -40,13 +40,10 @@ export function onboardingItemsFor(agent) {
   ];
 }
 
-/** Flip to true once Fran's real links / standard contract language /
- * signature format are in buildWelcomeEmail below — clears her standing
- * reminder on the To-Dos page (STANDING_REMINDERS). */
-export const WELCOME_EMAIL_CONTENT_READY = false;
+/** True now that Fran's welcome email content is in buildWelcomeEmail below
+ * (Nov 2026) — keeps her old "send Claude the content" reminder cleared. */
+export const WELCOME_EMAIL_CONTENT_READY = true;
 
-/** Fran's pinned, non-deal reminders on the To-Dos page — each shows until
- * its `active` check turns false (i.e. until the thing actually gets done). */
 export const STANDING_REMINDERS = [
   {
     key: "welcome_email_content",
@@ -56,44 +53,44 @@ export const STANDING_REMINDERS = [
   },
 ];
 
-/** Plain-text welcome email body — the HC Flow orientation plus the sections
- * Fran asked for. The bracketed sections are placeholders until Fran provides
- * the real links/contract language; she reviews the Gmail draft before
- * sending either way. */
+/** Plain-text welcome email body — Fran's wording (Nov 2026). Opens as a
+ * draft for her to review before sending. */
 export function buildWelcomeEmail(agent) {
   const first = agent.name.split(/\s+/)[0];
-  const signInUrl = window.location.origin;
-  const listingFolder = agent.dropbox_listing_path
-    ? `Your listing documents live in Dropbox at ${agent.dropbox_listing_path}.`
-    : "Your Dropbox listing folder is on its way — we'll share it with you shortly.";
 
   const body = `Hi ${first},
 
-Welcome to Hall Collins Real Estate Group — we're so glad you're here! Here's everything you need to get going.
+We're so excited to have you on the team! Thank you for getting your independent contractor agreement and policy manual signed. Below is everything you need to get set up. Please work through this list over the next week, and reach out with any questions.
 
-IMPORTANT LINKS
-• HC Flow (our deal tracker — sign in with your Hall Collins Google account): ${signInUrl}
-• ${listingFolder}
-• [Add any other links here]
+1. JOIN THE BOARDS OF REALTORS
+We need both memberships so you can access the most up-to-date forms in dotloop.
 
-STANDARD CONTRACT LANGUAGE
-[Add the standard contract language here]
+• Windsor County Board of Realtors (primary): Email Geri at info@windsorcountyrealtors.com to become a member.
+• New Hampshire Association of Realtors (secondary): Email Amber Bonenfant at amber@nhar.com to set up your secondary membership.
 
-YOUR EMAIL SIGNATURE
-Please set this as your Gmail signature (Settings → See all settings → Signature):
+2. BOOKMARK THESE LINKS
+• MLS (PrimeMLS): https://mdweb.mmsi2.com/neren/
+• dotloop: https://www.dotloop.com/
+• DepositLink (earnest money): https://www.depositlink.com/
+• HC Flow (our internal app): https://hc-flow.vercel.app/
+• Vermont ANR Natural Resources Atlas (wetlands, flood zones, parcel info): https://anrmaps.vermont.gov/websites/anra5/
 
-${agent.name}
-REALTOR® | Hall Collins Real Estate Group
-${agent.email || "[your Hall Collins email]"} | [your cell]
+3. HUBSPOT (OUR CRM)
+• Log in here: https://app.hubspot.com/contacts/23356899/objects/0-1/views/13152087/list
+• Update the objects/view settings as needed so you're seeing your contacts.
+• Install the HubSpot Sales Chrome extension and connect it to your Gmail so emails log to contacts automatically.
 
-Questions about any of this? Just ask Fran or Holly.
+Once your board memberships are active, let me know and we'll get you fully connected in dotloop.
 
-Welcome aboard!
-Fran`;
+Welcome aboard. We're thrilled you're here and think you will make an invaluable addition to the team!
+
+Fran Collins
+fran.collins@hallcollins.com
+(802) 272-3533`;
 
   return {
     to: agent.email ? [agent.email] : [],
-    subject: "Welcome to Hall Collins — links, contract language & your email signature",
+    subject: "Welcome to Hall Collins! Getting you set up",
     body,
   };
 }
