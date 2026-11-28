@@ -1,6 +1,8 @@
 // Main screen (brokers): closeout paperwork emailed to flow@hallcollins.com
 // (or uploaded here), read by Claude and matched to a deal. One tap files it
 // into the deal's Dropbox folder and pre-fills the commission check amount.
+// Several documents for the same sale are grouped, with "File all" and
+// "File all & close out" for the group.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Inbox, UploadCloud, FileText, X, RefreshCw } from "lucide-react";
 import { useToast } from "../lib/ToastContext";
@@ -8,6 +10,7 @@ import { INBOX_ADDRESS, INBOX_CHANGED, fetchInbox, pollInbox, fileInboxDoc, dism
 
 const money = (n) => `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const one = (v) => (Array.isArray(v) ? v[0] : v) || null;
+const today = () => new Date().toISOString().slice(0, 10);
 // One background check at a time, at most every 2 minutes (the main screen remounts often).
 let lastPoll = 0;
 
@@ -21,8 +24,10 @@ function expectedCommission(tx) {
 export default function FlowInbox({ agent, transactions, open, onClose, onOpenDetail, onCount }) {
   const isBroker = agent?.role === "broker";
   const [state, setState] = useState({ docs: [], missing: false });
+  const [choices, setChoices] = useState({}); // per document: { dealId, docName, bothSides }
   const [checking, setChecking] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [groupBusy, setGroupBusy] = useState(null);
   const [error, setError] = useState(null);
   const fileRef = useRef(null);
   const showToast = useToast();
@@ -66,6 +71,78 @@ export default function FlowInbox({ agent, transactions, open, onClose, onOpenDe
       .filter((t) => !t.terminated_at && (t.stage === "contract" || (t.stage === "closed" && new Date(t.updated_at || t.next_date || 0).getTime() > cutoff)))
       .sort((a, b) => String(a.address).localeCompare(String(b.address)));
   }, [transactions]);
+
+  const byId = (id) => (transactions || []).find((t) => t.id === id) || null;
+  const choiceFor = (d) => ({ dealId: d.suggested_transaction_id || "", docName: defaultDocName(d), bothSides: true, ...choices[d.id] });
+  const setChoice = (d, patch) => setChoices((c) => ({ ...c, [d.id]: { ...choiceFor(d), ...c[d.id], ...patch } }));
+
+  // Same sale = same deal, or the two linked sides of it.
+  const saleKey = (deal) => (deal ? [deal.id, deal.other_side_id].filter(Boolean).sort()[0] : null);
+
+  const groups = useMemo(() => {
+    const out = [];
+    const index = new Map();
+    for (const d of state.docs) {
+      const deal = byId(choiceFor(d).dealId);
+      const key = d.status === "pending" && deal ? saleKey(deal) : `solo:${d.id}`;
+      if (!index.has(key)) {
+        index.set(key, out.length);
+        out.push({ key, deal, docs: [] });
+      }
+      out[index.get(key)].docs.push(d);
+    }
+    return out;
+  }, [state.docs, choices, transactions]);
+
+  /** File one document with its current choices → what to show on the Close-Out screen. */
+  async function fileOne(d) {
+    const c = choiceFor(d);
+    const deal = byId(c.dealId);
+    if (!deal) throw new Error("Pick the deal first.");
+    const other = deal.other_side_id ? byId(deal.other_side_id) : null;
+    const both = Boolean(other && c.bothSides);
+    const r = await fileInboxDoc(d.id, deal.id, c.docName, both);
+    return { deal, both, docName: c.docName, path: r.path, prefilled: r.prefilled, amount: r.amount, isCheck: c.docName === "Commission Check" || /check/.test(d.doc_type || "") };
+  }
+
+  /** Open the deal's Close-Out Calculator already knowing what was just filed. */
+  function openCloseout(deal, filed) {
+    const co = { ...(deal.closeouts || {}) };
+    let docs = [...(deal.documents || [])];
+    for (const f of filed) {
+      docs = [...docs.filter((x) => x.name !== f.docName), { name: f.docName, file_name: f.path, status: "complete", doc_date: today() }];
+      if (f.isCheck) {
+        co.check_received = "Yes";
+        if (f.prefilled && !co.check_amount) co.check_amount = f.amount;
+      }
+    }
+    onOpenDetail?.({ ...deal, closeouts: co, documents: docs, _openCloseout: Date.now() });
+  }
+
+  function afterFiling(filed) {
+    window.dispatchEvent(new Event("hcflow:refresh"));
+    load();
+    const amt = filed.find((f) => f.prefilled);
+    showToast(
+      `Filed ${filed.length === 1 ? filed[0].docName : `${filed.length} documents`} to ${filed[0].deal.address}${filed.some((f) => f.both) ? " (both sides)" : ""}${amt ? ` — check amount ${money(amt.amount)} filled in` : ""}`
+    );
+  }
+
+  async function fileGroup(group, closeOut) {
+    setGroupBusy(group.key);
+    setError(null);
+    const filed = [];
+    try {
+      for (const d of group.docs) filed.push(await fileOne(d));
+      afterFiling(filed);
+      if (closeOut) openCloseout(group.deal, filed);
+    } catch (e) {
+      if (filed.length) afterFiling(filed);
+      setError(`${filed.length ? `Filed ${filed.length} of ${group.docs.length}, then: ` : ""}${e.message}`);
+    } finally {
+      setGroupBusy(null);
+    }
+  }
 
   async function upload(files) {
     setError(null);
@@ -113,26 +190,61 @@ export default function FlowInbox({ agent, transactions, open, onClose, onOpenDe
       </p>
       {error && <div className="error-banner">{error}</div>}
       {state.docs.length === 0 && <p className="field-help">Nothing waiting.</p>}
-      <ul className="trust-list">
-        {state.docs.map((d) => (
-          <InboxRow key={d.id} doc={d} dealOptions={dealOptions} transactions={transactions} onDone={load} onOpenDetail={onOpenDetail} />
-        ))}
-      </ul>
+      {groups.map((g) => {
+        const multi = g.deal && g.docs.length > 1;
+        const rows = g.docs.map((d) => (
+          <InboxRow
+            key={d.id}
+            doc={d}
+            choice={choiceFor(d)}
+            onChoice={(patch) => setChoice(d, patch)}
+            dealOptions={dealOptions}
+            byId={byId}
+            inGroup={multi}
+            disabled={groupBusy === g.key}
+            fileOne={fileOne}
+            afterFiling={afterFiling}
+            openCloseout={openCloseout}
+            onDone={load}
+            onOpenDetail={onOpenDetail}
+          />
+        ));
+        if (!multi) return <ul key={g.key} className="trust-list inbox-list">{rows}</ul>;
+        return (
+          <div key={g.key} className="inbox-group">
+            <div className="inbox-group-head">
+              <span>
+                <strong>{g.docs.length} documents</strong> for {g.deal.address}
+                {g.deal.other_side_id ? " (both sides)" : ""}
+              </span>
+              <span className="inbox-controls" style={{ marginTop: 0 }}>
+                <button type="button" className="google-btn" onClick={() => fileGroup(g, false)} disabled={Boolean(groupBusy)}>
+                  {groupBusy === g.key ? "Filing…" : `File all ${g.docs.length}`}
+                </button>
+                {g.deal.stage !== "closed" && (
+                  <button type="button" className="google-btn inbox-closeout-btn" onClick={() => fileGroup(g, true)} disabled={Boolean(groupBusy)} title="File them all, then open this deal's Close-Out Calculator">
+                    File all &amp; close out
+                  </button>
+                )}
+              </span>
+            </div>
+            <ul className="trust-list inbox-list">{rows}</ul>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function InboxRow({ doc, dealOptions, transactions, onDone, onOpenDetail }) {
+function InboxRow({ doc, choice, onChoice, dealOptions, byId, inGroup, disabled, fileOne, afterFiling, openCloseout, onDone, onOpenDetail }) {
   const x = doc.extracted || {};
-  const [dealId, setDealId] = useState(doc.suggested_transaction_id || "");
-  const [docName, setDocName] = useState(defaultDocName(doc));
-  const [bothSides, setBothSides] = useState(true);
+  const { dealId, docName, bothSides } = choice;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const showToast = useToast();
-  const deal = transactions.find((t) => t.id === dealId) || null;
-  const otherSide = deal?.other_side_id ? transactions.find((t) => t.id === deal.other_side_id) || null : null;
-  const expected = expectedCommission(deal);
+  const deal = byId(dealId);
+  const otherSide = deal?.other_side_id ? byId(deal.other_side_id) : null;
+  // One check for both sides of the sale → compare with both sides' commission.
+  const expected = otherSide && bothSides && expectedCommission(deal) != null && expectedCommission(otherSide) != null ? expectedCommission(deal) + expectedCommission(otherSide) : expectedCommission(deal);
   const amount = Number(x.check_amount) || null;
   const isCheck = /check/.test(doc.doc_type || "");
   const options = deal && !dealOptions.some((t) => t.id === deal.id) ? [deal, ...dealOptions] : dealOptions;
@@ -142,22 +254,9 @@ function InboxRow({ doc, dealOptions, transactions, onDone, onOpenDetail }) {
     setBusy(true);
     setError(null);
     try {
-      const both = Boolean(otherSide && bothSides);
-      const r = await fileInboxDoc(doc.id, dealId, docName, both);
-      showToast(`Filed to ${deal?.address}${both ? " (both sides)" : ""}${r.prefilled ? ` — check amount ${money(r.amount)} filled in` : ""}`);
-      window.dispatchEvent(new Event("hcflow:refresh"));
-      onDone();
-      if (closeOut && deal) {
-        // Straight into the Close-Out Calculator, with the check amount just filed.
-        const co = deal.closeouts || {};
-        const isCheckDoc = docName === "Commission Check" || /check/.test(doc.doc_type || "");
-        onOpenDetail?.({
-          ...deal,
-          closeouts: isCheckDoc ? { ...co, check_received: "Yes", ...(r.prefilled ? { check_amount: r.amount } : {}) } : co,
-          documents: [...(deal.documents || []).filter((d) => d.name !== docName), { name: docName, file_name: r.path, status: "complete", doc_date: new Date().toISOString().slice(0, 10) }],
-          _openCloseout: Date.now(),
-        });
-      }
+      const f = await fileOne(doc);
+      afterFiling([f]);
+      if (closeOut) openCloseout(f.deal, [f]);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -202,6 +301,7 @@ function InboxRow({ doc, dealOptions, transactions, onDone, onOpenDetail }) {
   }
 
   const conf = doc.confidence || "none";
+  const off = busy || disabled;
   return (
     <li className={`trust-row ${conf === "high" ? "" : "trust-row--warn"}`}>
       <div className="trust-row-main">
@@ -221,52 +321,53 @@ function InboxRow({ doc, dealOptions, transactions, onDone, onOpenDetail }) {
           </div>
         )}
         <div className="inbox-controls">
-          <select value={dealId} onChange={(e) => setDealId(e.target.value)} aria-label="Deal">
+          <select value={dealId} onChange={(e) => onChoice({ dealId: e.target.value })} aria-label="Deal" disabled={off}>
             <option value="">— Pick the deal —</option>
             {options.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.address}
+                {t.other_side_id ? ` · ${t.side === "Buy" ? "buyer side" : t.side === "Sell" ? "listing side" : "split"}` : ""}
                 {t.buyer_name ? ` · ${t.buyer_name.split(/,| and /)[0]}` : ""}
                 {t.stage === "closed" ? " (closed)" : ""}
               </option>
             ))}
           </select>
-          <select value={docName} onChange={(e) => setDocName(e.target.value)} aria-label="File as">
+          <select value={docName} onChange={(e) => onChoice({ docName: e.target.value })} aria-label="File as" disabled={off}>
             <option>Commission Check</option>
             <option>Closing Docs</option>
           </select>
         </div>
         {otherSide && (
           <label className="inbox-both">
-            <input type="checkbox" checked={bothSides} onChange={(e) => setBothSides(e.target.checked)} />
+            <input type="checkbox" checked={bothSides} onChange={(e) => onChoice({ bothSides: e.target.checked })} disabled={off} />
             Also file to the other side ({otherSide.side === "Buy" ? "buyer" : otherSide.side === "Sell" ? "listing" : "other"} side, {otherSide.agent?.name || "agent"})
           </label>
         )}
         {deal && isCheck && amount && expected != null && Math.abs(amount - expected) > 1 && (
           <div className="field-help" style={{ color: "#9a6a12" }}>
-            Expected commission on this deal is about {money(expected)} — the check is {money(amount)}
+            Expected commission {otherSide && bothSides ? "for both sides" : "on this deal"} is about {money(expected)} — the check is {money(amount)}
             {amount < expected ? " (a deposit we held may cover the difference)" : ""}.
           </div>
         )}
         {error && <div className="error-banner">{error}</div>}
         <div className="inbox-controls">
-          <button type="button" className="google-btn" onClick={() => file()} disabled={busy || !dealId}>
-            {busy ? "Filing…" : "File it"}
+          <button type="button" className={inGroup ? "comps-status-btn" : "google-btn"} onClick={() => file()} disabled={off || !dealId}>
+            {busy ? "Filing…" : inGroup ? "File just this" : "File it"}
           </button>
-          {deal && deal.stage !== "closed" && (
-            <button type="button" className="google-btn inbox-closeout-btn" onClick={() => file({ closeOut: true })} disabled={busy} title="File it, then open this deal's Close-Out Calculator">
+          {!inGroup && deal && deal.stage !== "closed" && (
+            <button type="button" className="google-btn inbox-closeout-btn" onClick={() => file({ closeOut: true })} disabled={off} title="File it, then open this deal's Close-Out Calculator">
               File &amp; close out
             </button>
           )}
-          <button type="button" className="comps-status-btn" onClick={view} disabled={busy}>
+          <button type="button" className="comps-status-btn" onClick={view} disabled={off}>
             View
           </button>
-          {deal && (
-            <button type="button" className="comps-status-btn" onClick={() => onOpenDetail?.(deal)} disabled={busy}>
+          {deal && !inGroup && (
+            <button type="button" className="comps-status-btn" onClick={() => onOpenDetail?.(deal)} disabled={off}>
               Open deal
             </button>
           )}
-          <button type="button" className="comps-status-btn" onClick={dismiss} disabled={busy}>
+          <button type="button" className="comps-status-btn" onClick={dismiss} disabled={off}>
             Dismiss
           </button>
         </div>

@@ -2015,3 +2015,6 @@ textarea.notes-medium { min-height: 9em; }
 .linked-closeout-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .linked-closeout-total { margin: 0; }
 .inbox-closeout-btn { background: var(--color-pink); border-color: var(--color-pink); }
+.inbox-list + .inbox-list, .inbox-list + .inbox-group, .inbox-group + .inbox-list, .inbox-group + .inbox-group { margin-top: 8px; }
+.inbox-group { border: 1px dashed var(--color-border-blue); border-radius: 12px; padding: 8px; background: var(--color-bg-cream-alt); }
+.inbox-group-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; font-size: 13px; }
