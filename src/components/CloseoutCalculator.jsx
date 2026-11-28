@@ -753,6 +753,10 @@ function DealDocUpload({ transaction, docName, label, hint, optionalNote }) {
   const showToast = useToast();
   const onFile = (transaction.documents || []).find((d) => d.name === docName);
   const [savedPath, setSavedPath] = useState(onFile?.file_name || null);
+  // Filed from elsewhere (e.g. the Closeout Inbox) after this opened — show it.
+  useEffect(() => {
+    if (onFile?.file_name) setSavedPath(onFile.file_name);
+  }, [onFile?.file_name]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [dragging, setDragging] = useState(false);

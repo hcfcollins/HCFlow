@@ -154,6 +154,7 @@ function InboxRow({ doc, dealOptions, transactions, onDone, onOpenDetail }) {
         onOpenDetail?.({
           ...deal,
           closeouts: isCheckDoc ? { ...co, check_received: "Yes", ...(r.prefilled ? { check_amount: r.amount } : {}) } : co,
+          documents: [...(deal.documents || []).filter((d) => d.name !== docName), { name: docName, file_name: r.path, status: "complete", doc_date: new Date().toISOString().slice(0, 10) }],
           _openCloseout: Date.now(),
         });
       }
