@@ -1988,3 +1988,22 @@ textarea.notes-medium { min-height: 9em; }
 .trust-last { margin: 0; overflow-wrap: anywhere; }
 .trust-more { display: inline-flex; align-items: center; gap: 4px; margin-top: 12px; background: none; border: none; padding: 0; color: var(--color-text-subtle); font-size: 12px; font-weight: 700; cursor: pointer; }
 .trust-cleared { margin-top: 10px; color: var(--color-success-text); }
+
+/* Closeout Inbox (flow@hallcollins.com) */
+.inbox-panel { margin: 8px 0; padding: 12px 14px; border: 1px solid var(--color-border-blue); border-left: 4px solid var(--color-navy); border-radius: 10px; background: var(--color-white); font-size: 13px; color: var(--color-navy); }
+.inbox-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.inbox-head strong { display: inline-flex; align-items: center; gap: 6px; }
+.inbox-head-actions { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.inbox-head-actions .license-mini-btn { display: inline-flex; align-items: center; gap: 4px; }
+.inbox-help { margin: 6px 0 10px; }
+.inbox-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+.inbox-controls select { flex: 1; min-width: 160px; max-width: 100%; padding: 6px 8px; border: 1px solid var(--color-border-input); border-radius: 8px; font-size: 13px; background: var(--color-white); }
+.inbox-controls .google-btn { margin: 0; }
+.inbox-conf { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 99px; text-transform: capitalize; background: var(--color-bg-slate); color: var(--color-text-subtle); }
+.inbox-conf--high { background: var(--color-success-bg); color: var(--color-success-text); }
+.inbox-conf--medium { background: #FBF1DC; color: #9a6a12; }
+.inbox-conf--low, .inbox-conf--none { background: var(--color-danger-bg); color: var(--color-danger-text); }
+.inbox-icon-btn { position: relative; }
+.inbox-badge { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: var(--color-pink); color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; box-sizing: border-box; }
+.spin { animation: hc-spin 1s linear infinite; }
+@keyframes hc-spin { to { transform: rotate(360deg); } }

@@ -65,7 +65,8 @@ import { clientIsBuyer } from "./lib/missingInfo";
 import TutorialGuide from "./components/TutorialGuide";
 import AgentSpreadsheetView from "./components/AgentSpreadsheetView";
 import { SkeletonList } from "./components/Skeleton";
-import { LogOut, HelpCircle, ArrowLeft, GraduationCap, Package } from "lucide-react";
+import { LogOut, HelpCircle, ArrowLeft, GraduationCap, Package, Inbox } from "lucide-react";
+import FlowInbox from "./components/FlowInbox";
 
 const STAGES = [
   { key: "comps", label: "Comp" },
@@ -125,6 +126,8 @@ export default function App() {
   const [showSocialScheduler, setShowSocialScheduler] = useState(false);
   const [showSpreadsheetView, setShowSpreadsheetView] = useState(false);
   const [trustOpen, setTrustOpen] = useState(false);
+  const [showInbox, setShowInbox] = useState(false);
+  const [inboxCount, setInboxCount] = useState(0);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showMySpreadsheet, setShowMySpreadsheet] = useState(false);
   const [showAllDeals, setShowAllDeals] = useState(false);
@@ -1001,6 +1004,12 @@ export default function App() {
             <button className="header-icon-btn" onClick={() => setShowBuyerPackets(true)} aria-label="Buyer Packets" title="Buyer Packets — merge PDFs, photos and zips into one packet for your buyer">
               <Package size={18} />
             </button>
+            {agent?.role === "broker" && !viewAs && (
+              <button className="header-icon-btn inbox-icon-btn" onClick={() => setShowInbox((v) => !v)} aria-label="Closeout Inbox" title="Closeout Inbox — checks and closing docs sent to flow@hallcollins.com">
+                <Inbox size={18} />
+                {inboxCount > 0 && <span className="inbox-badge">{inboxCount}</span>}
+              </button>
+            )}
             {agent?.role !== "coordinator" && (
               <button className="header-icon-btn" onClick={() => setShowCeTracker(true)} aria-label="CE & Licenses" title="CE & Licenses — your continuing education and license copies">
                 <GraduationCap size={18} />
@@ -1063,6 +1072,16 @@ export default function App() {
       </header>
 
       {!viewAs && <CeReviewCard agent={agent} onOpen={() => setShowCeTracker(true)} />}
+      {!viewAs && (
+        <FlowInbox
+          agent={agent}
+          transactions={txs}
+          open={showInbox}
+          onClose={() => setShowInbox(false)}
+          onCount={setInboxCount}
+          onOpenDetail={(tx) => setSelectedTransaction(tx)}
+        />
+      )}
       {!viewAs && (
         <TrustReminderCard
           agent={agent}

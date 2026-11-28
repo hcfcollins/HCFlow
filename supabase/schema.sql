@@ -753,3 +753,37 @@ alter table trust_reconciliations enable row level security;
 drop policy if exists trust_reconciliations_broker on trust_reconciliations;
 create policy trust_reconciliations_broker on trust_reconciliations for all using (is_broker()) with check (is_broker());
 notify pgrst, 'reload schema';
+
+-- flow@hallcollins.com inbox: scanned closeout paperwork, read by Claude and
+-- matched to a deal; a broker confirms and it's filed into Dropbox.
+create table if not exists inbound_docs (
+  id uuid primary key default gen_random_uuid(),
+  gmail_message_id text not null,
+  attachment_id text not null,
+  file_name text not null,
+  from_email text,
+  subject text,
+  received_at timestamptz,
+  uploaded_by uuid references agents(id) on delete set null,
+  storage_path text,
+  doc_type text,
+  extracted jsonb,
+  suggested_transaction_id uuid references transactions(id) on delete set null,
+  confidence text,
+  status text not null default 'processing' check (status in ('processing', 'pending', 'filed', 'dismissed')),
+  error text,
+  filed_transaction_id uuid references transactions(id) on delete set null,
+  filed_doc_name text,
+  filed_path text,
+  filed_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique (gmail_message_id, attachment_id)
+);
+alter table inbound_docs enable row level security;
+drop policy if exists inbound_docs_broker on inbound_docs;
+create policy inbound_docs_broker on inbound_docs for select using (is_broker());
+insert into storage.buckets (id, name, public) values ('inbound-docs', 'inbound-docs', false) on conflict (id) do nothing;
+-- Check flow@ every 10 minutes (same secret header as the morning digest job).
+select cron.schedule('flow-inbox', '*/10 * * * *', replace(command, 'daily-todo-digest', 'inbound-docs'))
+from cron.job where command ilike '%daily-todo-digest%' limit 1;
+notify pgrst, 'reload schema';
