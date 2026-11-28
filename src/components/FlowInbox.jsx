@@ -186,7 +186,7 @@ export default function FlowInbox({ agent, transactions, open, onClose, onOpenDe
         <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png" multiple hidden onChange={(e) => upload(e.target.files)} />
       </div>
       <p className="field-help inbox-help">
-        Scan or email commission checks and closing docs to <strong>{INBOX_ADDRESS}</strong>. Each one is read and matched to its deal; tap File to save it to that deal's Dropbox folder.
+        Scan or email commission checks and closing docs to <strong>{INBOX_ADDRESS}</strong>. Only attachments are read (signatures and photos in the email itself are ignored). Each one is matched to its deal; tap File to save it to that deal's Dropbox folder.
       </p>
       {error && <div className="error-banner">{error}</div>}
       {state.docs.length === 0 && <p className="field-help">Nothing waiting.</p>}

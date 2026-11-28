@@ -7,6 +7,9 @@
 // pre-fills the Close-Out Calculator. Nothing is filed without a person
 // confirming.
 //
+// Only email attachments are read — signatures and photos embedded in the
+// email body are ignored (see isRealAttachment).
+//
 // flow@ is an alias/group that delivers into Fran's mailbox; this reads it
 // with the same Gmail sign-in the app sends with (needs the gmail.readonly
 // scope in GMAIL_REFRESH_TOKEN as well as gmail.send).
@@ -84,9 +87,25 @@ async function gmail(token: string, path: string) {
 
 const b64urlToBytes = (s: string) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
 
-type Part = { filename?: string; mimeType?: string; body?: { attachmentId?: string; size?: number }; parts?: Part[] };
+// Only real attachments count (Fran, Nov 2026). Anything embedded in the email
+// body — signature logos, pasted-in photos, social icons — is ignored: those
+// are "inline" parts (Content-Disposition: inline, or a Content-ID the HTML
+// body points at). Tiny images are skipped too, since some mail apps attach
+// signature logos as ordinary attachments.
+type Part = { filename?: string; mimeType?: string; headers?: { name: string; value: string }[]; body?: { attachmentId?: string; size?: number }; parts?: Part[] };
+const SIGNATURE_IMAGE_MAX_BYTES = 40 * 1024;
+function isRealAttachment(part: Part): boolean {
+  if (!part.filename || !part.body?.attachmentId) return false;
+  const header = (n: string) => (part.headers || []).find((h) => h.name.toLowerCase() === n)?.value || "";
+  const disposition = header("content-disposition").toLowerCase();
+  const isImage = /^image\//i.test(part.mimeType || "") || /\.(jpe?g|png|gif|webp|heic|bmp)$/i.test(part.filename);
+  if (disposition.startsWith("inline")) return false;
+  if (isImage && header("content-id") && !disposition.startsWith("attachment")) return false;
+  if (isImage && (part.body.size || 0) < SIGNATURE_IMAGE_MAX_BYTES) return false;
+  return true;
+}
 function attachmentsOf(part: Part, out: Part[] = []): Part[] {
-  if (part.filename && part.body?.attachmentId) out.push(part);
+  if (isRealAttachment(part)) out.push(part);
   for (const p of part.parts || []) attachmentsOf(p, out);
   return out;
 }
@@ -314,7 +333,7 @@ async function poll() {
     const h = (n: string) => headers.find((x) => x.name.toLowerCase() === n)?.value || "";
     for (const part of attachmentsOf(msg.payload || {})) {
       const name = part.filename || "attachment";
-      if (!MIME[extOf(name)] && extOf(name) !== "heic") continue; // signatures, .ics etc.
+      if (!MIME[extOf(name)] && extOf(name) !== "heic") continue; // .ics, .docx etc.
       // Gmail attachment ids change between fetches — key on the file's name + size instead.
       const key = `${name}|${part.body?.size || 0}`;
       if (seenKeys.has(`${id}|${key}`)) continue;
