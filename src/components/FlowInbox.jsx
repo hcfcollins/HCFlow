@@ -126,10 +126,12 @@ function InboxRow({ doc, dealOptions, transactions, onDone, onOpenDetail }) {
   const x = doc.extracted || {};
   const [dealId, setDealId] = useState(doc.suggested_transaction_id || "");
   const [docName, setDocName] = useState(defaultDocName(doc));
+  const [bothSides, setBothSides] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const showToast = useToast();
   const deal = transactions.find((t) => t.id === dealId) || null;
+  const otherSide = deal?.other_side_id ? transactions.find((t) => t.id === deal.other_side_id) || null : null;
   const expected = expectedCommission(deal);
   const amount = Number(x.check_amount) || null;
   const isCheck = /check/.test(doc.doc_type || "");
@@ -140,8 +142,9 @@ function InboxRow({ doc, dealOptions, transactions, onDone, onOpenDetail }) {
     setBusy(true);
     setError(null);
     try {
-      const r = await fileInboxDoc(doc.id, dealId, docName);
-      showToast(`Filed to ${deal?.address}${r.prefilled ? ` — check amount ${money(r.amount)} filled in` : ""}`);
+      const both = Boolean(otherSide && bothSides);
+      const r = await fileInboxDoc(doc.id, dealId, docName, both);
+      showToast(`Filed to ${deal?.address}${both ? " (both sides)" : ""}${r.prefilled ? ` — check amount ${money(r.amount)} filled in` : ""}`);
       window.dispatchEvent(new Event("hcflow:refresh"));
       onDone();
     } catch (e) {
@@ -222,6 +225,12 @@ function InboxRow({ doc, dealOptions, transactions, onDone, onOpenDetail }) {
             <option>Closing Docs</option>
           </select>
         </div>
+        {otherSide && (
+          <label className="inbox-both">
+            <input type="checkbox" checked={bothSides} onChange={(e) => setBothSides(e.target.checked)} />
+            Also file to the other side ({otherSide.side === "Buy" ? "buyer" : otherSide.side === "Sell" ? "listing" : "other"} side, {otherSide.agent?.name || "agent"})
+          </label>
+        )}
         {deal && isCheck && amount && expected != null && Math.abs(amount - expected) > 1 && (
           <div className="field-help" style={{ color: "#9a6a12" }}>
             Expected commission on this deal is about {money(expected)} — the check is {money(amount)}

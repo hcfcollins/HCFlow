@@ -32,7 +32,7 @@ export async function fetchInbox() {
 }
 
 export const pollInbox = () => call({ action: "poll" });
-export const fileInboxDoc = (id, transactionId, docName) => call({ action: "file", id, transactionId, docName });
+export const fileInboxDoc = (id, transactionId, docName, bothSides = false) => call({ action: "file", id, transactionId, docName, bothSides });
 export const dismissInboxDoc = (id) => call({ action: "dismiss", id });
 
 /** The scan itself, for a quick look before filing. */

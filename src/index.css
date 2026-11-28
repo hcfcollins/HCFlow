@@ -2007,3 +2007,5 @@ textarea.notes-medium { min-height: 9em; }
 .inbox-badge { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: var(--color-pink); color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; box-sizing: border-box; }
 .spin { animation: hc-spin 1s linear infinite; }
 @keyframes hc-spin { to { transform: rotate(360deg); } }
+.inbox-both { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--color-text-subtle); }
+.inbox-both input { margin: 0; }

@@ -124,7 +124,7 @@ const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ?
 async function candidates(): Promise<Candidate[]> {
   const since = new Date(Date.now() - 90 * 86400000).toISOString();
   const list = await rows(
-    `transactions?select=id,address,town,region,side,buyer_name,seller_name,price,next_date,stage,ready_for_closeout_at,` +
+    `transactions?select=id,other_side_id,address,town,region,side,buyer_name,seller_name,price,next_date,stage,ready_for_closeout_at,` +
       `agent:agents!transactions_agent_id_fkey(name),seller_attorney:attorneys!transactions_seller_attorney_id_fkey(name),buyer_attorney:attorneys!transactions_buyer_attorney_id_fkey(name),` +
       `commission_data(commission_pct),closeouts(anticipated_commission,commission_pct,check_amount)` +
       `&terminated_at=is.null&or=(stage.eq.contract,and(stage.eq.closed,updated_at.gte.${since}))&limit=300`
@@ -149,6 +149,7 @@ async function candidates(): Promise<Candidate[]> {
         `agent: ${one(t.agent)?.name || "?"}`,
         `expected commission: ${expected ?? "?"}`,
         `status: ${status}`,
+        ...(t.other_side_id ? [`same sale as id=${t.other_side_id} (we represent both sides; one check may cover both — pick either)`] : []),
       ].join(" | "),
     };
   });
@@ -369,16 +370,15 @@ async function closeoutSubfolder(accessToken: string, folderPath: string) {
   return subs.find((n) => /under contract|contract docs/i.test(n)) || subs.find((n) => /closing docs/i.test(n)) || subs.find((n) => /contract|closing/i.test(n)) || null;
 }
 
-async function fileDoc(id: string, transactionId: string, docName: string, who: { name: string }) {
-  if (!["Commission Check", "Closing Docs"].includes(docName)) throw new Error("docName must be Commission Check or Closing Docs");
-  const [doc] = await rows(`inbound_docs?id=eq.${id}&select=*`);
-  if (!doc) throw new Error("Not found");
-  if (doc.status === "filed") throw new Error("Already filed");
-  const [tx] = await rows(`transactions?id=eq.${transactionId}&select=id,address,dropbox_folder_id,dropbox_folder_path,documents(id,name),closeouts(transaction_id,check_amount,check_received)`);
-  if (!tx) throw new Error("Deal not found");
+const TX_FIELDS = "id,address,other_side_id,dropbox_folder_id,dropbox_folder_path,documents(id,name),closeouts(transaction_id,check_amount,check_received)";
 
-  const bytes = await storeGet(doc.storage_path);
-  const accessToken = await dropboxToken();
+/** One deal's copy: Dropbox file + documents row + (for a check) the close-out fields. */
+async function fileToDeal(accessToken: string, bytes: Uint8Array, doc: Record<string, any>, tx: Record<string, any>, docName: string, who: { name: string }, withAmount: boolean, note: string, alreadySaved: string | null = null) {
+  const savedPath = alreadySaved || (await uploadToDeal(accessToken, bytes, doc, tx, docName));
+  return recordOnDeal(doc, tx, docName, who, withAmount, note, savedPath);
+}
+
+async function uploadToDeal(accessToken: string, bytes: Uint8Array, doc: Record<string, any>, tx: Record<string, any>, docName: string): Promise<string> {
   const folder = await dealFolder(accessToken, tx);
   const sub = await closeoutSubfolder(accessToken, folder);
   const ext = extOf(doc.file_name) || "pdf";
@@ -390,42 +390,67 @@ async function fileDoc(id: string, transactionId: string, docName: string, who: 
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/octet-stream",
       "Dropbox-API-Path-Root": dropboxPathRootHeader,
-      "Dropbox-API-Arg": JSON.stringify({ path, mode: "add", autorename: true, mute: true }).replace(/[\u007f-￿]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0")),
+      "Dropbox-API-Arg": JSON.stringify({ path, mode: "add", autorename: true, mute: true }).replace(/[\u007f-\uffff]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0")),
     },
     body: bytes,
   });
   const upData = await up.json();
-  if (!up.ok) throw new Error(`Dropbox upload failed: ${JSON.stringify(upData)}`);
-  const savedPath = upData.path_display || path;
+  if (!up.ok) throw new Error(`Dropbox upload failed for ${tx.address}: ${JSON.stringify(upData)}`);
+  return upData.path_display || path;
+}
 
+async function recordOnDeal(doc: Record<string, any>, tx: Record<string, any>, docName: string, who: { name: string }, withAmount: boolean, note: string, savedPath: string) {
   // Recorded on the deal like a Close-Out Calculator upload.
   const existing = (tx.documents || []).find((d: { name: string }) => d.name === docName);
   const docRow = { name: docName, file_name: savedPath, status: "complete", doc_date: new Date().toISOString().slice(0, 10) };
   if (existing) await rows(`documents?id=eq.${existing.id}`, { method: "PATCH", body: JSON.stringify(docRow) });
   else await rows(`documents`, { method: "POST", body: JSON.stringify({ transaction_id: tx.id, ...docRow }) });
 
-  // A check: pre-fill the calculator's check amount (if still blank) and mark it received.
+  // A check: mark it received; pre-fill the calculator's check amount (if still blank) on the chosen side only.
   const amount = Number(doc.extracted?.check_amount);
   const isCheck = /check/.test(doc.doc_type || "") || docName === "Commission Check";
   let prefilled = false;
   if (isCheck) {
     const co = one(tx.closeouts);
     const patch: Record<string, unknown> = { check_received: "Yes" };
-    if (amount > 0 && (co?.check_amount == null || co?.check_amount === "")) {
+    if (withAmount && amount > 0 && (co?.check_amount == null || co?.check_amount === "")) {
       patch.check_amount = amount;
       prefilled = true;
     }
     if (co) await rows(`closeouts?transaction_id=eq.${tx.id}`, { method: "PATCH", body: JSON.stringify(patch) });
     else await rows(`closeouts`, { method: "POST", body: JSON.stringify({ transaction_id: tx.id, ...patch }) });
   }
-  await rows(`activity_log`, { method: "POST", body: JSON.stringify({ transaction_id: tx.id, label: `${docName} filed from the flow@ inbox`, detail: `${savedPath.split("/").pop()} — by ${who.name}` }) });
+  await rows(`activity_log`, { method: "POST", body: JSON.stringify({ transaction_id: tx.id, label: `${docName} filed from the flow@ inbox${note}`, detail: `${savedPath.split("/").pop()} — by ${who.name}` }) });
+  return { path: savedPath, prefilled };
+}
+
+async function fileDoc(id: string, transactionId: string, docName: string, who: { name: string }, bothSides = false) {
+  if (!["Commission Check", "Closing Docs"].includes(docName)) throw new Error("docName must be Commission Check or Closing Docs");
+  const [doc] = await rows(`inbound_docs?id=eq.${id}&select=*`);
+  if (!doc) throw new Error("Not found");
+  if (doc.status === "filed") throw new Error("Already filed");
+  const [tx] = await rows(`transactions?id=eq.${transactionId}&select=${TX_FIELDS}`);
+  if (!tx) throw new Error("Deal not found");
+  const other = bothSides && tx.other_side_id ? (await rows(`transactions?id=eq.${tx.other_side_id}&select=${TX_FIELDS}`))?.[0] : null;
+  if (bothSides && !other) throw new Error("This deal isn't linked to another side.");
+
+  const bytes = await storeGet(doc.storage_path);
+  const accessToken = await dropboxToken();
+  const main = await fileToDeal(accessToken, bytes, doc, tx, docName, who, true, other ? " (both sides)" : "");
+  // Both sides can share one folder — then it's saved once and recorded on both.
+  let otherPath: string | null = null;
+  if (other) {
+    const sameFolder = Boolean((other.dropbox_folder_id && other.dropbox_folder_id === tx.dropbox_folder_id) || (other.dropbox_folder_path && other.dropbox_folder_path === tx.dropbox_folder_path));
+    otherPath = (await fileToDeal(accessToken, bytes, doc, other, docName, who, false, " (both sides)", sameFolder ? main.path : null)).path;
+  }
   await rows(`inbound_docs?id=eq.${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ status: "filed", filed_transaction_id: tx.id, filed_path: savedPath, filed_doc_name: docName, filed_at: new Date().toISOString() }),
+    body: JSON.stringify({ status: "filed", filed_transaction_id: tx.id, filed_path: otherPath && otherPath !== main.path ? `${main.path} | ${otherPath}` : main.path, filed_doc_name: docName, filed_at: new Date().toISOString() }),
   });
   // The scan's job is done once it's in Dropbox.
   await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${doc.storage_path}`, { method: "DELETE", headers: svc }).catch(() => {});
-  return { path: savedPath, prefilled, amount: prefilled ? amount : null };
+  const amount = Number(doc.extracted?.check_amount);
+  return { path: main.path, otherPath, prefilled: main.prefilled, amount: main.prefilled ? amount : null };
 }
 
 Deno.serve(async (req) => {
@@ -451,7 +476,7 @@ Deno.serve(async (req) => {
 
     if (action === "file") {
       if (!body.id || !body.transactionId) return json({ error: "id and transactionId required" }, 400);
-      return json({ ok: true, ...(await fileDoc(body.id, body.transactionId, body.docName, who!)) });
+      return json({ ok: true, ...(await fileDoc(body.id, body.transactionId, body.docName, who!, Boolean(body.bothSides))) });
     }
     if (action === "dismiss") {
       const [doc] = await rows(`inbound_docs?id=eq.${body.id}&select=storage_path`);
