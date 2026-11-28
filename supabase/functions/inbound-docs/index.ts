@@ -175,11 +175,12 @@ const TOOL = {
       confidence: { type: "string", enum: ["high", "medium", "low", "none"] },
       reason: { type: "string", description: "Why that deal — which details matched (address, names, price, attorney, amount vs expected commission). Short." },
     },
-    required: ["doc_type", "summary", "transaction_id", "confidence", "reason"],
+    required: ["doc_type", "summary", "property_address", "buyer_names", "seller_names", "purchase_price", "check_amount", "check_payer", "document_date", "transaction_id", "confidence", "reason"],
+    additionalProperties: false,
   },
 };
 
-const SYSTEM = `You file closeout paperwork for Hall Collins Real Estate Group, a real estate brokerage in Vermont and New Hampshire. You'll get one scanned document (a commission check, closing documents such as a settlement statement / closing disclosure / ALTA, or something else) and a list of the brokerage's recent deals. Read the document and record what it is and which deal it belongs to, using the record_document tool.
+const SYSTEM = `You file closeout paperwork for Hall Collins Real Estate Group, a real estate brokerage in Vermont and New Hampshire. You'll get one scanned document (a commission check, closing documents such as a settlement statement / closing disclosure / ALTA, or something else) and a list of the brokerage's recent deals. Read the document and record what it is and which deal it belongs to, in the requested JSON format (use "" for text you can't find and null for missing numbers).
 
 Match on the property address first (street number and street name; abbreviations like Rd/Road, RT/Route and "VT 113"/"VT RT 113" are the same), then buyer/seller names, price, closing date, attorney/title company, and for checks whether the amount is close to the deal's expected commission. Only pick a deal from the list. Use "high" when the address (or several other details) clearly match, "medium" when it's likely but not certain, "low" for a guess, "none" with a null id when nothing fits.
 
@@ -198,25 +199,41 @@ async function analyze(bytes: Uint8Array, fileName: string, cands: Candidate[]) 
       : { type: "image", source: { type: "base64", media_type: mime, data: b64 } };
   const workspaceId = Deno.env.get("ANTHROPIC_WORKSPACE_ID");
   const client = new Anthropic(workspaceId ? { defaultHeaders: { "anthropic-workspace-id": workspaceId } } : {});
-  const response = await client.messages.create({
-    model: "claude-opus-5-5",
-    max_tokens: 2000,
-    system: SYSTEM,
-    tools: [TOOL],
-    tool_choice: { type: "tool", name: TOOL.name },
-    messages: [
-      {
-        role: "user",
-        content: [
-          docBlock,
-          { type: "text", text: `File name: ${fileName}\n\n<deals>\n${cands.map((c) => c.line).join("\n") || "(no open deals)"}\n</deals>\n\nRecord this document.` },
-        ],
-      },
-    ],
-  } as Anthropic.MessageCreateParamsNonStreaming);
-  if (response.stop_reason === "max_tokens" || response.stop_reason === "refusal") throw new Error("The AI couldn't read this one — file it by hand.");
-  const use = response.content.find((b) => b.type === "tool_use") as Anthropic.ToolUseBlock | undefined;
-  const out = (use?.input || {}) as Record<string, any>;
+  const messages = [
+    {
+      role: "user",
+      content: [
+        docBlock,
+        { type: "text", text: `File name: ${fileName}\n\n<deals>\n${cands.map((c) => c.line).join("\n") || "(no open deals)"}\n</deals>\n\nRecord this document.` },
+      ],
+    },
+  ];
+  let out: Record<string, any> = {};
+  try {
+    // Structured output: the reply is JSON matching the schema.
+    const response = await client.messages.create({
+      model: "claude-opus-5-5",
+      max_tokens: 4000,
+      system: SYSTEM,
+      output_config: { format: { type: "json_schema", schema: TOOL.input_schema } },
+      messages,
+    } as unknown as Anthropic.MessageCreateParamsNonStreaming);
+    if (response.stop_reason === "max_tokens" || response.stop_reason === "refusal") throw new Error("The AI couldn't read this one — file it by hand.");
+    const text = response.content.filter((b) => b.type === "text").map((b) => (b as Anthropic.TextBlock).text).join("");
+    out = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+  } catch (e) {
+    if (!(e instanceof Anthropic.BadRequestError)) throw e;
+    // Older API surface: offer the tool and ask for it (no forced tool_choice).
+    const response = await client.messages.create({
+      model: "claude-opus-5-5",
+      max_tokens: 4000,
+      system: SYSTEM + "\n\nCall the record_document tool with your answer.",
+      tools: [TOOL],
+      messages,
+    } as unknown as Anthropic.MessageCreateParamsNonStreaming);
+    const use = response.content.find((b) => b.type === "tool_use") as Anthropic.ToolUseBlock | undefined;
+    out = (use?.input || {}) as Record<string, any>;
+  }
   if (!out.doc_type) throw new Error("The AI couldn't read this one — file it by hand.");
   if (out.transaction_id && !cands.some((c) => c.id === out.transaction_id)) {
     out.transaction_id = null;
@@ -250,9 +267,30 @@ async function ingest(meta: { gmail_message_id?: string; attachment_id?: string;
       }),
     });
   } catch (e) {
-    await rows(`inbound_docs?id=eq.${row.id}`, { method: "PATCH", body: JSON.stringify({ storage_path: path, status: "pending", error: String(e instanceof Error ? e.message : e) }) }).catch(() => {});
+    await rows(`inbound_docs?id=eq.${row.id}`, { method: "PATCH", body: JSON.stringify({ storage_path: path, status: "pending", error: String(e instanceof Error ? e.message : e), extracted: { attempts: 1 } }) }).catch(() => {});
   }
   return row.id;
+}
+
+/** Documents whose reading failed (AI hiccup, etc.) get another go — up to 3 tries. */
+async function retryFailed(started: number, cands: () => Promise<Candidate[]>) {
+  const failed = await rows(`inbound_docs?status=eq.pending&error=not.is.null&storage_path=not.is.null&select=id,file_name,storage_path,extracted&limit=5`);
+  let fixed = 0;
+  for (const d of failed || []) {
+    const attempts = Number(d.extracted?.attempts || 1);
+    if (attempts >= 3 || d.extracted?.doc_type || Date.now() - started > 100000) continue;
+    try {
+      const out = await analyze(await storeGet(d.storage_path), d.file_name, await cands());
+      await rows(`inbound_docs?id=eq.${d.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ doc_type: out.doc_type, extracted: out, suggested_transaction_id: out.transaction_id || null, confidence: out.confidence || "none", error: null }),
+      });
+      fixed++;
+    } catch (e) {
+      await rows(`inbound_docs?id=eq.${d.id}`, { method: "PATCH", body: JSON.stringify({ error: String(e instanceof Error ? e.message : e), extracted: { attempts: attempts + 1 } }) }).catch(() => {});
+    }
+  }
+  return fixed;
 }
 
 async function poll() {
@@ -261,10 +299,12 @@ async function poll() {
   const q = encodeURIComponent(`(to:${INBOX_ADDRESS} OR deliveredto:${INBOX_ADDRESS} OR cc:${INBOX_ADDRESS}) has:attachment newer_than:30d`);
   const list = await gmail(token, `messages?q=${q}&maxResults=25`);
   const ids: string[] = (list.messages || []).map((m: { id: string }) => m.id);
-  if (!ids.length) return { checked: 0, added: 0 };
+  let candList: Candidate[] | null = null;
+  const getCands = async () => (candList ||= await candidates());
+  const retried = await retryFailed(started, getCands);
+  if (!ids.length) return { checked: 0, added: 0, retried };
   const seen = await rows(`inbound_docs?select=gmail_message_id,attachment_id&gmail_message_id=in.(${ids.map((i) => `"${i}"`).join(",")})`);
   const seenKeys = new Set((seen || []).map((r: { gmail_message_id: string; attachment_id: string }) => `${r.gmail_message_id}|${r.attachment_id}`));
-  let cands: Candidate[] | null = null;
   let added = 0;
   for (const id of ids) {
     if (Date.now() - started > 100000) break; // the rest next time
@@ -279,7 +319,7 @@ async function poll() {
       if (seenKeys.has(`${id}|${key}`)) continue;
       if (Date.now() - started > 100000) break;
       const att = await gmail(token, `messages/${id}/attachments/${part.body!.attachmentId}`);
-      cands ||= await candidates();
+      const cands = await getCands();
       const done = await ingest(
         { gmail_message_id: id, attachment_id: key, from_email: h("from"), subject: h("subject"), received_at: new Date(Number(msg.internalDate) || Date.now()).toISOString() },
         name,
@@ -289,7 +329,7 @@ async function poll() {
       if (done) added++;
     }
   }
-  return { checked: ids.length, added };
+  return { checked: ids.length, added, retried };
 }
 
 // ---------- filing into Dropbox ----------
