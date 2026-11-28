@@ -195,8 +195,29 @@ Deno.serve(async (req) => {
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ app_id: "hc-flow", email, password }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.data?.token) return json({ error: res.status === 401 ? "Postable didn't accept that email/password." : `Postable login failed (${res.status}): ${data?.message || ""}` }, 400);
+      const raw = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        data = { _text: raw.slice(0, 200) };
+      }
+      // The docs say { data: { token } } — accept wherever the token actually is.
+      const findToken = (o: any, depth = 0): string | null => {
+        if (!o || typeof o !== "object" || depth > 4) return typeof o === "string" && depth > 0 ? null : null;
+        for (const k of ["token", "access_token", "plainTextToken", "plain_text_token", "api_token"]) if (typeof o[k] === "string" && o[k].length > 10) return o[k];
+        for (const v of Object.values(o)) {
+          const t = findToken(v, depth + 1);
+          if (t) return t;
+        }
+        return null;
+      };
+      const tokenValue = typeof data === "string" ? data : findToken(data);
+      if (!res.ok || !tokenValue) {
+        const shape = (o: any): string => (o && typeof o === "object" ? `{${Object.keys(o).map((k) => (o[k] && typeof o[k] === "object" ? `${k}:${shape(o[k])}` : k)).join(",")}}` : typeof o);
+        return json({ error: res.status === 401 ? "Postable didn't accept that email/password." : `Postable login failed (${res.status}): ${data?.message || data?._text || `no token in the reply — fields: ${shape(data)}`}` }, 400);
+      }
+      data = { data: { token: tokenValue } };
       await rows(`app_secrets?on_conflict=key`, {
         method: "POST",
         headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
