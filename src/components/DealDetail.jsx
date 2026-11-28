@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import LinkedCloseout from "./LinkedCloseout";
+import NextStepsEmail from "./NextStepsEmail";
 import { Pencil, Mail, FileText, FolderOpen, ChevronDown, ChevronLeft, Instagram } from "lucide-react";
 import TodoList, { MissingInfoTodo } from "./TodoList";
 import RadioGroup from "./RadioGroup";
@@ -124,6 +125,7 @@ export default function DealDetail({
   // Set when the stage dropdown is switched to Closed — same idea as Under
   // Contract opening its form — so the deal goes straight into the calculator.
   const [showCloseoutCalculator, setShowCloseoutCalculator] = useState(Boolean(transaction._openCloseout));
+  const [showNextSteps, setShowNextSteps] = useState(false);
   const [utilitiesCollapsed, setUtilitiesCollapsed] = useState(true);
   const [showTerminateConfirm, setShowTerminateConfirm] = useState(false);
   const [showExpireConfirm, setShowExpireConfirm] = useState(false);
@@ -386,6 +388,12 @@ export default function DealDetail({
   const underContractDetails = (transaction.stage === "contract" || transaction.stage === "closed") && (
         <div className="detail-section">
           <h2 className="comps-section-title">Under Contract Details</h2>
+          {transaction.stage === "contract" && clientIsBuyer && !transaction.terminated_at && (
+            <button type="button" className="comps-status-btn next-steps-btn" onClick={() => setShowNextSteps(true)} title="Email the buyer their important dates, next steps and documents">
+              ✉️ Next Steps Email
+            </button>
+          )}
+          {showNextSteps && <NextStepsEmail transaction={transaction} onClose={(sent) => { setShowNextSteps(false); if (sent) onRefresh?.(); }} />}
           <p className="field-help">
             {isStaff
               ? "Collected from the Under Contract form."

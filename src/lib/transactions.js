@@ -549,6 +549,8 @@ export const previewClosingDocsEmail = (transactionId) => dealEmails({ action: "
 
 /** Sends the client their closing docs (attached) + a review request. */
 export const sendClosingDocsEmail = (transactionId) => dealEmails({ action: "closing_docs_send", transactionId });
+export const previewNextStepsEmail = (transactionId) => dealEmails({ action: "next_steps_preview", transactionId });
+export const sendNextStepsEmail = (transactionId, { to, subject, html }) => dealEmails({ action: "next_steps_send", transactionId, to, subject, html });
 
 const GO_LIVE_TODOS = ["Get the packet ready for MLS", "Send the Instagram photos to social media"];
 

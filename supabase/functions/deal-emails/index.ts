@@ -292,6 +292,37 @@ ${docs}
   return { subject: `Your Closing Documents - ${tx.address}`, html };
 }
 
+// ---------- Next Steps (buyer, just under contract) ----------
+
+// Attached for the buyer's records (Fran, Nov 2026): the fully executed contract and the signed packet.
+const NEXT_STEPS_RE = /fully executed|executed contract|signed packet/i;
+
+async function findNextStepsDocs(dbx: string, folderPath: string) {
+  const headers = { Authorization: `Bearer ${dbx}`, "Content-Type": "application/json", "Dropbox-API-Path-Root": dropboxPathRootHeader };
+  let res = await fetch("https://api.dropboxapi.com/2/files/list_folder", { method: "POST", headers, body: JSON.stringify({ path: folderPath, recursive: true, limit: 2000 }) });
+  if (!res.ok) throw new Error(`Couldn't open the deal's Dropbox folder: ${await res.text()}`);
+  let data = await res.json();
+  const entries = [...data.entries];
+  while (data.has_more) {
+    res = await fetch("https://api.dropboxapi.com/2/files/list_folder/continue", { method: "POST", headers, body: JSON.stringify({ cursor: data.cursor }) });
+    if (!res.ok) break;
+    data = await res.json();
+    entries.push(...data.entries);
+  }
+  return entries
+    .filter((e: any) => e[".tag"] === "file" && NEXT_STEPS_RE.test(e.name) && !/terminat|\/photos?\//i.test(e.path_lower))
+    .sort((a: any, b: any) => a.name.localeCompare(b.name, undefined, { numeric: true })) as { name: string; path_lower: string; size: number }[];
+}
+
+/** The agent's edited email body: keep formatting, drop anything active. */
+function cleanHtml(html: string) {
+  return String(html || "")
+    .replace(/<\s*(script|style|iframe|object|embed|form)[\s\S]*?<\s*\/\s*\1\s*>/gi, "")
+    .replace(/<\s*(script|style|iframe|object|embed|form|meta|link)[^>]*>/gi, "")
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/(href|src)\s*=\s*(["'])\s*javascript:[^"']*\2/gi, "$1=$2#$2");
+}
+
 // ---------- Just Listed → team@ ----------
 
 type DbxEntry = { [".tag"]: string; name: string; path_lower: string; server_modified?: string };
@@ -430,7 +461,7 @@ Deno.serve(async (req) => {
   try {
     const caller = await getCaller(req);
     if (!caller) return json({ error: "Not signed in" }, 401);
-    const { action, transactionId, remind, force } = await req.json();
+    const { action, transactionId, remind, force, to: toIn, subject: subjectIn, html: htmlIn } = await req.json();
     if (!transactionId) return json({ error: "transactionId required" }, 400);
     const tx = await loadDeal(transactionId);
     if (!tx) return json({ error: "Deal not found" }, 404);
@@ -486,6 +517,55 @@ Deno.serve(async (req) => {
       const gmail = await getGmailAccessToken();
       await sendGmail(gmail, { to: clientEmails, cc, replyTo: tx.agent?.email || null, fromName: "Hall Collins Real Estate Group", subject, html, attachments });
       return json({ sent: true, to: clientEmails, cc, files: files.map((f) => f.name), attached: attach });
+    }
+
+    if (action === "next_steps_preview" || action === "next_steps_send") {
+      const folder = tx.dropbox_folder_id || tx.dropbox_folder_path;
+      let files: { name: string; path_lower: string; size: number }[] = [];
+      let dbx = "";
+      if (folder) {
+        dbx = await getDropboxAccessToken();
+        try {
+          files = await findNextStepsDocs(dbx, folder);
+        } catch (e) {
+          if (!tx.dropbox_folder_id || !tx.dropbox_folder_path) throw e;
+          files = await findNextStepsDocs(dbx, tx.dropbox_folder_path);
+        }
+      }
+      const total = files.reduce((n, f) => n + (f.size || 0), 0);
+      const attach = total <= MAX_ATTACH_BYTES;
+      if (action === "next_steps_preview") {
+        return json({ to: (tx.seller_emails || []).filter(Boolean), cc: agentEmails, files: files.map((f) => f.name), attach, totalMb: Math.round((total / 1048576) * 10) / 10 });
+      }
+      const to = (Array.isArray(toIn) ? toIn : []).map((e: string) => String(e).trim()).filter((e: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
+      if (!to.length) return json({ error: "Add the client's email address." }, 400);
+      if (!String(htmlIn || "").trim()) return json({ error: "The email is empty." }, 400);
+      let attachments: Attachment[] = [];
+      let linksHtml = "";
+      if (files.length && attach) {
+        for (const f of files) attachments.push({ name: f.name, bytes: await downloadFile(dbx, f.path_lower) });
+      } else if (files.length) {
+        const links: string[] = [];
+        for (const f of files) links.push(await shareLink(dbx, f.path_lower));
+        linksHtml = `<p>Your documents (view-only links, too large to attach):</p><ul>${files.map((f, i) => `<li><a href="${esc(links[i])}">${esc(f.name)}</a></li>`).join("")}</ul>`;
+      }
+      const cc = agentEmails.filter((e) => !to.includes(e));
+      const gmail = await getGmailAccessToken();
+      await sendGmail(gmail, {
+        to,
+        cc,
+        replyTo: tx.agent?.email || null,
+        fromName: tx.agent?.name ? `${tx.agent.name} | Hall Collins` : "Hall Collins Real Estate Group",
+        subject: String(subjectIn || `Congratulations! Next Steps! ${tx.address}`).slice(0, 200),
+        html: cleanHtml(htmlIn) + linksHtml,
+        attachments,
+      });
+      await fetch(`${SUPABASE_URL}/rest/v1/activity_log`, {
+        method: "POST",
+        headers: { ...svc, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ transaction_id: tx.id, label: "Next Steps email sent to the client", detail: `${to.join(", ")}${files.length ? ` — ${files.length} file${files.length === 1 ? "" : "s"}` : ""}` }),
+      }).catch(() => {});
+      return json({ sent: true, to, cc, files: files.map((f) => f.name), attached: attach });
     }
 
     return json({ error: `Unknown action: ${action}` }, 400);

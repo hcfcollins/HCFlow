@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchAttorneys, submitUnderContract, resolveAttorneyId as resolveAttorneyIdRaw, BUYER_START_DOCS, uploadBuyerStartDocs } from "../lib/transactions";
 import RadioGroup from "./RadioGroup";
+import NextStepsEmail from "./NextStepsEmail";
 import AgentField from "./AgentField";
 import { loadDraft, useDraftPersistence } from "../lib/useDraftPersistence";
 import { TC_FEE_AMOUNTS, suggestTcFee } from "../lib/commissionCalc";
@@ -57,6 +58,7 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
   const hasFolder = Boolean(initialData?.dropbox_folder_url || initialData?.dropbox_folder_path);
   const [startFolder, setStartFolder] = useState("yes");
   const [buyerFiles, setBuyerFiles] = useState({});
+  const [nextSteps, setNextSteps] = useState(null); // after submit (buyer): offer the Next Steps email
   // On a Split deal, which side are *your* clients on — decides whether it's
   // grouped under Sellers or Buyers on the Under Contract page.
   const [splitClientSide, setSplitClientSide] = useState(initialData?.split_client_side || draft?.splitClientSide || "");
@@ -224,12 +226,33 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
       if (submitted._dropboxWarning) showToast(submitted._dropboxWarning);
       if (submitted._emailWarning) showToast(submitted._emailWarning);
       clearDraft();
+      const clientBuys = side === "Buy" || (side === "Split" && splitClientSide === "Buy");
+      if (clientBuys) {
+        setNextSteps({
+          transaction: submitted,
+          agentName: selectedAgentName,
+          defaults: {
+            depositAmount: depositAmount || "",
+            depositDate: depositDueDate || "",
+            secondDepositAmount: secondDeposit === "Yes" ? secondDepositAmount || "" : "",
+            secondDepositDate: secondDeposit === "Yes" ? secondDepositDueDate || "" : "",
+            inspectionDate: inspectionDate || "",
+            financingDate: financingDate || "",
+            closingDate: closingDate || "",
+          },
+        });
+        return;
+      }
       onSubmitted();
     } catch (e) {
       setError(e.message);
     } finally {
       setSaving(false);
     }
+  }
+
+  if (nextSteps) {
+    return <NextStepsEmail transaction={nextSteps.transaction} defaults={nextSteps.defaults} agentName={nextSteps.agentName} onClose={() => onSubmitted()} />;
   }
 
   return (
