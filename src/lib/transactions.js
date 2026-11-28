@@ -1101,7 +1101,7 @@ export async function submitUnderContract(fields) {
   // never gets a Dropbox folder that way — this is its first and only chance.
   // Sell/Split deals already have one from Won Listing by the time they get
   // here, hence the dropbox_folder_url guard (also makes this safe to re-run).
-  if (side === "Buy" && !tx.dropbox_folder_url) {
+  if (side === "Buy" && !tx.dropbox_folder_url && fields.createBuyerFolder !== false) {
     try {
       const folderResult = await createDropboxFolderForBuyer(tx.id);
       tx.dropbox_folder_url = folderResult.folderUrl;
@@ -1717,4 +1717,44 @@ export async function fillAllZipCodes() {
   const { data, error } = await supabase.functions.invoke("fill-zip-codes", { body: { all: true } });
   if (error) throw await functionError(error);
   return data;
+}
+
+/** The paperwork a buyer deal starts with (Under Contract form → buyer side). */
+export const BUYER_START_DOCS = [
+  { key: "mandatory_disclosure", label: "Mandatory Disclosure" },
+  { key: "buyer_agency", label: "Buyer Agency Agreement" },
+  { key: "signed_packet", label: "Signed Packet" },
+  { key: "executed_contract", label: "Fully Executed Contract", folder: /purchase|contract|p\s*&\s*s/i },
+];
+
+/** Uploads the buyer's starting paperwork into the deal's Dropbox folder as
+ * "<street> - <label>.<ext>" (the contract into the Purchase & Sale subfolder
+ * when there is one) and records each on the deal. files: { key: File }.
+ * Returns { saved: [labels], failed: [{ label, message }] }. */
+export async function uploadBuyerStartDocs(tx, files) {
+  const street = String(tx.address || "").split(",")[0].trim().replace(/[\\/:*?"<>|]/g, "-");
+  const wanted = BUYER_START_DOCS.filter((d) => files[d.key]);
+  const saved = [];
+  const failed = [];
+  if (!wanted.length) return { saved, failed };
+  let subfolders = [];
+  try {
+    subfolders = await dealSubfolders(tx.id);
+  } catch {
+    // no subfolders — everything goes in the deal folder itself
+  }
+  for (const d of wanted) {
+    const file = files[d.key];
+    try {
+      const ext = (file.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "") || "pdf";
+      const sub = d.folder ? subfolders.find((n) => d.folder.test(n) && !/terminat/i.test(n)) || "" : "";
+      const path = await uploadToDealFolder(tx.id, sub, `${street} - ${d.label}.${ext}`, file);
+      const { error } = await supabase.from("documents").insert({ transaction_id: tx.id, name: d.label, file_name: path, status: "complete", doc_date: new Date().toISOString().slice(0, 10) });
+      if (error) console.error(`Couldn't record ${d.label}:`, error.message);
+      saved.push(d.label);
+    } catch (e) {
+      failed.push({ label: d.label, message: e.message });
+    }
+  }
+  return { saved, failed };
 }

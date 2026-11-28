@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { fetchAttorneys, submitUnderContract, resolveAttorneyId as resolveAttorneyIdRaw } from "../lib/transactions";
+import { fetchAttorneys, submitUnderContract, resolveAttorneyId as resolveAttorneyIdRaw, BUYER_START_DOCS, uploadBuyerStartDocs } from "../lib/transactions";
 import RadioGroup from "./RadioGroup";
 import AgentField from "./AgentField";
 import { loadDraft, useDraftPersistence } from "../lib/useDraftPersistence";
@@ -53,6 +53,10 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
   const [selectedAgentId, setSelectedAgentId] = useState(initialData?.agent_id || draft?.selectedAgentId || (defaultsToSelf ? currentAgent.id : null));
   const [selectedAgentName, setSelectedAgentName] = useState(initialData?.agent?.name || draft?.selectedAgentName || (defaultsToSelf ? currentAgent.name : null));
   const [side, setSide] = useState(initialData?.side || draft?.side || "Sell");
+  // Buyer deals: start their Dropbox folder? + the paperwork to put in it.
+  const hasFolder = Boolean(initialData?.dropbox_folder_url || initialData?.dropbox_folder_path);
+  const [startFolder, setStartFolder] = useState("yes");
+  const [buyerFiles, setBuyerFiles] = useState({});
   // On a Split deal, which side are *your* clients on — decides whether it's
   // grouped under Sellers or Buyers on the Under Contract page.
   const [splitClientSide, setSplitClientSide] = useState(initialData?.split_client_side || draft?.splitClientSide || "");
@@ -199,7 +203,19 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
         tcFeeType: tcFeeType || null,
         townWaterSewer: side !== "Buy" ? townWaterSewer : null,
         existingId: initialData?.id || null,
+        createBuyerFolder: side === "Buy" ? hasFolder || startFolder === "yes" : undefined,
       });
+
+      // The buyer's paperwork → their Dropbox folder.
+      if (side === "Buy" && Object.keys(buyerFiles).length) {
+        if (submitted.dropbox_folder_url || submitted.dropbox_folder_path) {
+          const { saved, failed } = await uploadBuyerStartDocs(submitted, buyerFiles);
+          if (saved.length) showToast(`Saved to Dropbox: ${saved.join(", ")}`);
+          for (const f of failed) showToast(`Couldn't save ${f.label}: ${f.message}`);
+        } else {
+          showToast("The documents weren't saved — this deal has no Dropbox folder yet. Add them from the deal page once it has one.");
+        }
+      }
 
       if (submitted._otherSide) {
         showToast(`Linked as an in-house deal with ${submitted._otherSide.agentName || "the other agent"}'s side — each side closes out separately`);
@@ -268,6 +284,49 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
           ]}
         />
       </fieldset>
+
+      {side === "Buy" && (
+        <fieldset className="buyer-start">
+          {!hasFolder && (
+            <>
+              <legend>Start a Dropbox folder for this buyer?</legend>
+              <RadioGroup
+                name="startFolder"
+                value={startFolder}
+                onChange={setStartFolder}
+                options={[
+                  { value: "yes", label: "Yes, start one" },
+                  { value: "no", label: "No, I'll pair an existing folder" },
+                ]}
+              />
+            </>
+          )}
+          {hasFolder || startFolder === "yes" ? (
+            <>
+              <p className="field-help">
+                {hasFolder ? "Add the buyer's paperwork to their Dropbox folder" : "Add the buyer's paperwork to the new folder"} (optional; you can add these later too). Each is saved as “{(address || "Street").split(",")[0].trim()} - …”.
+              </p>
+              <div className="buyer-start-docs">
+                {BUYER_START_DOCS.map((d) => (
+                  <BuyerDocSlot
+                    key={d.key}
+                    label={d.label}
+                    file={buyerFiles[d.key]}
+                    onFile={(f) => setBuyerFiles((cur) => {
+                      const next = { ...cur };
+                      if (f) next[d.key] = f;
+                      else delete next[d.key];
+                      return next;
+                    })}
+                  />
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="field-help">After submitting, open the deal and use “Pair Existing Folder” to connect their folder, then add the paperwork there.</p>
+          )}
+        </fieldset>
+      )}
 
       {side === "Split" && (
         <fieldset>
@@ -557,6 +616,47 @@ function AttorneyField({ label, name, onNameChange, tbd, onTbdChange, attorneys 
         />
         TBD
       </span>
+    </label>
+  );
+}
+
+/** One drop/choose slot for a buyer document (kept until Submit). */
+function BuyerDocSlot({ label, file, onFile }) {
+  const [over, setOver] = useState(false);
+  const pick = (list) => {
+    const f = [...(list || [])][0];
+    if (f) onFile(f);
+  };
+  return (
+    <label
+      className={`buyer-doc-slot ${file ? "buyer-doc-slot--set" : ""} ${over ? "check-dropzone--over" : ""}`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        pick(e.dataTransfer.files);
+      }}
+    >
+      <input type="file" accept="application/pdf,image/*" hidden onChange={(e) => pick(e.target.files)} />
+      <span className="buyer-doc-label">{file ? "✓ " : ""}{label}</span>
+      <span className="field-help buyer-doc-file">{file ? file.name : "Drop or tap to choose"}</span>
+      {file && (
+        <button
+          type="button"
+          className="license-mini-btn"
+          onClick={(e) => {
+            e.preventDefault();
+            onFile(null);
+          }}
+          aria-label={`Remove ${label}`}
+        >
+          Remove
+        </button>
+      )}
     </label>
   );
 }

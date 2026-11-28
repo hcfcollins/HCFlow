@@ -2018,3 +2018,11 @@ textarea.notes-medium { min-height: 9em; }
 .inbox-list + .inbox-list, .inbox-list + .inbox-group, .inbox-group + .inbox-list, .inbox-group + .inbox-group { margin-top: 8px; }
 .inbox-group { border: 1px dashed var(--color-border-blue); border-radius: 12px; padding: 8px; background: var(--color-bg-cream-alt); }
 .inbox-group-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; font-size: 13px; }
+
+/* Under Contract (buyer): start folder + starting paperwork */
+.buyer-start-docs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 6px; }
+.buyer-doc-slot { display: flex; flex-direction: column; gap: 2px; padding: 10px; border: 1.5px dashed var(--color-border-input); border-radius: 10px; background: var(--color-white); cursor: pointer; font-size: 13px; min-width: 0; }
+.buyer-doc-slot--set { border-style: solid; border-color: var(--color-success-text); background: var(--color-success-bg); }
+.buyer-doc-label { font-weight: 700; color: var(--color-navy); }
+.buyer-doc-file { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.buyer-doc-slot .license-mini-btn { align-self: flex-start; margin-top: 4px; }
