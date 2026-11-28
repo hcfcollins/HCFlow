@@ -2014,3 +2014,4 @@ textarea.notes-medium { min-height: 9em; }
 .linked-closeout-bar { padding: 10px 16px 0; display: flex; flex-direction: column; gap: 6px; }
 .linked-closeout-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .linked-closeout-total { margin: 0; }
+.inbox-closeout-btn { background: var(--color-pink); border-color: var(--color-pink); }

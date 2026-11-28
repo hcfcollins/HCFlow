@@ -137,7 +137,7 @@ function InboxRow({ doc, dealOptions, transactions, onDone, onOpenDetail }) {
   const isCheck = /check/.test(doc.doc_type || "");
   const options = deal && !dealOptions.some((t) => t.id === deal.id) ? [deal, ...dealOptions] : dealOptions;
 
-  async function file() {
+  async function file({ closeOut = false } = {}) {
     if (!dealId) return setError("Pick the deal first.");
     setBusy(true);
     setError(null);
@@ -147,6 +147,16 @@ function InboxRow({ doc, dealOptions, transactions, onDone, onOpenDetail }) {
       showToast(`Filed to ${deal?.address}${both ? " (both sides)" : ""}${r.prefilled ? ` — check amount ${money(r.amount)} filled in` : ""}`);
       window.dispatchEvent(new Event("hcflow:refresh"));
       onDone();
+      if (closeOut && deal) {
+        // Straight into the Close-Out Calculator, with the check amount just filed.
+        const co = deal.closeouts || {};
+        const isCheckDoc = docName === "Commission Check" || /check/.test(doc.doc_type || "");
+        onOpenDetail?.({
+          ...deal,
+          closeouts: isCheckDoc ? { ...co, check_received: "Yes", ...(r.prefilled ? { check_amount: r.amount } : {}) } : co,
+          _openCloseout: Date.now(),
+        });
+      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -239,9 +249,14 @@ function InboxRow({ doc, dealOptions, transactions, onDone, onOpenDetail }) {
         )}
         {error && <div className="error-banner">{error}</div>}
         <div className="inbox-controls">
-          <button type="button" className="google-btn" onClick={file} disabled={busy || !dealId}>
+          <button type="button" className="google-btn" onClick={() => file()} disabled={busy || !dealId}>
             {busy ? "Filing…" : "File it"}
           </button>
+          {deal && deal.stage !== "closed" && (
+            <button type="button" className="google-btn inbox-closeout-btn" onClick={() => file({ closeOut: true })} disabled={busy} title="File it, then open this deal's Close-Out Calculator">
+              File &amp; close out
+            </button>
+          )}
           <button type="button" className="comps-status-btn" onClick={view} disabled={busy}>
             View
           </button>
