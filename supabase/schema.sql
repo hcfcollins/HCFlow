@@ -787,3 +787,16 @@ insert into storage.buckets (id, name, public) values ('inbound-docs', 'inbound-
 select cron.schedule('flow-inbox', '*/10 * * * *', replace(command, 'daily-todo-digest', 'inbound-docs'))
 from cron.job where command ilike '%daily-todo-digest%' limit 1;
 notify pgrst, 'reload schema';
+
+-- Postable (mailed cards): closed buyer clients are added to the Postable
+-- address book by the postable-sync function. The contact's Postable uuid is
+-- kept on the deal so it's never added twice; the Postable access token lives
+-- in app_secrets, which no app user can read (no policies → service role only).
+alter table transactions add column if not exists postable_contact_id text;
+create table if not exists app_secrets (
+  key text primary key,
+  value text not null,
+  updated_at timestamptz not null default now()
+);
+alter table app_secrets enable row level security;
+notify pgrst, 'reload schema';

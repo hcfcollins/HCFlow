@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { syncDealToPostable } from "../lib/postable";
 import { Copy, X } from "lucide-react";
 import RadioGroup from "./RadioGroup";
 import FolderOrganizer from "./FolderOrganizer";
@@ -363,6 +364,14 @@ export default function CloseoutCalculator({ transaction, onCancel, onSaved }) {
         sign_returned: signReturned,
       });
       showToast("Close-out saved — deal marked Closed");
+
+      // Our buyer clients → Postable with their new address. Best-effort.
+      syncDealToPostable(transaction.id)
+        .then((r) => {
+          if (r?.ok) showToast(`${r.name} ${r.action === "updated" ? "updated" : "added"} in Postable (${r.group})`);
+          else if (r?.skipped && /company|trust|last name|connected/.test(r.skipped)) showToast(`Not added to Postable — ${r.skipped}`);
+        })
+        .catch((e) => showToast(`Couldn't add to Postable: ${e.message}`));
 
       // Post-check follow-ups still open → Fran's to-dos (once each).
       try {

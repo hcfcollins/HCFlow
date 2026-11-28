@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import PostableConnect from "./PostableConnect";
 import { FileText, Copy, Check, ArrowLeft, Mail, Plus, X, CheckCircle2, AlertCircle, Upload, CalendarDays } from "lucide-react";
 import { isTrackingOnboarding, onboardingItemsFor, buildWelcomeEmail } from "../lib/onboarding";
 import { openEmailCompose } from "../lib/clientEmail";
@@ -92,6 +93,7 @@ export default function ManageAgents({ onBack, focusAgentId = null }) {
       {!loading && <OnboardingTodos agents={agents} onChanged={load} />}
 
       <BrokerageLicenses focused={focusAgentId === "brokerage"} />
+      <PostableConnect />
 
       {showAddAgent && (
         <AddAgentForm
