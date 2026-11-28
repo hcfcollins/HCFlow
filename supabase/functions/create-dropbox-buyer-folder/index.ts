@@ -17,7 +17,8 @@
 // "numbered for sort order" convention as LISTING_SUBFOLDERS. Not confirmed
 // against a real existing buyer folder the way the listing set was — adjust
 // if Fran has an established buyer-side folder structure already in use.
-const BUYER_SUBFOLDERS = ["1) Purchase & Sale Agreement", "2) Inspection", "3) Financing", "4) Closing Docs"];
+// No subfolders (Fran, Nov 2026 — "too confusing"): everything for a buyer
+// deal goes in the one folder, named "<address> - <Seller last> to <Buyer last>".
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -35,12 +36,24 @@ function sanitizeFolderName(name: string): string {
   return name.replace(/[/\\<>:"|?*]/g, "-").trim().replace(/[. ]+$/, "");
 }
 
-// Buyer Name is freeform (e.g. "John & Jane Doe"), so this is a best-effort
-// guess — the last whitespace-separated word — not a real name parser.
-function getBuyerLastName(buyerName: string | null | undefined): string | null {
-  if (!buyerName) return null;
-  const words = buyerName.trim().split(/\s+/);
-  return words.length ? words[words.length - 1] : null;
+// "Brien and Melinda Sargent" → "Sargent"; "Tammy Marshall and Andreas
+// Atkinson" → "Marshall"; "568 Riverhouse LLC" → "568 Riverhouse". Best-effort.
+const ENTITY_SUFFIX = /[,\s]+(llc|l\.l\.c\.?|inc\.?|corp\.?|co\.|ltd\.?|lp|llp)\.?$/i;
+function lastNameOf(name: string | null | undefined): string | null {
+  const clean = String(name || "")
+    .replace(/,?\s*(and\s*\/?\s*or|or)\s+assigns?\b|,?\s*et\.?\s*al\.?/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!clean) return null;
+  if (/\b(llc|l\.l\.c|inc|corp|company|ltd|trust|trustee|estate|properties|holdings|partners|lp|llp)\b/i.test(clean)) {
+    // A company/trust: its name, short, without the "LLC".
+    const parts = clean.split(/\s*(?:,|&|\band\b)\s*/i).filter(Boolean);
+    const entity = parts.find((p) => /\b(llc|l\.l\.c|inc|corp|company|ltd|trust|estate|properties|holdings|partners|lp|llp)\b/i.test(p)) || parts[0];
+    return entity.replace(ENTITY_SUFFIX, "").split(/\s+/).slice(0, 4).join(" ");
+  }
+  const people = clean.split(/\s*(?:&|\band\b|\/|;|,)\s*/i).map((p) => p.trim().split(/\s+/)).filter((w) => w.length && w[0]);
+  const withLast = people.find((w) => w.length >= 2) || people[0];
+  return withLast ? withLast[withLast.length - 1] : null;
 }
 
 // ----- Rename-proof folder lookup (same helper in each function that uses a
@@ -207,7 +220,7 @@ Deno.serve(async (req) => {
     }
 
     const txRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}&select=id,address,buyer_name,agent:agents!transactions_agent_id_fkey(name,dropbox_buyer_path)`,
+      `${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}&select=id,address,buyer_name,seller_name,agent:agents!transactions_agent_id_fkey(name,dropbox_buyer_path)`,
       {
         headers: {
           apikey: SERVICE_ROLE_KEY,
@@ -229,18 +242,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    const folderLabel = getBuyerLastName(tx.buyer_name)
-      ? `${getBuyerLastName(tx.buyer_name)} - ${tx.address}`
-      : tx.address;
+    const seller = lastNameOf(tx.seller_name);
+    const buyer = lastNameOf(tx.buyer_name);
+    const folderLabel = seller && buyer ? `${tx.address} - ${seller} to ${buyer}` : buyer ? `${tx.address} - ${buyer}` : tx.address;
     const folderPath = `${parentPath}/${sanitizeFolderName(folderLabel)}`;
 
     const accessToken = await getDropboxAccessToken();
     const actualPath = await createDropboxFolder(accessToken, folderPath);
-    // Sequential, not Promise.all — creating these back-to-back in parallel is
-    // exactly what triggers Dropbox's too_many_write_operations rate limit.
-    for (const name of BUYER_SUBFOLDERS) {
-      await createDropboxFolder(accessToken, `${actualPath}/${name}`);
-    }
     const sharedLink = await getOrCreateSharedLink(accessToken, actualPath);
 
     const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${transactionId}`, {

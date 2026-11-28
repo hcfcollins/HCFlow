@@ -939,7 +939,7 @@ export async function submitUnderContract(fields) {
     inspectionDate, financingDate, appraiser, holdDeposit, depositAmount, depositDueDate,
     secondDeposit, secondDepositAmount, secondDepositDueDate,
     clientSource, referralOwedTo, referralPct, tcFeeType,
-    townWaterSewer, existingId,
+    townWaterSewer, existingId, clientEmails,
   } = fields;
 
   const txPatch = {
@@ -958,6 +958,8 @@ export async function submitUnderContract(fields) {
     next_date: closingDate || null,
     stage: "contract",
     town_water_sewer: townWaterSewer,
+    // Our client's email(s) — only when given, so a resubmit never wipes them.
+    ...(Array.isArray(clientEmails) && clientEmails.length ? { seller_emails: clientEmails } : {}),
   };
 
   // Each side of a deal is its own row (own id, agent, commission, referral,
@@ -1083,7 +1085,7 @@ export async function submitUnderContract(fields) {
     holdDeposit === "Yes" && depositAmount
       ? { label: "Earnest Money Deposit", amount: depositAmount, due_date: depositDueDate || null }
       : null,
-    secondDeposit === "Yes" && secondDepositAmount
+    holdDeposit === "Yes" && secondDeposit === "Yes" && secondDepositAmount
       ? { label: "Second Earnest Money Deposit", amount: secondDepositAmount, due_date: secondDepositDueDate || null }
       : null,
   ].filter(Boolean);
@@ -1726,7 +1728,7 @@ export const BUYER_START_DOCS = [
   { key: "mandatory_disclosure", label: "Mandatory Disclosure" },
   { key: "buyer_agency", label: "Buyer Agency Agreement" },
   { key: "signed_packet", label: "Signed Packet" },
-  { key: "executed_contract", label: "Fully Executed Contract", folder: /purchase|contract|p\s*&\s*s/i },
+  { key: "executed_contract", label: "Fully Executed Contract" },
 ];
 
 /** Uploads the buyer's starting paperwork into the deal's Dropbox folder as

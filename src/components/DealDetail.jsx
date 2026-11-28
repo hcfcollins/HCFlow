@@ -523,7 +523,9 @@ export default function DealDetail({
               <div>
                 {transaction.commission_data?.hold_deposit === "Yes"
                   ? `$${Number(transaction.commission_data.deposit_amount).toLocaleString()} — held by Hall Collins`
-                  : "Not held by Hall Collins"}
+                  : transaction.commission_data?.deposit_amount
+                    ? `$${Number(transaction.commission_data.deposit_amount).toLocaleString()} — not held by Hall Collins`
+                    : "Not held by Hall Collins"}
               </div>
             </div>
             <div>

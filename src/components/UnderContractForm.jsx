@@ -58,6 +58,7 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
   const hasFolder = Boolean(initialData?.dropbox_folder_url || initialData?.dropbox_folder_path);
   const [startFolder, setStartFolder] = useState("yes");
   const [buyerFiles, setBuyerFiles] = useState({});
+  const [clientEmailsText, setClientEmailsText] = useState((initialData?.seller_emails || []).join(", ") || draft?.clientEmailsText || "");
   const [nextSteps, setNextSteps] = useState(null); // after submit (buyer): offer the Next Steps email
   // On a Split deal, which side are *your* clients on — decides whether it's
   // grouped under Sellers or Buyers on the Under Contract page.
@@ -118,7 +119,7 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
     propertyStyle, price, buyerAttorney, buyerAttorneyTbd, sellerAttorney, sellerAttorneyTbd,
     commissionPct, closingDate, inspectionDate, financingDate, appraiser, appraiserOther,
     holdDeposit, depositAmount, depositDueDate, secondDeposit, secondDepositAmount, secondDepositDueDate, tcFeeType,
-    clientSource, referralOwedTo, referralPctChoice, referralPct, townWaterSewer, tcFeeTouched, buyerUnrepresented,
+    clientSource, referralOwedTo, referralPctChoice, referralPct, townWaterSewer, tcFeeTouched, buyerUnrepresented, clientEmailsText,
   });
 
   useEffect(() => {
@@ -194,8 +195,10 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
         financingDate: financingDate || null,
         appraiser: appraiser === "Other" ? appraiserOther : "TBD",
         holdDeposit,
-        depositAmount: holdDeposit === "Yes" && depositAmount ? Number(depositAmount) : null,
-        depositDueDate: holdDeposit === "Yes" && depositDueDate ? depositDueDate : null,
+        // Asked on every deal (for the buyer's Next Steps email); only a deposit
+        // we hold goes to Xero / trust reminders (submitUnderContract checks holdDeposit).
+        depositAmount: depositAmount ? Number(depositAmount) : null,
+        depositDueDate: depositDueDate || null,
         secondDeposit,
         secondDepositAmount: secondDeposit === "Yes" && secondDepositAmount ? Number(secondDepositAmount) : null,
         secondDepositDueDate: secondDeposit === "Yes" && secondDepositDueDate ? secondDepositDueDate : null,
@@ -205,6 +208,7 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
         tcFeeType: tcFeeType || null,
         townWaterSewer: side !== "Buy" ? townWaterSewer : null,
         existingId: initialData?.id || null,
+        clientEmails: clientEmailsText.split(/[,;\s]+/).map((e) => e.trim()).filter((e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)),
         createBuyerFolder: side === "Buy" ? hasFolder || startFolder === "yes" : undefined,
       });
 
@@ -384,6 +388,18 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
         Buyer Name
         <input value={buyerName} onChange={(e) => setBuyerName(e.target.value)} />
       </label>
+
+      <label>
+        {side === "Buy" || (side === "Split" && splitClientSide === "Buy") ? "Buyer Email(s)" : side === "Split" && !splitClientSide ? "Client Email(s)" : "Seller Email(s)"}
+        <input
+          type="text"
+          inputMode="email"
+          value={clientEmailsText}
+          onChange={(e) => setClientEmailsText(e.target.value)}
+          placeholder="client@email.com, second client…"
+        />
+        <span className="field-help">Our client's email — used for the Next Steps email and closing documents. Separate two with a comma.</span>
+      </label>
       <label>
         Address
         <input value={address} onChange={(e) => setAddress(e.target.value)} required />
@@ -474,22 +490,19 @@ export default function UnderContractForm({ currentAgent, initialData, onCancel,
       </fieldset>
 
       <fieldset>
-        <legend>Will we hold the deposit?</legend>
+        <legend>Earnest Money Deposit</legend>
+        <input
+          type="number"
+          placeholder="Deposit amount"
+          value={depositAmount}
+          onChange={(e) => setDepositAmount(e.target.value)}
+        />
+        <label className="uc-inline-label">
+          Deposit Due Date
+          <input type="date" value={depositDueDate} onChange={(e) => setDepositDueDate(e.target.value)} />
+        </label>
+        <div className="uc-subq">Will we hold the deposit?</div>
         <RadioGroup name="holdDeposit" value={holdDeposit} onChange={setHoldDeposit} options={["Yes", "No"]} />
-        {holdDeposit === "Yes" && (
-          <>
-            <input
-              type="number"
-              placeholder="Deposit amount"
-              value={depositAmount}
-              onChange={(e) => setDepositAmount(e.target.value)}
-            />
-            <label className="uc-inline-label">
-              Deposit Due Date
-              <input type="date" value={depositDueDate} onChange={(e) => setDepositDueDate(e.target.value)} />
-            </label>
-          </>
-        )}
       </fieldset>
 
       <fieldset>
