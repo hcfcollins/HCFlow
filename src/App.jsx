@@ -887,6 +887,7 @@ export default function App() {
           key={selectedTransaction.id}
           className={closingTransaction ? "deal-detail-exit" : "deal-detail-enter"}
           transaction={selectedTransaction}
+          allTransactions={txs}
           stages={viewerStages}
           currentAgent={effectiveAgent}
           onBack={handleCloseDetail}

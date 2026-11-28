@@ -2009,3 +2009,8 @@ textarea.notes-medium { min-height: 9em; }
 @keyframes hc-spin { to { transform: rotate(360deg); } }
 .inbox-both { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--color-text-subtle); }
 .inbox-both input { margin: 0; }
+
+/* Close-Out for both sides of one sale */
+.linked-closeout-bar { padding: 10px 16px 0; display: flex; flex-direction: column; gap: 6px; }
+.linked-closeout-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.linked-closeout-total { margin: 0; }

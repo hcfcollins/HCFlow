@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import LinkedCloseout from "./LinkedCloseout";
 import { Pencil, Mail, FileText, FolderOpen, ChevronDown, ChevronLeft, Instagram } from "lucide-react";
 import TodoList, { MissingInfoTodo } from "./TodoList";
 import RadioGroup from "./RadioGroup";
 import CheckboxGroup from "./CheckboxGroup";
 import GenerateCompForm from "./GenerateCompForm";
-import CloseoutCalculator from "./CloseoutCalculator";
 import ConfirmDialog from "./ConfirmDialog";
 import DropboxFolderPicker from "./DropboxFolderPicker";
 import ListingPacketPanel from "./ListingPacketPanel";
@@ -59,6 +59,7 @@ export function formatTime(t) {
 
 export default function DealDetail({
   transaction,
+  allTransactions = [],
   className,
   stages,
   currentAgent,
@@ -368,8 +369,9 @@ export default function DealDetail({
   // for everyone else.
   if (showCloseoutCalculator && isBroker) {
     return (
-      <CloseoutCalculator
+      <LinkedCloseout
         transaction={transaction}
+        transactions={allTransactions}
         onCancel={() => setShowCloseoutCalculator(false)}
         onSaved={() => {
           setShowCloseoutCalculator(false);

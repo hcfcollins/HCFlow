@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import LinkedCloseout from "./LinkedCloseout";
 import TrustReconciliation from "./TrustReconciliation";
 import { DollarSign, Ban, RotateCcw, ArrowLeft, Download } from "lucide-react";
 import { exportClientContacts } from "../lib/contactExport";
@@ -19,7 +20,6 @@ import { PROPERTY_STYLES } from "../lib/compFieldOptions";
 import { CLIENT_SOURCES } from "./UnderContractForm";
 import { formatDate } from "./DealDetail";
 import { TC_FEE_AMOUNTS, calculateCloseout, applyTcFee, round2 } from "../lib/commissionCalc";
-import CloseoutCalculator from "./CloseoutCalculator";
 import ConfirmDialog from "./ConfirmDialog";
 import BusinessStats from "./BusinessStats";
 
@@ -671,8 +671,9 @@ export default function SpreadsheetView({ transactions: rawTransactions, onBack,
 
   if (closingOutTx) {
     return (
-      <CloseoutCalculator
+      <LinkedCloseout
         transaction={closingOutTx}
+        transactions={rawTransactions}
         onCancel={() => setClosingOutTx(null)}
         onSaved={() => {
           setClosingOutTx(null);
